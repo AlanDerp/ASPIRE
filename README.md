@@ -30,7 +30,7 @@ The canonical procedure for a quick start is [`aspire/sim/.claude/libero/fix-loo
 
 ### Reproduce full paper results
 
-For any experiment other than the canonical Quick Start, name the suite and experiment explicitly. If neither is named, the agent should present this table and stop for selection.
+Name the suite and experiment explicitly. If neither is named, the agent should present this table and stop for selection.
 
 <table>
   <thead>
