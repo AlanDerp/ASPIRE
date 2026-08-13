@@ -4,15 +4,15 @@
 
 <img src="assets/media/covervideo.gif" alt="ASPIRE robot demonstrations" width="100%">
 
-ASPIRE starts from a simple idea: a robot solving its 100th task should no longer be as clueless as it was on its first. Coding agents observe multimodal sensory traces from simulation and real robots, debug failures, launch evolutionary searches over control programs, and distill the best know-how into an ever-expanding library. This turns continual learning into skill refinement rather than gradient descent: the “trained model” is a repository of sensorimotor skills, and “distributed training” is a panel of agents each practicing a different skill rather than workers sharding minibatches.
+ASPIRE starts from a simple idea: a robot solving its 100th task should no longer be as clueless as it was on its first. Coding agents read multimodal execution traces from simulation and real robots, debug failures, run evolutionary search over control programs, and distill what works into an ever-expanding skill library. Continual learning becomes skill accumulation rather than weight updates: the "trained model" is a repository of sensorimotor skills, and "distributed training" is a panel of agents each practicing a different skill rather than workers sharding minibatches.
 
-This reframes sim-to-real and cross-embodiment transfer. Instead of asking one end-to-end policy to absorb every visual shift and contact-physics mismatch, ASPIRE ships know-how instead of pixels or weights across tasks and robots. The robot still practices in the real world rather than transferring zero-shot, but it starts with a strategy instead of rediscovering one from scratch, reducing transfer-learning token cost by up to about 10× in our experiments.
+This reframes sim-to-real and cross-embodiment transfer. Rather than asking a single end-to-end policy to absorb every visual shift and contact-physics mismatch, ASPIRE transfers strategies across tasks and robots instead of pixels or weights. The robot still practices in the real world, but it begins with a strategy rather than rediscovering one, which cut transfer token cost by up to 10× in our experiments.
 
 ## Quick Start
 
 ### Run with a coding agent
 
-ASPIRE includes repository instructions for coding agents such as Codex and Claude Code. Just open your Coding Agent and type this:
+To get started with ASPIRE, launch a coding agent such as Codex or Claude Code and enter the following prompt:
 
 ```text
 Clone the repo: https://github.com/NVlabs/ASPIRE/, Read AGENTS.md and 
