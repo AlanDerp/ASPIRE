@@ -4,74 +4,102 @@
 
 <img src="assets/media/covervideo.gif" alt="ASPIRE robot demonstrations" width="100%">
 
-ASPIRE is a continual-learning robotics system that autonomously writes, debugs, and distills robot-control programs into reusable skills across simulation and real-world settings.
+ASPIRE starts from a simple idea: a robot solving its 100th task should no longer be as clueless as it was on its first. Coding agents observe multimodal sensory traces from simulation and real robots, debug failures, launch evolutionary searches over control programs, and distill the best know-how into an ever-expanding library. This turns continual learning into skill refinement rather than gradient descent: the “trained model” is a repository of sensorimotor skills, and “distributed training” is a panel of agents each practicing a different skill rather than workers sharding minibatches.
+
+This reframes sim-to-real and cross-embodiment transfer. Instead of asking one end-to-end policy to absorb every visual shift and contact-physics mismatch, ASPIRE ships know-how—not pixels or weights—across tasks and robots. The robot still practices in the real world rather than transferring zero-shot, but it starts with a strategy instead of rediscovering one from scratch, reducing transfer-learning token cost by up to about 10× in our experiments.
 
 ## Quick Start
 
 ### Run with a coding agent
 
-ASPIRE includes repository instructions for coding agents such as Codex and Claude Code. Clone the repository, open the agent at the repository root, and give it this request:
-
-**Reference agent environments:** ASPIRE is coding-agent agnostic. Our simulation workflow is packaged for reproduction with Claude Code, while the real-robot agent experiments were conducted with Codex. Other coding agents can follow the model-neutral instructions in [`AGENTS.md`](AGENTS.md), although orchestration behavior may differ.
+ASPIRE includes repository instructions for coding agents such as Codex and Claude Code. Just open your Coding Agent and type this:
 
 ```text
-Read AGENTS.md and run the complete ASPIRE LIBERO-Pro Goal-Swap Quick Start
-for all ten tasks in the libero_goal_swap suite.
+Clone the repo: https://github.com/NVlabs/ASPIRE/, Read AGENTS.md and run the complete ASPIRE LIBERO-Pro Goal-Swap Quick Start for all ten tasks in the libero_goal_swap suite.
 
-Before executing, report the required GPUs, credentials, gated weights,
-services, expected runtime, seed partitions, and output paths. Wait for
-my confirmation before launching. Do not access real-robot code or push
-repository changes.
+Before executing, report the required GPUs, credentials, gated weights, services, expected runtime, seed partitions, and output paths. Wait for my confirmation before launching. Do not access real-robot code.
 ```
 
-This Quick Start runs the complete LIBERO-Pro Goal-Swap Fix Loop suite rather than a short demo:
+The canonical procedure for a quick start is [`aspire/sim/.claude/libero/fix-loop/QUICKSTART.md`](aspire/sim/.claude/libero/fix-loop/QUICKSTART.md). The agent must complete preflight and wait for confirmation before installing dependencies, starting services, or launching trials.
 
-- **Suite and tasks:** all ten tasks in `libero_goal_swap`
-- **Development:** seeds 51–65 per task for initial code generation and repair
-- **Held-out evaluation:** seeds 1–50 per task using each selected fix
-- **Reference GPU topology:** SAM3, GraspNet, and PyRoKi on GPUs 0–2; five concurrent task slots on GPUs 3–7
-- **Scheduling:** each task retains its GPU through repair, skill promotion, and held-out evaluation; freed slots are refilled until all ten tasks finish
-- **Runtime:** potentially several days; failed trials can run for approximately 6–7 minutes each, and held-out seeds run sequentially within each task
-- **Completion:** ten selected `fix_code.py` files, reusable findings and promoted skills, traces and videos, and one immutable 50-seed validation manifest and pass rate per task—not a guaranteed success threshold
+**Reference agent environments:** ASPIRE is coding-agent agnostic. Our simulation workflow is packaged for reproduction with Claude Code with Opus 4.6 1M, while the real-robot agent experiments were conducted with Codex. All coding agents can follow the model-neutral instructions in [`AGENTS.md`](AGENTS.md), although orchestration behavior may differ.
 
-The canonical procedure is [`aspire/sim/.claude/libero/fix-loop/QUICKSTART.md`](aspire/sim/.claude/libero/fix-loop/QUICKSTART.md). The agent must complete preflight and wait for confirmation before installing dependencies, starting services, or launching trials.
-
-### Choose another paper experiment
+### Reproduce paper results
 
 For any experiment other than the canonical Quick Start, name the suite and experiment explicitly. If neither is named, the agent should present this table and stop for selection.
 
-| Suite | Experiment | Runbook |
-| ----- | ---------- | ------- |
-| LIBERO-Pro | Fix Loop | [`libero/fix-loop/`](aspire/sim/.claude/libero/fix-loop/INSTRUCTIONS.md) |
-| LIBERO-Pro | Fix Loop + Evolutionary Search | [`libero/evosearch/`](aspire/sim/.claude/libero/evosearch/INSTRUCTIONS.md) |
-| LIBERO | Zero-Shot Transfer | [`libero/zeroshot-transfer/`](aspire/sim/.claude/libero/zeroshot-transfer/INSTRUCTIONS.md) |
-| LIBERO-Long-Pro | Library-Size Scaling | [`libero/library-size-scaling/`](aspire/sim/.claude/libero/library-size-scaling/INSTRUCTIONS.md) |
-| LIBERO-Long-Pro | Inference-Time Scaling | [`libero/inference-time-scaling/`](aspire/sim/.claude/libero/inference-time-scaling/INSTRUCTIONS.md) |
-| Robosuite | Fix Loop | [`robosuite/fix-loop/`](aspire/sim/.claude/robosuite/fix-loop/INSTRUCTIONS.md) |
-| Robosuite | Fix Loop + Evolutionary Search | [`robosuite/evosearch/`](aspire/sim/.claude/robosuite/evosearch/INSTRUCTIONS.md) |
-| Robosuite | Training Law | [`robosuite/training-law/`](aspire/sim/.claude/robosuite/training-law/INSTRUCTIONS.md) |
-| BEHAVIOR-1K | Fix Loop | [`behavior/fix-loop/`](aspire/sim/.claude/behavior/fix-loop/INSTRUCTIONS.md) |
+<table>
+  <thead>
+    <tr>
+      <th>Suite</th>
+      <th>Experiment</th>
+      <th>Runbook</th>
+      <th>Video</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>LIBERO-Pro</td>
+      <td>Fix Loop</td>
+      <td><a href="aspire/sim/.claude/libero/fix-loop/INSTRUCTIONS.md"><code>libero/fix-loop/</code></a></td>
+      <td rowspan="3"><video src="https://github.com/user-attachments/assets/15c0b425-9fe9-4313-8a5b-8c7da54c24b7" width="240" controls></video></td>
+    </tr>
+    <tr>
+      <td>Robosuite</td>
+      <td>Fix Loop</td>
+      <td><a href="aspire/sim/.claude/robosuite/fix-loop/INSTRUCTIONS.md"><code>robosuite/fix-loop/</code></a></td>
+    </tr>
+    <tr>
+      <td>BEHAVIOR-1K</td>
+      <td>Fix Loop</td>
+      <td><a href="aspire/sim/.claude/behavior/fix-loop/INSTRUCTIONS.md"><code>behavior/fix-loop/</code></a></td>
+    </tr>
+    <tr>
+      <td>LIBERO-Pro</td>
+      <td>Evolutionary Search</td>
+      <td><a href="aspire/sim/.claude/libero/evosearch/INSTRUCTIONS.md"><code>libero/evosearch/</code></a></td>
+      <td rowspan="2"><video src="https://github.com/user-attachments/assets/edd2e5e1-b7d6-408a-bb62-23729df14db2" width="240" controls></video></td>
+    </tr>
+    <tr>
+      <td>Robosuite</td>
+      <td>Evolutionary Search</td>
+      <td><a href="aspire/sim/.claude/robosuite/evosearch/INSTRUCTIONS.md"><code>robosuite/evosearch/</code></a></td>
+    </tr>
+    <tr>
+      <td>LIBERO</td>
+      <td>Zero-Shot Transfer</td>
+      <td><a href="aspire/sim/.claude/libero/zeroshot-transfer/INSTRUCTIONS.md"><code>libero/zeroshot-transfer/</code></a></td>
+      <td rowspan="4"><video src="https://github.com/user-attachments/assets/8676fa10-6719-477f-9d60-a4ad241a3de3" width="240" controls></video></td>
+    </tr>
+    <tr>
+      <td>LIBERO-Long-Pro</td>
+      <td>Library-Size Scaling</td>
+      <td><a href="aspire/sim/.claude/libero/library-size-scaling/INSTRUCTIONS.md"><code>libero/library-size-scaling/</code></a></td>
+    </tr>
+    <tr>
+      <td>LIBERO-Long-Pro</td>
+      <td>Inference-Time Scaling</td>
+      <td><a href="aspire/sim/.claude/libero/inference-time-scaling/INSTRUCTIONS.md"><code>libero/inference-time-scaling/</code></a></td>
+    </tr>
+    <tr>
+      <td>Robosuite</td>
+      <td>Training Law</td>
+      <td><a href="aspire/sim/.claude/robosuite/training-law/INSTRUCTIONS.md"><code>robosuite/training-law/</code></a></td>
+    </tr>
+    <tr>
+      <td>YAM Bimanual</td>
+      <td>Sim-to-Real</td>
+      <td><a href="aspire/real/README.md"><code>aspire/real/</code></a></td>
+      <td><video src="https://github.com/user-attachments/assets/91b38cd3-3a38-4f56-9758-f986d50c5956" width="240" controls></video></td>
+    </tr>
+  </tbody>
+</table>
+
 
 Before a paper-scale launch, the agent must report the selected tasks, seed schedule, expected trial count and runtime, GPU and credential requirements, services, and output paths, then wait for explicit confirmation.
 
-### Manual setup
-
-- Simulation installation, suite-specific environments, smoke tests, and troubleshooting: [`aspire/sim/README.md`](aspire/sim/README.md)
-- Simulation experiment registry and runbooks: [`aspire/sim/.claude/README.md`](aspire/sim/.claude/README.md)
-- Real-robot setup and operator-controlled workflows: [`aspire/real/README.md`](aspire/real/README.md)
-
 > [!WARNING]
 > ASPIRE executes language-model-generated Python with full import access. Trial processes and watchdogs are not a security sandbox. Run generated code on an isolated host without credentials or sensitive mounts, restrict network access, and never grant a simulation agent access to physical hardware. Real-robot work requires the controls in [`aspire/real/AGENTS.md`](aspire/real/AGENTS.md) and separate operator authorization.
-
-## Repository Layout
-
-| Area | Purpose |
-| ---- | ------- |
-| [`aspire/sim/`](aspire/sim/README.md) | Simulation workspace for LIBERO-PRO, Robosuite, and BEHAVIOR-1K setup, configs, scripts, tests, agent runbooks, and outputs. |
-| [`aspire/sim/cap/`](aspire/sim/cap/) | Code-as-policy simulation package imported as `aspire.sim.cap.*`. |
-| [`aspire/real/`](aspire/real/README.md) | Real-station deployment code, operator workflows, and YAM robot integrations. |
-
-The simulation and real-robot workspaces intentionally keep separate commands, dependencies, runtime artifacts, and safety contracts. The `yam-simulation-transfer` skill links strategy knowledge across them without reusing simulator coordinates or APIs on the physical robot.
 
 ## Contribution Guidelines
 
@@ -94,7 +122,7 @@ If you find ASPIRE useful in your research, please cite:
   title   = {ASPIRE: Agentic /Skills Discovery for Robotics},
   author  = {Runyu Lu and Yubo Wu and Ethan Kou and Letian Fu and Wenli Xiao and
              Ajay Mandlekar and Yinzhen Xu and Guanya Shi and Ken Goldberg and
-             Ang Chen and Mosharaf Chowdhury and Yuke Zhu and Linxi Fan and Guanzhi Wang},
+             Ang Chen and Mosharaf Chowdhury and Yuke Zhu and Linxi "Jim" Fan and Guanzhi Wang},
   year    = {2026},
   journal = {arXiv preprint arXiv:2607.00272},
   url     = {https://arxiv.org/abs/2607.00272}
