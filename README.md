@@ -6,7 +6,7 @@
 
 ASPIRE starts from a simple idea: a robot solving its 100th task should no longer be as clueless as it was on its first. Coding agents observe multimodal sensory traces from simulation and real robots, debug failures, launch evolutionary searches over control programs, and distill the best know-how into an ever-expanding library. This turns continual learning into skill refinement rather than gradient descent: the “trained model” is a repository of sensorimotor skills, and “distributed training” is a panel of agents each practicing a different skill rather than workers sharding minibatches.
 
-This reframes sim-to-real and cross-embodiment transfer. Instead of asking one end-to-end policy to absorb every visual shift and contact-physics mismatch, ASPIRE ships know-how—not pixels or weights—across tasks and robots. The robot still practices in the real world rather than transferring zero-shot, but it starts with a strategy instead of rediscovering one from scratch, reducing transfer-learning token cost by up to about 10× in our experiments.
+This reframes sim-to-real and cross-embodiment transfer. Instead of asking one end-to-end policy to absorb every visual shift and contact-physics mismatch, ASPIRE ships know-how instead of pixels or weights across tasks and robots. The robot still practices in the real world rather than transferring zero-shot, but it starts with a strategy instead of rediscovering one from scratch, reducing transfer-learning token cost by up to about 10× in our experiments.
 
 ## Quick Start
 
@@ -15,16 +15,20 @@ This reframes sim-to-real and cross-embodiment transfer. Instead of asking one e
 ASPIRE includes repository instructions for coding agents such as Codex and Claude Code. Just open your Coding Agent and type this:
 
 ```text
-Clone the repo: https://github.com/NVlabs/ASPIRE/, Read AGENTS.md and run the complete ASPIRE LIBERO-Pro Goal-Swap Quick Start for all ten tasks in the libero_goal_swap suite.
+Clone the repo: https://github.com/NVlabs/ASPIRE/, Read AGENTS.md and 
+run the complete ASPIRE LIBERO-Pro Goal-Swap Quick Start for all ten 
+tasks in the libero_goal_swap suite.
 
-Before executing, report the required GPUs, credentials, gated weights, services, expected runtime, seed partitions, and output paths. Wait for my confirmation before launching. Do not access real-robot code.
+Before executing, report the required GPUs, credentials, gated weights, 
+services, expected runtime, seed partitions, and output paths. Wait for 
+my confirmation before launching. Do not access real-robot code.
 ```
 
 The canonical procedure for a quick start is [`aspire/sim/.claude/libero/fix-loop/QUICKSTART.md`](aspire/sim/.claude/libero/fix-loop/QUICKSTART.md). The agent must complete preflight and wait for confirmation before installing dependencies, starting services, or launching trials.
 
 **Reference agent environments:** ASPIRE is coding-agent agnostic. Our simulation workflow is packaged for reproduction with Claude Code with Opus 4.6 1M, while the real-robot agent experiments were conducted with Codex. All coding agents can follow the model-neutral instructions in [`AGENTS.md`](AGENTS.md), although orchestration behavior may differ.
 
-### Reproduce paper results
+### Reproduce full paper results
 
 For any experiment other than the canonical Quick Start, name the suite and experiment explicitly. If neither is named, the agent should present this table and stop for selection.
 
