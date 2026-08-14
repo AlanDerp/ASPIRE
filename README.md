@@ -5,7 +5,9 @@
 <img src="assets/media/covervideo.gif" alt="ASPIRE robot demonstrations" width="100%">
 
 ASPIRE is a new type of continual learning: "training" is skill refinement instead of gradient descent. 
+
 "Trained model" is a repo of sensorimotor skills instead of floating weights. 
+
 “Distributed training” is a panel of agents each practicing a different skill instead of sharded minibatches.
 
 ## Quick Start
