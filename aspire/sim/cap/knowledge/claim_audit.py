@@ -266,12 +266,63 @@ def _validate_maintenance_evidence(
     return errors
 
 
+def _validate_negative_transfer_evidence(
+    observations: list[Observation],
+    report: dict[str, Any] | None,
+) -> tuple[list[str], float | None]:
+    if not report:
+        return ["negative-transfer review is missing"], None
+    payload = {key: value for key, value in report.items() if key != "review_hash"}
+    errors = []
+    if report.get("review_hash") != content_hash(payload):
+        errors.append("negative-transfer review hash mismatch")
+    if report.get("ready") is not True:
+        errors.append("negative-transfer review is not ready")
+    if report.get("observations_hash") != content_hash(observations):
+        errors.append("negative-transfer review observations hash mismatch")
+    adverse = {
+        value.run_job_id: value
+        for value in observations
+        if value.corpus_kind == "organic"
+        and value.negative_transfer is not None
+        and value.negative_transfer > 0
+    }
+    cases = {
+        str(case.get("run_job_id")): case
+        for case in report.get("cases", [])
+        if isinstance(case, dict)
+    }
+    if set(cases) != set(adverse):
+        errors.append("negative-transfer reviewed cases do not match adverse jobs")
+    if report.get("adverse_observation_count") != len(adverse):
+        errors.append("negative-transfer adverse observation count mismatch")
+    f_jobs = {job_id for job_id, value in adverse.items() if value.treatment == "F"}
+    if not f_jobs:
+        errors.append("negative-transfer review has no adverse F cases")
+        return errors, None
+    attributed = {
+        job_id
+        for job_id in f_jobs
+        if cases.get(job_id, {}).get("final_attribution") == "knowledge-caused"
+        and cases.get(job_id, {}).get("mechanism")
+        in {
+            "over-broad-principle",
+            "missed-exception",
+            "stale-guidance",
+            "unresolved-conflict",
+            "wrong-grounding",
+        }
+    }
+    return errors, len(attributed) / len(f_jobs)
+
+
 def audit_claim(
     observations: list[Observation],
     preregistration: dict[str, Any],
     *,
     cost_report: dict[str, Any] | None = None,
     maintenance_simulation: dict[str, Any] | None = None,
+    negative_transfer_review: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Evaluate only the hypotheses and decision rules fixed in the blueprint."""
     engineering_report = build_report(observations, preregistration)
@@ -291,6 +342,12 @@ def audit_claim(
     maintenance_evidence_errors = _validate_maintenance_evidence(
         maintenance_simulation,
         minimum_scenarios=minimum_tasks,
+    )
+    negative_transfer_errors, negative_transfer_attribution = (
+        _validate_negative_transfer_evidence(observations, negative_transfer_review)
+    )
+    attribution_min = float(
+        decision_rules.get("negative_transfer_attribution_min", 0.5)
     )
     scales = sorted(int(value) for value in preregistration.get("library_scales", []))
     medium_scale = scales[len(scales) // 2] if scales else 1
@@ -445,6 +502,20 @@ def audit_claim(
             greater,
             "F must show more negative transfer than E.",
         ),
+        {
+            "id": "exception-gate-human-attribution",
+            "evaluable": not negative_transfer_errors
+            and negative_transfer_attribution is not None,
+            "passed": not negative_transfer_errors
+            and negative_transfer_attribution is not None
+            and negative_transfer_attribution >= attribution_min,
+            "requirement": (
+                "The preregistered fraction of adverse F cases must be "
+                "human-attributed to knowledge/exception mechanisms."
+            ),
+            "minimum_attribution_rate": attribution_min,
+            "observed_attribution_rate": negative_transfer_attribution,
+        },
     ]
     repeatability = _repeatability(
         observations,
@@ -456,6 +527,7 @@ def audit_claim(
         not preregistration_errors
         and not cost_evidence_errors
         and not maintenance_evidence_errors
+        and not negative_transfer_errors
         and engineering_report["claim_status"]
         == "ready-for-prespecified-statistical-analysis"
         and coverage["organic_and_synthetic_reported_separately"]
@@ -476,7 +548,8 @@ def audit_claim(
         and rule_by_id["redundancy-exposure-reduction"]["passed"],
         "H4": rule_by_id["total-maintenance-cost"]["passed"]
         and rule_by_id["invalidation-blast-radius"]["passed"],
-        "H5": rule_by_id["exception-gate-necessity"]["passed"],
+        "H5": rule_by_id["exception-gate-necessity"]["passed"]
+        and rule_by_id["exception-gate-human-attribution"]["passed"],
         "H6": rule_by_id["principle-slope-vs-summary"]["passed"],
     }
     if not evaluable:
@@ -508,9 +581,13 @@ def audit_claim(
         "preregistration_integrity_errors": preregistration_errors,
         "cost_evidence_errors": cost_evidence_errors,
         "maintenance_evidence_errors": maintenance_evidence_errors,
+        "negative_transfer_evidence_errors": negative_transfer_errors,
         "cost_report_hash": (cost_report or {}).get("cost_report_hash"),
         "maintenance_simulation_hash": (maintenance_simulation or {}).get(
             "simulation_hash"
+        ),
+        "negative_transfer_review_hash": (negative_transfer_review or {}).get(
+            "review_hash"
         ),
         "engineering_coverage": coverage,
         "rules": rules,
@@ -534,6 +611,7 @@ def audit_claim_files(
     preregistration_path: Path,
     cost_report_path: Path,
     maintenance_simulation_path: Path,
+    negative_transfer_review_path: Path,
 ) -> dict[str, Any]:
     observations = [
         Observation.from_dict(value) for value in iter_jsonl(observations_path)
@@ -543,4 +621,5 @@ def audit_claim_files(
         load_structured(preregistration_path),
         cost_report=load_structured(cost_report_path),
         maintenance_simulation=load_structured(maintenance_simulation_path),
+        negative_transfer_review=load_structured(negative_transfer_review_path),
     )

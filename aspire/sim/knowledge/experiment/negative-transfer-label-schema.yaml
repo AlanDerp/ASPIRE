@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "required": [
+    "case_id", "run_job_id", "role", "reviewer", "reviewed_at",
+    "attribution", "mechanism", "rationale", "evidence_path", "evidence_hash"
+  ],
+  "role": ["reviewer", "adjudicator"],
+  "attribution": ["knowledge-caused", "not-knowledge-caused", "uncertain"],
+  "mechanism": [
+    "over-broad-principle", "missed-exception", "stale-guidance",
+    "unresolved-conflict", "wrong-grounding", "irrelevant-exposure",
+    "not-applicable", "unknown"
+  ],
+  "constraints": [
+    "Every adverse organic run_job_id has two independent reviewer rows.",
+    "Disagreement requires exactly one adjudicator row.",
+    "Evidence is an absolute path with a raw SHA-256 lock."
+  ]
+}

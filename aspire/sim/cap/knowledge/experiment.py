@@ -264,6 +264,7 @@ class Observation:
     portfolio_hash: str = ""
     model_id: str = ""
     prompt_hash: str = ""
+    run_job_id: str = ""
     cross_capability: bool = False
 
     def __post_init__(self) -> None:
@@ -506,6 +507,14 @@ def _preregistered_artifact_violations(
     expected_prompt = str(fixed["prompt_hash"])
     expected_budget = int(preregistration["token_budget"])
     violations: list[dict[str, Any]] = []
+    job_ids = [value.run_job_id for value in observations]
+    if any(not value for value in job_ids) or len(set(job_ids)) != len(job_ids):
+        violations.append(
+            {
+                "field": "run_job_id",
+                "values": "job ids must be nonempty and unique",
+            }
+        )
     for index, value in enumerate(observations):
         expected_tasks = task_split.get(value.split, [])
         checkpoint = checkpoint_map.get(value.corpus_kind, {}).get(str(value.scale))

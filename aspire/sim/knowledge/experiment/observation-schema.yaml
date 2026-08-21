@@ -2,7 +2,7 @@
   "schema_version": 1,
   "required": [
     "treatment", "scale", "seed", "task_id", "task_family", "corpus_kind",
-    "split", "success", "context_tokens", "compile_latency_ms"
+    "split", "success", "context_tokens", "compile_latency_ms", "run_job_id"
   ],
   "treatment": ["A", "B", "C", "D", "E", "F"],
   "corpus_kind": ["organic", "synthetic"],

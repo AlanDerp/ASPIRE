@@ -35,6 +35,7 @@ This document separates engineering completion from empirical research claims.
 | Lifecycle | `lifecycle.py`; append-only invalidation, blast radius and sufficient/weak/broken support propagation |
 | Explosion maintenance | `maintenance.py`; non-destructive merge/split/conflict/hub/prune audit |
 | Maintenance experiment and total cost | reviewer-labeled B/E invalidation-surface simulation plus trace-backed construction/maintenance resource ledger under preregistered weights |
+| Negative-transfer case review | exact adverse run-job coverage, two trace-backed reviewers, disagreement adjudication and mechanism attribution before H5 can pass |
 | Deterministic views | vertical forest, task-family, overlay incoming/outgoing, and lineage projections with content hashes |
 | A–F comparable interface | `experiment.py`; flat code, canonical, summary tree, principle tree, forest+graph, and no-exception treatments |
 | Controlled stress growth | `stress.py`; 1x/4x/16x/64x synthetic records marked ineligible for evidence and success claims |

@@ -234,6 +234,8 @@ def _validate_observation(job: dict[str, Any], payload: dict[str, Any]) -> Obser
     }
     if mismatches:
         raise ValueError(f"runner observation lock mismatch: {mismatches}")
+    if payload.get("run_job_id") != job["id"]:
+        raise ValueError("runner observation run_job_id mismatch")
     return Observation.from_dict(payload)
 
 

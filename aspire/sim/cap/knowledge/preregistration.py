@@ -43,6 +43,7 @@ DECISION_FIELDS = (
     "claim_min_advantage_scales",
     "claim_requires_slope_comparison",
     "total_cost_weights",
+    "negative_transfer_attribution_min",
 )
 
 
@@ -103,6 +104,7 @@ def _validate_decision_rules(value: Any) -> None:
         "unsupported_principle_escape_max",
         "exception_hard_violation_escape_max",
         "shadow_fallback_rate_max",
+        "negative_transfer_attribution_min",
     ):
         number = value[field]
         if not isinstance(number, (int, float)) or isinstance(number, bool) or not 0 <= number <= 1:

@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from aspire.sim.cap.knowledge.claim_audit import audit_claim
+from aspire.sim.cap.knowledge.case_review import review_negative_transfer
 from aspire.sim.cap.knowledge.cost import build_cost_report
 from aspire.sim.cap.knowledge.experiment import Observation
 from aspire.sim.cap.knowledge.preregistration import freeze_preregistration
@@ -63,6 +64,7 @@ class PreregistrationTests(unittest.TestCase):
                     "claim_min_independent_tasks": 2,
                     "claim_min_task_families": 2,
                     "claim_min_advantage_scales": 2,
+                    "negative_transfer_attribution_min": 0.5,
                     "total_cost_weights": {
                         "compute_minute": 0.1,
                         "model_1k_tokens": 0.01,
@@ -279,6 +281,7 @@ class PreregistrationTests(unittest.TestCase):
                     "success": 1.0,
                     "context_tokens": 100,
                     "compile_latency_ms": 10,
+                    "run_job_id": "job-1",
                 }
             )
         )
@@ -354,6 +357,49 @@ class PreregistrationTests(unittest.TestCase):
         self.assertEqual(report["event_count"], 4)
         totals = {row["treatment"]: row["total_cost"] for row in report["rows"]}
         self.assertLess(totals["E"], totals["B"])
+
+    def test_negative_transfer_review_requires_two_trace_backed_reviewers(self) -> None:
+        observation = {
+            "treatment": "F",
+            "scale": 1,
+            "seed": 11,
+            "task_id": "adversarial",
+            "task_family": "adversarial-family",
+            "corpus_kind": "organic",
+            "split": "adversarial",
+            "success": 0.0,
+            "context_tokens": 100,
+            "compile_latency_ms": 10,
+            "negative_transfer": 1.0,
+            "run_job_id": "job-failure",
+        }
+        observations = self.root / "negative-observations.jsonl"
+        observations.write_text(json.dumps(observation) + "\n")
+        evidence = self.root / "failure-video.txt"
+        evidence.write_text("trace for failed task\n")
+        labels = [
+            {
+                "case_id": "case-failure",
+                "run_job_id": "job-failure",
+                "role": "reviewer",
+                "reviewer": reviewer,
+                "reviewed_at": "2026-08-21T00:00:00+00:00",
+                "attribution": "knowledge-caused",
+                "mechanism": "missed-exception",
+                "rationale": "the no-exception treatment crossed the safety boundary",
+                "evidence_path": str(evidence.resolve()),
+                "evidence_hash": sha256_file(evidence),
+            }
+            for reviewer in ("reviewer-a", "reviewer-b")
+        ]
+        labels_path = self.root / "negative-labels.jsonl"
+        labels_path.write_text("\n".join(json.dumps(label) for label in labels) + "\n")
+
+        report = review_negative_transfer(observations, labels_path)
+
+        self.assertTrue(report["ready"])
+        self.assertEqual(report["case_count"], 1)
+        self.assertEqual(report["attribution_counts"], {"knowledge-caused": 1})
 
     def test_claim_audit_applies_prespecified_rules(self) -> None:
         paths = self.valid_inputs()
@@ -482,6 +528,10 @@ class PreregistrationTests(unittest.TestCase):
                                     prompt_hash=(
                                         frozen["fixed_artifacts"]["prompt_hash"]
                                     ),
+                                    run_job_id=(
+                                        f"{corpus_kind}-{partition}-{task_id}-"
+                                        f"{scale}-{treatment}-11"
+                                    ),
                                     cross_capability=True,
                                 )
                             )
@@ -525,12 +575,47 @@ class PreregistrationTests(unittest.TestCase):
             **simulation_payload,
             "simulation_hash": content_hash(simulation_payload),
         }
+        adverse = [
+            value
+            for value in observations
+            if value.corpus_kind == "organic"
+            and value.negative_transfer is not None
+            and value.negative_transfer > 0
+        ]
+        review_payload = {
+            "schema_version": 1,
+            "ready": True,
+            "observations_hash": content_hash(observations),
+            "adverse_observation_count": len(adverse),
+            "case_count": len(adverse),
+            "cases": [
+                {
+                    "run_job_id": value.run_job_id,
+                    "final_attribution": (
+                        "knowledge-caused"
+                        if value.treatment == "F"
+                        else "not-knowledge-caused"
+                    ),
+                    "mechanism": (
+                        "missed-exception"
+                        if value.treatment == "F"
+                        else "not-applicable"
+                    ),
+                }
+                for value in adverse
+            ],
+        }
+        negative_transfer_review = {
+            **review_payload,
+            "review_hash": content_hash(review_payload),
+        }
 
         result = audit_claim(
             observations,
             frozen,
             cost_report=cost_report,
             maintenance_simulation=simulation,
+            negative_transfer_review=negative_transfer_review,
         )
 
         self.assertEqual(result["status"], "supported")

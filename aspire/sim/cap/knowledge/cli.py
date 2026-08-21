@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .checkpoints import freeze_checkpoint, instances_at_checkpoint
+from .case_review import review_negative_transfer
 from .claim_audit import audit_claim_files
 from .completion import audit_blueprint_completion
 from .consolidation import canonicalize_cluster, propose_principle
@@ -510,7 +511,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             args.preregistration,
             args.cost_report,
             args.maintenance_simulation,
+            args.negative_transfer_review,
         )
+        if args.output:
+            write_structured_atomic(args.output, result)
+        return result
+
+    if (
+        args.command == "experiment"
+        and args.experiment_command == "negative-transfer-review"
+    ):
+        result = review_negative_transfer(args.observations, args.labels)
         if args.output:
             write_structured_atomic(args.output, result)
         return result
@@ -821,7 +832,12 @@ def build_parser() -> argparse.ArgumentParser:
     claim_audit.add_argument("--preregistration", type=Path, required=True)
     claim_audit.add_argument("--cost-report", type=Path, required=True)
     claim_audit.add_argument("--maintenance-simulation", type=Path, required=True)
+    claim_audit.add_argument("--negative-transfer-review", type=Path, required=True)
     claim_audit.add_argument("--output", type=Path)
+    negative_transfer_review = experiment.add_parser("negative-transfer-review")
+    negative_transfer_review.add_argument("--observations", type=Path, required=True)
+    negative_transfer_review.add_argument("--labels", type=Path, required=True)
+    negative_transfer_review.add_argument("--output", type=Path)
     plan = experiment.add_parser("plan")
     plan.add_argument("--preregistration", type=Path, required=True)
     plan.add_argument("--portfolio-catalog", type=Path, required=True)

@@ -81,6 +81,7 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
                     "claim_min_independent_tasks": 2,
                     "claim_min_task_families": 2,
                     "claim_min_advantage_scales": 2,
+                    "negative_transfer_attribution_min": 0.5,
                     "total_cost_weights": {
                         "compute_minute": 0.1,
                         "model_1k_tokens": 0.01,

@@ -246,11 +246,17 @@ python -m aspire.sim.cap.knowledge --root knowledge experiment report \
   --observations <observations.jsonl> \
   --preregistration knowledge/experiment/preregistration.yaml \
   --output knowledge/experiment/reports/report.yaml
+python -m aspire.sim.cap.knowledge --root knowledge \
+  experiment negative-transfer-review \
+  --observations <observations.jsonl> \
+  --labels <negative-transfer-reviewer-labels.jsonl> \
+  --output knowledge/experiment/reports/negative-transfer-review.yaml
 python -m aspire.sim.cap.knowledge --root knowledge experiment claim-audit \
   --observations <observations.jsonl> \
   --preregistration knowledge/experiment/preregistration-frozen.yaml \
   --cost-report knowledge/experiment/reports/cost-report.yaml \
   --maintenance-simulation knowledge/experiment/reports/maintenance-simulation.yaml \
+  --negative-transfer-review knowledge/experiment/reports/negative-transfer-review.yaml \
   --output knowledge/experiment/reports/claim-audit.yaml
 ```
 
@@ -265,6 +271,10 @@ The claim auditor uses task-clustered bootstrap intervals for slope,
 non-inferiority, exposure, overlay, exception, maintenance-cost and blast-radius
 rules. It remains `not-evaluable` unless every prespecified comparison spans the
 minimum independent tasks and task families.
+Every adverse organic job is separately reviewed by two people; disagreements
+require adjudication. H5 additionally requires the preregistered fraction of F
+failures to be attributed to knowledge/exception mechanisms rather than merely
+showing a numerical difference.
 
 For the manually reviewed golden corpus, retain one JSONL row per reviewer and
 run:
