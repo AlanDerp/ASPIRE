@@ -40,6 +40,7 @@ This document separates engineering completion from empirical research claims.
 | Golden evaluation | reviewer-level labels, retained disagreement, polarity coverage and faithfulness gate |
 | ASPIRE fast path | fix-loop records exact executed code in `knowledge/` and legacy Markdown in one promotion; slow consolidation stays checkpoint-driven |
 | Actor runtime modes | `knowledge/runtime.py` and `CodeExecutionEnvBase`; hash-locked off/shadow/B/D/E loading, prompt injection, reset/step telemetry, and per-trial `knowledge_runtime.json` provenance |
+| Completion and determinism gates | `completion.py`, `verification.py`; fail-closed Actor-mode audit and independent semantic rebuild comparison for forest/index/A--F portfolios |
 
 The end-to-end test starts with six executed code files and reaches three
 canonical skills, a reviewed/validated principle, a vertical tree, a manifest,
@@ -65,9 +66,14 @@ must not be fabricated:
 - no measured shadow fallback rate, recall@8, p95 compilation latency, or total
   maintenance cost has crossed the blueprint's runtime gates.
 
-Therefore the research claim is **not yet evaluable**, and `shadow` remains the
-only justified default mode. Principle runtime must not be enabled solely
+Therefore the research claim is **not yet evaluable**, and `off` remains the
+only justified default mode. `shadow` is the next integration stage after its
+golden and integrity gates pass; principle runtime must not be enabled solely
 because the engineering tests pass.
+
+The requirement-by-requirement evidence matrix is maintained in
+[`knowledge-completion-audit.md`](knowledge-completion-audit.md); its current
+machine-readable snapshot is under `knowledge/experiment/reports/`.
 
 ## Verification commands
 

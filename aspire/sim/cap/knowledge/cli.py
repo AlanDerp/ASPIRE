@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .checkpoints import freeze_checkpoint, instances_at_checkpoint
+from .completion import audit_blueprint_completion
 from .consolidation import canonicalize_cluster, propose_principle
 from .experiment import compile_treatment, report_from_files
 from .integrity import validate_repository
@@ -39,6 +40,7 @@ from .review import promote_principle, review_principle
 from .runtime import build_runtime_config
 from .serialization import content_hash, load_structured, write_structured_atomic
 from .stress import build_stress_corpus
+from .verification import verify_deterministic_rebuild
 
 
 def _json(value: Any) -> str:
@@ -431,6 +433,30 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         }
         write_structured_atomic(args.output, result)
         return {"path": str(args.output), **result}
+
+    if args.command == "experiment" and args.experiment_command == "verify-determinism":
+        manifest = repository.load_manifest(args.manifest, args.manifest_version)
+        result = verify_deterministic_rebuild(
+            repository,
+            args.checkpoint,
+            manifest,
+            args.context,
+        )
+        write_structured_atomic(args.output, result)
+        return {"path": str(args.output), **result}
+
+    if args.command == "completion" and args.completion_command == "audit":
+        result = audit_blueprint_completion(
+            repository,
+            args.preregistration
+            or repository.root / "experiment" / "preregistration.yaml",
+            golden_report_path=args.golden_report,
+            experiment_report_path=args.experiment_report,
+            determinism_report_path=args.determinism_report,
+        )
+        if args.output:
+            write_structured_atomic(args.output, result)
+        return result
     raise ValueError("unsupported command")
 
 
@@ -627,6 +653,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     runtime_config.add_argument("--token-budget", type=int, default=2400)
     runtime_config.add_argument("--output", type=Path, required=True)
+    determinism = experiment.add_parser("verify-determinism")
+    determinism.add_argument("--checkpoint", required=True)
+    determinism.add_argument("--manifest", required=True)
+    determinism.add_argument("--manifest-version", required=True)
+    determinism.add_argument("--context", action="append", type=Path, required=True)
+    determinism.add_argument("--output", type=Path, required=True)
+
+    completion = commands.add_parser("completion").add_subparsers(
+        dest="completion_command", required=True
+    )
+    completion_audit = completion.add_parser("audit")
+    completion_audit.add_argument("--preregistration", type=Path)
+    completion_audit.add_argument("--golden-report", type=Path)
+    completion_audit.add_argument("--experiment-report", type=Path)
+    completion_audit.add_argument("--determinism-report", type=Path)
+    completion_audit.add_argument("--output", type=Path)
     return parser
 
 

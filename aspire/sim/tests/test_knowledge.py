@@ -1009,6 +1009,11 @@ class ForestAndRetrievalTests(unittest.TestCase):
                             success=0.8,
                             context_tokens=100 + scale,
                             compile_latency_ms=2.0,
+                            relevant_principle_recall=(
+                                0.95 if treatment in {"D", "E"} else 0.0
+                            ),
+                            relevant_skill_recall=0.80,
+                            fallback=(0.05 if treatment in {"D", "E"} else 0.0),
                             n_code=6 * scale,
                             token_budget=2400,
                             checkpoint_id="snapshot-n3",
@@ -1023,6 +1028,7 @@ class ForestAndRetrievalTests(unittest.TestCase):
         report = build_report(
             observations,
             {
+                "status": "frozen",
                 "library_scales": [1, 4],
                 "seeds": [11],
                 "decision_rules": {"task_noninferiority_margin": 0.03},
@@ -1030,6 +1036,7 @@ class ForestAndRetrievalTests(unittest.TestCase):
         )
         self.assertEqual(report["claim_status"], "ready-for-prespecified-statistical-analysis")
         self.assertTrue(report["heldout_success_noninferior_to_B"]["D"])
+        self.assertTrue(report["runtime_gates"]["passed"])
         self.assertFalse(report["coverage"]["fairness_violations"])
 
     def test_stress_corpus_is_deterministic_and_never_evidence_eligible(self):

@@ -28,6 +28,7 @@ PYTHONPATH=../.. python -m aspire.sim.cap.knowledge --root knowledge init
 PYTHONPATH=../.. python -m aspire.sim.cap.knowledge --root knowledge forest validate
 PYTHONPATH=../.. python scripts/knowledge/audit_legacy_skills.py
 PYTHONPATH=../.. python -m aspire.sim.cap.knowledge --root knowledge experiment --help
+PYTHONPATH=../.. python -m aspire.sim.cap.knowledge --root knowledge completion audit
 ```
 
 Default thresholds are in `consolidation-policy.yaml`. `experiment/` holds the

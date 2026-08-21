@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "default": {
-    "mode": "shadow",
+    "mode": "off",
     "token_budget": 2400,
     "max_principles": 4,
     "max_skills": 8,
@@ -10,7 +10,7 @@
   },
   "production_modes": {
     "off": "Legacy whole-library context; no structured portfolio is actor-visible.",
-    "shadow": "Compile all configured portfolios but keep the legacy context actor-visible.",
+    "shadow": "After the shadow gate passes, compile all portfolios but keep the Actor prompt unchanged.",
     "canonical": "Actor sees treatment B canonical-skill portfolio.",
     "principle-tree": "Actor sees treatment D without overlay traversal.",
     "principle-graph": "Actor sees treatment E with guarded overlay traversal."

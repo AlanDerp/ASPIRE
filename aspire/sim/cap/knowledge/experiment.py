@@ -304,6 +304,14 @@ def _bootstrap_ci(values: list[float], *, seed: int = 20260821, samples: int = 1
     return [estimates[int(samples * 0.025)], estimates[min(samples - 1, int(samples * 0.975))]]
 
 
+def _percentile(values: list[float], percentile: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    index = min(len(ordered) - 1, math.ceil(percentile * len(ordered)) - 1)
+    return ordered[max(0, index)]
+
+
 def _paired_difference(
     observations: list[Observation], left: str, right: str, metric: str
 ) -> dict:
@@ -410,6 +418,7 @@ def build_report(observations: list[Observation], preregistration: dict[str, Any
     missing_cells = sorted(expected_cells - present_cells)
     fairness_violations = _fairness_violations(observations)
     coverage = {
+        "preregistration_frozen": preregistration.get("status") == "frozen",
         "all_treatment_scale_corpus_cells_present": not missing_cells,
         "missing_cells": [list(value) for value in missing_cells],
         "organic_and_synthetic_reported_separately": all(":" in key for key in results),
@@ -436,13 +445,128 @@ def build_report(observations: list[Observation], preregistration: dict[str, Any
     margin = float(
         preregistration.get("decision_rules", {}).get("task_noninferiority_margin", 0.03)
     )
+    decision_rules = preregistration.get("decision_rules", {})
+    principle_recall_min = float(decision_rules.get("principle_recall_at_8_min", 0.90))
+    skill_recall_margin = float(
+        decision_rules.get("operational_skill_recall_margin", 0.03)
+    )
+    unsupported_escape_max = float(
+        decision_rules.get("unsupported_principle_escape_max", 0)
+    )
+    exception_escape_max = float(
+        decision_rules.get("exception_hard_violation_escape_max", 0)
+    )
+    fallback_max = float(decision_rules.get("shadow_fallback_rate_max", 0.10))
+    latency_p95_max = float(
+        decision_rules.get("compile_latency_p95_ms_max", 300)
+    )
     noninferiority = {}
     for treatment in ("D", "E"):
         comparison = comparisons[f"{treatment}_vs_B_heldout_success"]
         interval = comparison["bootstrap_95_ci"]
         noninferiority[treatment] = bool(interval and interval[0] >= -margin)
+
+    runtime_observations = [
+        value for value in observations if value.corpus_kind == "organic"
+    ]
+    treatment_means: dict[str, dict[str, float]] = {}
+    for treatment in TREATMENTS:
+        values = [
+            value for value in runtime_observations if value.treatment == treatment
+        ]
+        if values:
+            treatment_means[treatment] = {
+                metric: mean(getattr(value, metric) for value in values)
+                for metric in METRICS
+            }
+    structured = [
+        value for value in runtime_observations if value.treatment in {"D", "E"}
+    ]
+    baseline_skill_recall = treatment_means.get("B", {}).get("relevant_skill_recall")
+    structured_skill_recalls = [
+        treatment_means[treatment]["relevant_skill_recall"]
+        for treatment in ("D", "E")
+        if treatment in treatment_means
+    ]
+    principle_recalls = [
+        treatment_means[treatment]["relevant_principle_recall"]
+        for treatment in ("D", "E")
+        if treatment in treatment_means
+    ]
+    runtime_values = {
+        "minimum_principle_recall_at_8": min(principle_recalls, default=None),
+        "minimum_operational_skill_recall": min(structured_skill_recalls, default=None),
+        "canonical_baseline_skill_recall": baseline_skill_recall,
+        "maximum_unsupported_principle_escape": max(
+            (value.unsupported_principle_escape for value in structured),
+            default=None,
+        ),
+        "maximum_exception_hard_violation_escape": max(
+            (value.exception_hard_violation_escape for value in structured),
+            default=None,
+        ),
+        "maximum_fallback_rate": max(
+            (
+                treatment_means[treatment]["fallback"]
+                for treatment in ("D", "E")
+                if treatment in treatment_means
+            ),
+            default=None,
+        ),
+        "compile_latency_p95_ms": _percentile(
+            [value.compile_latency_ms for value in structured],
+            0.95,
+        ),
+    }
+    runtime_checks = {
+        "principle_recall_at_8": (
+            runtime_values["minimum_principle_recall_at_8"] is not None
+            and runtime_values["minimum_principle_recall_at_8"]
+            >= principle_recall_min
+        ),
+        "operational_skill_recall": (
+            runtime_values["minimum_operational_skill_recall"] is not None
+            and baseline_skill_recall is not None
+            and runtime_values["minimum_operational_skill_recall"]
+            >= baseline_skill_recall - skill_recall_margin
+        ),
+        "unsupported_principle_escape": (
+            runtime_values["maximum_unsupported_principle_escape"] is not None
+            and runtime_values["maximum_unsupported_principle_escape"]
+            <= unsupported_escape_max
+        ),
+        "exception_hard_violation_escape": (
+            runtime_values["maximum_exception_hard_violation_escape"] is not None
+            and runtime_values["maximum_exception_hard_violation_escape"]
+            <= exception_escape_max
+        ),
+        "fallback_rate": (
+            runtime_values["maximum_fallback_rate"] is not None
+            and runtime_values["maximum_fallback_rate"] < fallback_max
+        ),
+        "compile_latency_p95": (
+            runtime_values["compile_latency_p95_ms"] is not None
+            and runtime_values["compile_latency_p95_ms"] <= latency_p95_max
+        ),
+    }
+    runtime_gates = {
+        "thresholds": {
+            "principle_recall_at_8_min": principle_recall_min,
+            "operational_skill_recall_margin": skill_recall_margin,
+            "unsupported_principle_escape_max": unsupported_escape_max,
+            "exception_hard_violation_escape_max": exception_escape_max,
+            "shadow_fallback_rate_max": fallback_max,
+            "compile_latency_p95_ms_max": latency_p95_max,
+        },
+        "values": runtime_values,
+        "checks": runtime_checks,
+        "passed": all(runtime_checks.values()),
+    }
     evaluable = (
-        coverage["all_treatment_scale_corpus_cells_present"]
+        coverage["preregistration_frozen"]
+        and bool(expected_scales)
+        and bool(expected_seeds)
+        and coverage["all_treatment_scale_corpus_cells_present"]
         and coverage["artifact_locks_complete_and_fair"]
     )
     return {
@@ -454,13 +578,18 @@ def build_report(observations: list[Observation], preregistration: dict[str, Any
         "paired_comparisons": comparisons,
         "noninferiority_margin": margin,
         "heldout_success_noninferior_to_B": noninferiority,
+        "runtime_gates": runtime_gates,
+        "prespecified_conclusion": {
+            "status": "not-evaluable",
+            "reason": "A final supported/partial/not-supported claim requires the prespecified claim audit.",
+        },
         "claim_status": (
             "ready-for-prespecified-statistical-analysis" if evaluable else "not-evaluable"
         ),
         "claim_reason": (
-            "Engineering aggregation is complete; inferential analysis and confidence intervals remain required."
+            "Engineering aggregation is complete; the prespecified claim audit remains required."
             if evaluable
-            else "Required treatments or scales are missing; no research hypothesis may be claimed."
+            else "Preregistration, required cells, or fairness locks are incomplete; no research hypothesis may be claimed."
         ),
     }
 

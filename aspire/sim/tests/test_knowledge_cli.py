@@ -309,6 +309,48 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
         self.assertTrue(runtime_config.is_file())
         self.assertEqual(set(generated["knowledge"]["shadow_hashes"]), set("ABCDEF"))
 
+        determinism_path = self.workspace / "determinism.yaml"
+        determinism = self.run_cli(
+            "experiment",
+            "verify-determinism",
+            "--checkpoint",
+            "snapshot-n6",
+            "--manifest",
+            "libero-active",
+            "--manifest-version",
+            "1.0.0",
+            "--context",
+            str(context),
+            "--output",
+            str(determinism_path),
+        )
+        self.assertTrue(determinism["tree_index_portfolio_deterministic"])
+        self.assertEqual(determinism["first"], determinism["second"])
+
+        preregistration = self.write_json(
+            "preregistration.yaml",
+            {
+                "status": "preregistered-engineering-draft",
+                "hypotheses": {f"H{index}": "test" for index in range(1, 7)},
+                "treatments": {treatment: treatment for treatment in "ABCDEF"},
+                "library_scales": [1, 4, 16, 64],
+                "seeds": [11, 29, 47],
+                "token_budget": 2400,
+            },
+        )
+        completion = self.run_cli(
+            "completion",
+            "audit",
+            "--preregistration",
+            str(preregistration),
+            "--determinism-report",
+            str(determinism_path),
+        )
+        self.assertEqual(completion["status"], "incomplete")
+        self.assertEqual(completion["maximum_justified_actor_mode"], "off")
+        self.assertIn("preregistration-frozen", completion["failed_check_ids"])
+        self.assertNotIn("deterministic-rebuild", completion["failed_check_ids"])
+
         database = self.workspace / "knowledge.sqlite3"
         index = self.run_cli(
             "index",

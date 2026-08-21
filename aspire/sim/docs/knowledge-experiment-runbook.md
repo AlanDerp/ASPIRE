@@ -94,9 +94,10 @@ for treatment in A B C D E F; do
 done
 ```
 
+`off` is the current default. After the blueprint's shadow-entry gate passes,
 `shadow` is the first integration mode: compile and log portfolios while the
-actor still sees the legacy library. Do not switch to principle runtime until
-the engineering gates in the blueprint pass.
+Actor prompt remains unchanged. Do not switch to principle runtime until its
+separate runtime gates pass.
 
 Generate a hash-locked runtime block after compiling all six shadow artifacts:
 
@@ -117,6 +118,21 @@ D (`principle-tree`), or E (`principle-graph`) artifacts. Each trial persists
 this provenance as `knowledge_runtime.json` beside `code.py`, including
 timeout-recovery trials. Treat a missing file as an invalid experimental
 observation whenever `knowledge` is configured.
+
+Before presenting a rebuild as deterministic, verify it twice from the same
+manifest and task contexts:
+
+```bash
+python -m aspire.sim.cap.knowledge --root knowledge \
+  experiment verify-determinism \
+  --checkpoint snapshot-n20 \
+  --manifest libero-active --manifest-version 1.0.0 \
+  --context <task-context-1.yaml> --context <task-context-2.yaml> \
+  --output knowledge/experiment/reports/determinism.yaml
+```
+
+The verifier compares semantic hashes for the forest, overlay, SQLite tables,
+and all A--F portfolios across two independent rebuilds.
 
 ## 5. Scale and reporting
 
@@ -165,3 +181,18 @@ python -m aspire.sim.cap.knowledge --root knowledge maintenance audit \
 Invalidation never deletes revisions. It recalculates support and removes weak
 or broken principles from runtime retrieval. Maintenance audit proposes
 merge/split/prune work without performing destructive changes.
+
+## 7. Completion and mode gate
+
+Never infer completion from a green unit test or an empty valid forest. Run:
+
+```bash
+python -m aspire.sim.cap.knowledge --root knowledge completion audit \
+  --golden-report knowledge/experiment/reports/golden-report.yaml \
+  --experiment-report knowledge/experiment/reports/report.yaml \
+  --determinism-report knowledge/experiment/reports/determinism.yaml \
+  --output knowledge/experiment/reports/completion-audit.yaml
+```
+
+The result explicitly reports the maximum justified Actor mode. Missing
+evidence fails closed to `off`.

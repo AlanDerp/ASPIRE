@@ -1,0 +1,202 @@
+{
+  "audit_hash": "ca087c73498b72b068f2b388fa5090356402287b293956ee05b8db2ce68f32e8",
+  "checks": {
+    "conclusion_quality": [
+      {
+        "evidence": {},
+        "id": "prespecified-conclusion",
+        "passed": false,
+        "requirement": "The final claim must resolve to a prespecified supported/partial/not-supported outcome."
+      }
+    ],
+    "principle_runtime_entry": [
+      {
+        "evidence": null,
+        "id": "experiment-evaluable",
+        "passed": false,
+        "requirement": "All preregistered cells and fairness locks must be complete."
+      },
+      {
+        "evidence": {},
+        "id": "principle-runtime-thresholds",
+        "passed": false,
+        "requirement": "Recall, escape, fallback, and p95 latency gates must all pass."
+      }
+    ],
+    "research_design": [
+      {
+        "evidence": "preregistered-engineering-draft",
+        "id": "preregistration-frozen",
+        "passed": false,
+        "requirement": "The preregistration must be frozen before evaluation."
+      },
+      {
+        "evidence": {
+          "H1": {
+            "claim": "Principle trees reduce active retrieval surface growth beyond canonical deduplication.",
+            "refutation": "Principle count grows with code instances or descent still exposes nearly all leaves."
+          },
+          "H2": {
+            "claim": "Task performance degrades no faster than the canonical-skill baseline as the library grows.",
+            "refutation": "The advantage disappears at scale or abstraction increases negative transfer."
+          },
+          "H3": {
+            "claim": "Canonicalization and principle trees reduce actor-visible redundancy.",
+            "refutation": "Duplicates merely move upward into canonical skills or principles."
+          },
+          "H4": {
+            "claim": "The forest localizes conflicts and invalidation work.",
+            "refutation": "High-level hubs enlarge blast radius or conceal unsupported principles."
+          },
+          "H5": {
+            "claim": "Explicit exception gates reduce negative transfer.",
+            "refutation": "Removing exception and counterevidence gates has no adverse effect, or the gates fail to block violations."
+          },
+          "H6": {
+            "claim": "Any gain over canonical retrieval is not explained by shorter summaries alone.",
+            "refutation": "Summary trees match principle trees, or overlay adds no cross-capability benefit."
+          }
+        },
+        "id": "hypotheses-h1-h6",
+        "passed": true,
+        "requirement": "H1--H6 and their failure conditions must be preregistered."
+      },
+      {
+        "evidence": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E",
+          "F"
+        ],
+        "id": "treatments-a-f",
+        "passed": true,
+        "requirement": "All A--F controls must be fixed."
+      },
+      {
+        "evidence": {
+          "library_scales": [
+            1,
+            4,
+            16,
+            64
+          ],
+          "model_id": null,
+          "prompt_hash": null,
+          "seeds": [
+            11,
+            29,
+            47
+          ],
+          "task_split_hash": null,
+          "token_budget": 2400
+        },
+        "id": "fixed-experimental-artifacts",
+        "passed": false,
+        "requirement": "Model, prompt, split, budget, scales, and seeds must be fixed."
+      }
+    ],
+    "shadow_entry": [
+      {
+        "evidence": null,
+        "id": "golden-ready",
+        "passed": false,
+        "requirement": "Golden labels need 10--20 principles, two reviewers, and all polarities."
+      },
+      {
+        "evidence": null,
+        "id": "golden-faithfulness",
+        "passed": false,
+        "requirement": "Golden faithfulness must be at least 0.85."
+      },
+      {
+        "evidence": null,
+        "id": "deterministic-rebuild",
+        "passed": false,
+        "requirement": "Tree, index, and portfolio rebuilds need recorded deterministic hashes."
+      },
+      {
+        "evidence": [],
+        "id": "repository-integrity",
+        "passed": true,
+        "requirement": "The forest, overlay, provenance, and partitions must validate."
+      }
+    ],
+    "skill_consolidation_forest": [
+      {
+        "evidence": [],
+        "id": "repository-integrity",
+        "passed": true,
+        "requirement": "The forest, overlay, provenance, and partitions must validate."
+      },
+      {
+        "evidence": 0,
+        "id": "organic-code-corpus",
+        "passed": false,
+        "requirement": "Real development SkillCodeInstances must exist."
+      },
+      {
+        "evidence": [],
+        "id": "multiple-frozen-checkpoints",
+        "passed": false,
+        "requirement": "At least two organic accumulation checkpoints are required."
+      },
+      {
+        "evidence": {
+          "canonical_skills": 0,
+          "checkpoints": 0,
+          "instances": 0,
+          "manifests": 0,
+          "principles": 0,
+          "task_contexts": 0,
+          "trees": 0,
+          "validated_principles": 0
+        },
+        "id": "nonempty-abstraction-forest",
+        "passed": false,
+        "requirement": "Canonical skills, principles, trees, and a manifest must be nonempty."
+      },
+      {
+        "evidence": 0,
+        "id": "golden-principle-scale",
+        "passed": false,
+        "requirement": "The golden corpus must cover 10--20 principles."
+      },
+      {
+        "evidence": 0,
+        "id": "twenty-task-contexts",
+        "passed": false,
+        "requirement": "The retrieval comparison requires at least 20 task contexts."
+      }
+    ]
+  },
+  "corpus_counts": {
+    "canonical_skills": 0,
+    "checkpoints": 0,
+    "instances": 0,
+    "manifests": 0,
+    "principles": 0,
+    "task_contexts": 0,
+    "trees": 0,
+    "validated_principles": 0
+  },
+  "failed_check_ids": [
+    "deterministic-rebuild",
+    "experiment-evaluable",
+    "fixed-experimental-artifacts",
+    "golden-faithfulness",
+    "golden-principle-scale",
+    "golden-ready",
+    "multiple-frozen-checkpoints",
+    "nonempty-abstraction-forest",
+    "organic-code-corpus",
+    "preregistration-frozen",
+    "prespecified-conclusion",
+    "principle-runtime-thresholds",
+    "twenty-task-contexts"
+  ],
+  "maximum_justified_actor_mode": "off",
+  "schema_version": 1,
+  "status": "incomplete"
+}
