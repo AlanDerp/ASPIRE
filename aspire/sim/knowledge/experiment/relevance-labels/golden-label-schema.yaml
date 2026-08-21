@@ -2,13 +2,22 @@
   "schema_version": 1,
   "format": "JSONL; one reviewer judgment per line",
   "required": [
-    "principle_id", "task_family", "reviewer", "dimension", "score", "polarity"
+    "principle_id", "principle_version", "case_id", "subject_kind", "subject_id",
+    "task_family", "reviewer", "dimension", "score", "polarity", "checkpoint_id",
+    "manifest_id", "evidence_path", "evidence_hash"
   ],
+  "subject_kind": ["principle-relevance", "child-relation"],
   "dimension": [
     "faithfulness", "coverage", "purity", "discriminativeness", "grounding",
     "falsifiability", "compression", "transfer", "blast-radius"
   ],
   "polarity": ["support", "hard-negative", "exception", "falsifier"],
   "score": "number in [0, 1]",
-  "rule": "Keep each reviewer's row. Never replace disagreement with an unlabeled consensus."
+  "rules": [
+    "Every exact judgment item has two distinct reviewer rows.",
+    "Every principle covers all four polarities plus relevance and child-relation subjects.",
+    "Principle revisions, child IDs, checkpoint and manifest must match the frozen development view.",
+    "Evidence paths are absolute files with raw SHA-256 locks.",
+    "Keep each reviewer row; never replace disagreement with an unlabeled consensus."
+  ]
 }

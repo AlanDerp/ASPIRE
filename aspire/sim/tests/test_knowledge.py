@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 import sqlite3
@@ -17,7 +18,11 @@ from aspire.sim.cap.knowledge.counterexample import (
     validate_counterexample_report,
 )
 from aspire.sim.cap.knowledge.fingerprint import fingerprint_code
-from aspire.sim.cap.knowledge.golden import GoldenLabel, evaluate_golden
+from aspire.sim.cap.knowledge.golden import (
+    GoldenLabel,
+    evaluate_golden,
+    evaluate_golden_file,
+)
 from aspire.sim.cap.knowledge.experiment import Observation, build_report, compile_treatment
 from aspire.sim.cap.knowledge.forest import descendants, validate_forest
 from aspire.sim.cap.knowledge.index import index_metadata, rebuild_index
@@ -52,7 +57,11 @@ from aspire.sim.cap.knowledge.repetition import (
     audit_repetition,
 )
 from aspire.sim.cap.knowledge.retrieval import compile_portfolio
-from aspire.sim.cap.knowledge.serialization import content_hash, write_structured_atomic
+from aspire.sim.cap.knowledge.serialization import (
+    content_hash,
+    sha256_file,
+    write_structured_atomic,
+)
 from aspire.sim.cap.knowledge.stress import build_stress_corpus
 
 
@@ -214,7 +223,8 @@ class KnowledgeModelTests(unittest.TestCase):
             for polarity in ("support", "hard-negative", "exception", "falsifier")
         ]
         report = evaluate_golden(labels)
-        self.assertTrue(report["ready"])
+        self.assertFalse(report["ready"], "unbound labels cannot enter the golden gate")
+        self.assertFalse(report["labels_hash_locked"])
         self.assertTrue(report["disagreements"])
         self.assertTrue(report["faithfulness_gate_passed"])
 
@@ -1070,6 +1080,63 @@ class ForestAndRetrievalTests(unittest.TestCase):
         self.assertFalse(portfolio.principle_ids)
         self.assertTrue(portfolio.skill_ids)
         self.assertIn("exception:continuous-contact", {item["reason"] for item in portfolio.exclusions})
+
+    def test_golden_items_bind_manifest_children_and_two_reviewers(self):
+        manifest = KnowledgeManifest(
+            id="golden-manifest",
+            version="1.0.0",
+            checkpoint_id="snapshot-n3",
+            skill_versions={value.id: value.version for value in self.skills},
+            principle_versions={self.principle.id: self.principle.version},
+            tree_versions={self.tree.id: self.tree.version},
+            edge_versions={},
+            created_at="2026-01-03T00:00:00+00:00",
+        )
+        self.repository.save_manifest(manifest)
+        evidence = Path(self.temporary.name) / "golden-evidence.txt"
+        evidence.write_text("reviewable execution evidence\n")
+        labels = []
+        cases = [
+            (polarity, "principle-relevance", self.principle.id)
+            for polarity in ("support", "hard-negative", "exception", "falsifier")
+        ]
+        cases.append(("support", "child-relation", self.skills[0].id))
+        for polarity, subject_kind, subject_id in cases:
+            for reviewer, score in (("reviewer-a", 0.9), ("reviewer-b", 0.8)):
+                labels.append(
+                    GoldenLabel(
+                        principle_id=self.principle.id,
+                        principle_version=self.principle.version,
+                        case_id=f"{subject_kind}-{polarity}",
+                        subject_kind=subject_kind,
+                        subject_id=subject_id,
+                        task_family="pick-place",
+                        reviewer=reviewer,
+                        dimension="faithfulness",
+                        score=score,
+                        polarity=polarity,
+                        checkpoint_id="snapshot-n3",
+                        manifest_id="golden-manifest@1.0.0",
+                        evidence_path=str(evidence.resolve()),
+                        evidence_hash=sha256_file(evidence),
+                    )
+                )
+        label_path = Path(self.temporary.name) / "golden.jsonl"
+        label_path.write_text(
+            "\n".join(
+                json.dumps(asdict(label)) for label in labels
+            )
+            + "\n"
+        )
+
+        report = evaluate_golden_file(
+            label_path, self.repository, manifest, faithfulness_gate=0.75
+        )
+
+        self.assertTrue(report["independent_item_reviews_complete"])
+        self.assertTrue(report["labels_hash_locked"])
+        self.assertEqual(report["binding"]["manifest_id"], "golden-manifest@1.0.0")
+        self.assertFalse(report["ready"], "one principle is below the 10-item gate")
 
     def test_all_preregistered_treatments_compile_under_one_checkpoint(self):
         context = TaskContext(

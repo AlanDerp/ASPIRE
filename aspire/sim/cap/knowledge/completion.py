@@ -95,6 +95,17 @@ def audit_blueprint_completion(
         value not in (None, "", [], {}) for value in fixed_values.values()
     )
     preregistration_errors = validate_frozen_preregistration(preregistration)
+    catalog_contexts = [str(path) for path in contexts]
+    if not preregistration_errors:
+        catalog_path = Path(
+            str(preregistration["fixed_artifacts"]["job_catalog_path"])
+        )
+        catalog = load_structured(catalog_path)
+        catalog_contexts = sorted(
+            str(value["context_path"])
+            for value in catalog.get("tasks", {}).values()
+            if isinstance(value, dict) and value.get("context_path")
+        )
     design_checks = [
         _check(
             "preregistration-frozen",
@@ -143,8 +154,30 @@ def audit_blueprint_completion(
         "trees": len({value.id for value in trees}),
         "manifests": len({value.id for value in manifests}),
         "checkpoints": len(checkpoints),
-        "task_contexts": len(contexts),
+        "task_contexts": len(catalog_contexts),
     }
+    golden_payload = golden or {}
+    golden_unsigned = {
+        key: value for key, value in golden_payload.items() if key != "report_hash"
+    }
+    golden_hash_valid = bool(
+        golden and golden.get("report_hash") == content_hash(golden_unsigned)
+    )
+    golden_binding = golden_payload.get("binding", {})
+    if not isinstance(golden_binding, dict):
+        golden_binding = {}
+    bound_manifests = {
+        f"{value.id}@{value.version}": value for value in manifests
+    }
+    bound_manifest = bound_manifests.get(str(golden_binding.get("manifest_id", "")))
+    golden_manifest_valid = bool(
+        bound_manifest
+        and golden_binding.get("checkpoint_id") == bound_manifest.checkpoint_id
+        and set(golden_payload.get("principle_ids", []))
+        <= set(bound_manifest.principle_versions)
+        and len(golden_payload.get("principle_ids", []))
+        == int(golden_payload.get("principle_count", 0))
+    )
     forest_checks = [
         _check(
             "repository-integrity",
@@ -175,14 +208,20 @@ def audit_blueprint_completion(
         ),
         _check(
             "golden-principle-scale",
-            10 <= int((golden or {}).get("principle_count", 0)) <= 20,
-            int((golden or {}).get("principle_count", 0)),
+            10 <= int(golden_payload.get("principle_count", 0)) <= 20
+            and golden_hash_valid
+            and golden_manifest_valid,
+            {
+                "principle_count": int(golden_payload.get("principle_count", 0)),
+                "hash_valid": golden_hash_valid,
+                "manifest_valid": golden_manifest_valid,
+            },
             "The golden corpus must cover 10--20 principles.",
         ),
         _check(
             "twenty-task-contexts",
-            len(contexts) >= 20,
-            len(contexts),
+            len(catalog_contexts) >= 20,
+            catalog_contexts,
             "The retrieval comparison requires at least 20 task contexts.",
         ),
     ]
@@ -190,14 +229,22 @@ def audit_blueprint_completion(
     shadow_checks = [
         _check(
             "golden-ready",
-            bool((golden or {}).get("ready")),
-            (golden or {}).get("ready"),
+            bool(golden_payload.get("ready"))
+            and golden_hash_valid
+            and golden_manifest_valid,
+            {
+                "ready": golden_payload.get("ready"),
+                "hash_valid": golden_hash_valid,
+                "manifest_valid": golden_manifest_valid,
+            },
             "Golden labels need 10--20 principles, two reviewers, and all polarities.",
         ),
         _check(
             "golden-faithfulness",
-            (golden or {}).get("faithfulness_gate_passed") is True,
-            (golden or {}).get("faithfulness_gate_passed"),
+            golden_payload.get("faithfulness_gate_passed") is True
+            and golden_hash_valid
+            and golden_manifest_valid,
+            golden_payload.get("faithfulness_gate_passed"),
             "Golden faithfulness must be at least 0.85.",
         ),
         _check(

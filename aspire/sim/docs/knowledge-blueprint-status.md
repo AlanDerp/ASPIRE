@@ -41,7 +41,7 @@ This document separates engineering completion from empirical research claims.
 | Controlled stress growth | `stress.py`; 1x/4x/16x/64x synthetic records marked ineligible for evidence and success claims |
 | Statistical report and claim audit | complete metric schema with missing-is-not-zero semantics, treatment/scale/seed coverage, artifact fairness locks, `log2(N_code)` slopes, task-clustered bootstrap CIs, non-inferiority, exposure, overlay, exception, cost and blast-radius decisions |
 | Preregistration freeze | `preregistration.py`; validates H1--H6/A--F, disjoint and corpus-specific evaluation partitions, organic/synthetic checkpoint eligibility and all fixed execution variables, then hash-locks every source artifact |
-| Golden evaluation | reviewer-level labels, retained disagreement, polarity coverage and faithfulness gate |
+| Golden evaluation | manifest/revision/child/evidence-locked exact items, two independent reviewers per item, retained disagreement, polarity coverage and faithfulness gate |
 | ASPIRE fast path | fix-loop records exact executed code in `knowledge/` and legacy Markdown in one promotion; slow consolidation stays checkpoint-driven |
 | Actor runtime modes | `knowledge/runtime.py` and `CodeExecutionEnvBase`; hash-locked off/shadow/production B-D-E plus isolated A--F experiment loading, prompt injection, reset/step telemetry, and per-trial `knowledge_runtime.json` provenance |
 | A--F execution harness | `run_plan.py`; exact frozen task/treatment/scale/corpus/seed matrix, generated ASPIRE configs, no-shell commands, timeout/resume state, and observation-lock validation |

@@ -578,8 +578,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         }
 
     if args.command == "experiment" and args.experiment_command == "golden-report":
+        validate_repository(repository).require_ok()
+        manifest = repository.load_manifest(args.manifest, args.manifest_version)
         result = evaluate_golden_file(
-            args.labels, faithfulness_gate=args.faithfulness_gate
+            args.labels,
+            repository,
+            manifest,
+            faithfulness_gate=args.faithfulness_gate,
         )
         if args.output:
             write_structured_atomic(args.output, result)
@@ -872,6 +877,8 @@ def build_parser() -> argparse.ArgumentParser:
     golden = experiment.add_parser("golden-report")
     golden.add_argument("--labels", type=Path, required=True)
     golden.add_argument("--faithfulness-gate", type=float, default=0.85)
+    golden.add_argument("--manifest", required=True)
+    golden.add_argument("--manifest-version", required=True)
     golden.add_argument("--output", type=Path)
     runtime_config = experiment.add_parser("runtime-config")
     runtime_config.add_argument(

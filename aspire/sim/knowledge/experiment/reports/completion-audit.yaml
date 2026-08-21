@@ -1,5 +1,5 @@
 {
-  "audit_hash": "ffddd50ae64a8f45a51914bc993bbb82ccecfe27b74e4181104ad50243593b20",
+  "audit_hash": "e62e3b541cb7b3bac1432fb13a27ce3155bf8a665c00a6f49503996b79f45344",
   "checks": {
     "conclusion_quality": [
       {
@@ -109,7 +109,11 @@
     ],
     "shadow_entry": [
       {
-        "evidence": null,
+        "evidence": {
+          "hash_valid": false,
+          "manifest_valid": false,
+          "ready": null
+        },
         "id": "golden-ready",
         "passed": false,
         "requirement": "Golden labels need 10--20 principles, two reviewers, and all polarities."
@@ -168,13 +172,17 @@
         "requirement": "Canonical skills, principles, trees, and a manifest must be nonempty."
       },
       {
-        "evidence": 0,
+        "evidence": {
+          "hash_valid": false,
+          "manifest_valid": false,
+          "principle_count": 0
+        },
         "id": "golden-principle-scale",
         "passed": false,
         "requirement": "The golden corpus must cover 10--20 principles."
       },
       {
-        "evidence": 0,
+        "evidence": [],
         "id": "twenty-task-contexts",
         "passed": false,
         "requirement": "The retrieval comparison requires at least 20 task contexts."

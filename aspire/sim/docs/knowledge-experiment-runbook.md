@@ -282,11 +282,15 @@ run:
 ```bash
 python -m aspire.sim.cap.knowledge --root knowledge experiment golden-report \
   --labels knowledge/experiment/relevance-labels/golden.jsonl \
+  --manifest libero-active --manifest-version 1.0.0 \
   --output knowledge/experiment/reports/golden-report.yaml
 ```
 
-The report is not `ready` until it covers at least 10 principles, two reviewers,
-and support, hard-negative, exception, and falsifier judgments.
+The report is not `ready` until it covers 10--20 manifest-locked principle
+revisions, all four polarities, both principle-relevance and child-relation
+subjects, and two distinct reviewers for every exact item. Each row also locks
+its raw evidence file; two reviewers somewhere in the same principle are not
+enough.
 
 ## 6. Lifecycle
 
