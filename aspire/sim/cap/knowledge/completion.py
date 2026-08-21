@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .integrity import validate_repository
+from .preregistration import validate_frozen_preregistration
 from .repository import KnowledgeRepository
 from .serialization import content_hash, load_structured
 
@@ -19,6 +20,8 @@ REQUIRED_FIXED_FIELDS = {
     "model_id",
     "prompt_hash",
     "task_split_hash",
+    "checkpoint_map_hash",
+    "execution_config_hash",
     "token_budget",
     "library_scales",
     "seeds",
@@ -47,12 +50,14 @@ def audit_blueprint_completion(
     golden_report_path: Path | None = None,
     experiment_report_path: Path | None = None,
     determinism_report_path: Path | None = None,
+    claim_audit_path: Path | None = None,
 ) -> dict[str, Any]:
     """Audit research gates without treating absent evidence as success."""
     preregistration = load_structured(preregistration_path)
     golden = _load_optional(golden_report_path)
     experiment = _load_optional(experiment_report_path)
     determinism = _load_optional(determinism_report_path)
+    claim = _load_optional(claim_audit_path)
 
     integrity = validate_repository(repository)
     instances = repository.list_instances()
@@ -88,12 +93,16 @@ def audit_blueprint_completion(
     fixed_values_complete = all(
         value not in (None, "", [], {}) for value in fixed_values.values()
     )
+    preregistration_errors = validate_frozen_preregistration(preregistration)
     design_checks = [
         _check(
             "preregistration-frozen",
-            preregistration.get("status") == "frozen",
-            preregistration.get("status", "missing"),
-            "The preregistration must be frozen before evaluation.",
+            not preregistration_errors,
+            {
+                "status": preregistration.get("status", "missing"),
+                "integrity_errors": preregistration_errors,
+            },
+            "The preregistration and all hash-locked inputs must remain intact.",
         ),
         _check(
             "hypotheses-h1-h6",
@@ -114,7 +123,8 @@ def audit_blueprint_completion(
             "fixed-experimental-artifacts",
             fixed_values_complete,
             fixed_values,
-            "Model, prompt, split, budget, scales, and seeds must be fixed.",
+            "Model, prompt, split, checkpoints, execution config, budget, scales, "
+            "and seeds must be fixed.",
         ),
     ]
 
@@ -215,12 +225,22 @@ def audit_blueprint_completion(
         ),
     ]
 
-    conclusion_payload = (experiment or {}).get("prespecified_conclusion", {})
+    conclusion_payload = claim or {}
+    conclusion_status = conclusion_payload.get("status")
+    conclusion_bound = bool(
+        claim
+        and experiment
+        and claim.get("preregistration_hash") == content_hash(preregistration)
+        and claim.get("engineering_report_hash") == content_hash(experiment)
+        and claim.get("observation_count") == experiment.get("observation_count")
+    )
     conclusion_checks = [
         _check(
             "prespecified-conclusion",
-            conclusion_payload.get("status") in {"supported", "partially-supported", "not-supported"},
-            conclusion_payload,
+            conclusion_bound
+            and conclusion_status
+            in {"supported", "partially-supported", "not-supported"},
+            {"artifact_bound": conclusion_bound, **conclusion_payload},
             "The final claim must resolve to a prespecified supported/partial/not-supported outcome.",
         )
     ]

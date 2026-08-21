@@ -41,7 +41,9 @@
   "fixed_artifacts": {
     "model_id": null,
     "prompt_hash": null,
-    "task_split_hash": null
+    "task_split_hash": null,
+    "checkpoint_map_hash": null,
+    "execution_config_hash": null
   },
   "primary_baseline": "B",
   "required_separations": ["development", "held-out", "organic", "synthetic"],
@@ -53,6 +55,9 @@
     "exception_hard_violation_escape_max": 0,
     "shadow_fallback_rate_max": 0.1,
     "compile_latency_p95_ms_max": 300,
+    "claim_min_independent_tasks": 2,
+    "claim_min_task_families": 2,
+    "claim_min_advantage_scales": 2,
     "claim_requires_slope_comparison": true
   },
   "status": "preregistered-engineering-draft",

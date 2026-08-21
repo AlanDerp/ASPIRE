@@ -28,12 +28,12 @@ vacuously, so that result is not evidence that the shadow-entry gate passed.
 
 | Milestone | Status | Remaining evidence |
 | --- | --- | --- |
-| M0 preregistration and baselines | Partial | H1--H6, metrics, A/B and margin exist; preregistration remains an engineering draft and does not freeze model, prompt or task split hashes |
+| M0 preregistration and baselines | Partial | H1--H6, metrics, A/B and margin exist; a hash-locked freeze command now validates the task split, checkpoint map and execution variables, but real artifacts are not yet available and the checked-in preregistration remains a draft |
 | M1 corpus and vertical forest | Partial | schemas, repository, fingerprints and validators exist; real instances, two checkpoints and 10--20 expert golden principles do not |
 | M2 upward abstraction | Engineering implemented | two content-addressed repetition audits, explicit cluster acceptance, hash-checked counterexample search, placement report and review-only promotion exist; real reviewer artifacts remain |
 | M3 top-down retrieval | Engineering implemented | three-layer index, tree selection, gates, bounded descent, overlay, fallback, portfolios and A--F compilers are tested |
-| M4 shadow and experiment | Partial | fix-loop recorder, contamination guards, A--F portfolio/runtime boundary, deterministic rebuild verifier and report aggregation exist; real 1x/4x/16x/64x organic runs, labels and GPU execution do not |
-| M5 lifecycle and conclusion | Partial | invalidation and maintenance audit exist; measured workload, total-cost accounting, case review and final go/no-go conclusion do not |
+| M4 shadow and experiment | Partial | fix-loop recorder, contamination guards, isolated A--F experiment injection, deterministic rebuild verifier and missing-safe report aggregation exist; real 1x/4x/16x/64x organic runs, labels and GPU execution do not |
+| M5 lifecycle and conclusion | Partial | invalidation, maintenance audit and a task-clustered prespecified claim auditor exist; measured workload, total-cost observations, case review and final go/no-go evidence do not |
 
 ## Definition-of-Done audit
 
@@ -43,10 +43,10 @@ vacuously, so that result is not evidence that the shadow-entry gate passed.
 | --- | --- |
 | H1--H6 preregistered | Draft only; not frozen |
 | A--F controls runnable through one compiler interface | Passed by CLI end-to-end test |
-| Model, prompt, corpus, checkpoint, seed and budget fairness fixed | Schema and runtime checks exist; real locks are missing |
+| Model, prompt, corpus, checkpoint, seed and budget fairness fixed | Tamper-detecting freeze/runtime checks exist; real locks are missing |
 | Organic and synthetic reported separately | Implemented; no observations exist |
 | Scale-degradation slopes and confidence intervals | Implemented; no observations exist |
-| Explicit failure conclusion | Rules exist; final claim audit is missing |
+| Explicit failure conclusion | Claim-audit code exists; observations required to resolve it are missing |
 
 ### Skill consolidation forest
 
@@ -80,8 +80,9 @@ slope, unchanged negative transfer, or total-cost advantage.
 
 ## Non-negotiable next evidence
 
-1. Freeze the preregistration with exact model, prompt, task split, seeds,
-   token budget and corpus/checkpoint hashes.
+1. Supply the real model, prompt, disjoint task split, checkpoint map and
+   execution configuration to `experiment freeze-preregistration`; do not use
+   placeholders to make the gate pass.
 2. Acquire real development `SkillCodeInstance` records and freeze at least two
    organic checkpoints without held-out leakage.
 3. Produce 10--20 principles with two independent reviewers and all four

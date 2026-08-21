@@ -115,6 +115,22 @@ class KnowledgeRuntimeTests(unittest.TestCase):
                 shadow_hashes={"A": "hash"},
             )
 
+    def test_experiment_mode_can_inject_each_a_to_f_treatment(self):
+        for treatment in "ABCDEF":
+            path, _ = self.portfolio(treatment)
+            generated = build_runtime_config("experiment", {treatment: path})
+            runtime = load_runtime_knowledge(generated)
+            self.assertEqual(runtime.telemetry["treatment"], treatment)
+            self.assertEqual(runtime.telemetry["mode"], "experiment")
+            self.assertTrue(runtime.telemetry["actor_visible"])
+            self.assertIn(f"Treatment {treatment}", runtime.actor_markdown)
+
+        with self.assertRaisesRegex(ValueError, "exactly one treatment"):
+            build_runtime_config(
+                "experiment",
+                {treatment: self.portfolio(treatment)[0] for treatment in "AB"},
+            )
+
     def test_trial_artifact_persists_runtime_provenance(self):
         telemetry = {
             "mode": "shadow",

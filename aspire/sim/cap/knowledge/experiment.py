@@ -222,15 +222,38 @@ class Observation:
     success: float
     context_tokens: int
     compile_latency_ms: float
-    irrelevant_exposure: float = 0.0
-    relevant_principle_recall: float = 0.0
-    relevant_skill_recall: float = 0.0
-    requirement_coverage: float = 0.0
-    fallback: float = 0.0
-    negative_transfer: float = 0.0
-    unsupported_principle_escape: float = 0.0
-    exception_hard_violation_escape: float = 0.0
-    maintenance_cost: float = 0.0
+    reward: float | None = None
+    crash: float | None = None
+    forbidden_api: float | None = None
+    irrelevant_exposure: float | None = None
+    redundancy_exposure: float | None = None
+    relevant_principle_precision: float | None = None
+    relevant_principle_recall: float | None = None
+    relevant_skill_recall: float | None = None
+    requirement_coverage: float | None = None
+    fallback: float | None = None
+    negative_transfer: float | None = None
+    unsupported_principle_escape: float | None = None
+    exception_hard_violation_escape: float | None = None
+    stale_conflict_escape: float | None = None
+    principle_faithfulness: float | None = None
+    principle_purity: float | None = None
+    exception_precision: float | None = None
+    exception_recall: float | None = None
+    support_diversity: float | None = None
+    compression_ratio: float | None = None
+    grounding_success: float | None = None
+    operational_fanout: float | None = None
+    unsupported_principle_rate: float | None = None
+    duplicate_triage_precision: float | None = None
+    nodes_reviewed: float | None = None
+    invalidation_recall: float | None = None
+    false_affected_nodes: float | None = None
+    review_time_minutes: float | None = None
+    tree_overlay_edits: float | None = None
+    construction_cost: float | None = None
+    maintenance_cost: float | None = None
+    blast_radius: float | None = None
     n_code: int = 0
     token_budget: int = 0
     checkpoint_id: str = ""
@@ -249,6 +272,11 @@ class Observation:
             raise ValueError("scale must be positive and counts must be non-negative")
         bounded = (
             "success",
+            "crash",
+            "forbidden_api",
+            "irrelevant_exposure",
+            "redundancy_exposure",
+            "relevant_principle_precision",
             "relevant_principle_recall",
             "relevant_skill_recall",
             "requirement_coverage",
@@ -256,21 +284,62 @@ class Observation:
             "negative_transfer",
             "unsupported_principle_escape",
             "exception_hard_violation_escape",
+            "stale_conflict_escape",
+            "principle_faithfulness",
+            "principle_purity",
+            "exception_precision",
+            "exception_recall",
+            "grounding_success",
+            "unsupported_principle_rate",
+            "duplicate_triage_precision",
+            "invalidation_recall",
         )
-        if any(not 0 <= getattr(self, field) <= 1 for field in bounded):
+        if any(
+            value is not None and not 0 <= value <= 1
+            for field in bounded
+            if (value := getattr(self, field)) is not None
+        ):
             raise ValueError("rates and success observations must be in [0, 1]")
+        nonnegative = (
+            "context_tokens",
+            "compile_latency_ms",
+            "support_diversity",
+            "compression_ratio",
+            "operational_fanout",
+            "nodes_reviewed",
+            "false_affected_nodes",
+            "review_time_minutes",
+            "tree_overlay_edits",
+            "construction_cost",
+            "maintenance_cost",
+            "blast_radius",
+        )
+        if any(
+            value is not None and value < 0
+            for field in nonnegative
+            if (value := getattr(self, field)) is not None
+        ):
+            raise ValueError("counts, costs, latency, and token values must be non-negative")
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "Observation":
         fields = cls.__dataclass_fields__
+        unknown = set(value) - set(fields) - {"schema_version"}
+        if unknown:
+            raise ValueError(f"unknown observation fields: {sorted(unknown)}")
         return cls(**{key: value[key] for key in fields if key in value})
 
 
 METRICS = (
     "success",
+    "reward",
+    "crash",
+    "forbidden_api",
     "context_tokens",
     "compile_latency_ms",
     "irrelevant_exposure",
+    "redundancy_exposure",
+    "relevant_principle_precision",
     "relevant_principle_recall",
     "relevant_skill_recall",
     "requirement_coverage",
@@ -278,7 +347,25 @@ METRICS = (
     "negative_transfer",
     "unsupported_principle_escape",
     "exception_hard_violation_escape",
+    "stale_conflict_escape",
+    "principle_faithfulness",
+    "principle_purity",
+    "exception_precision",
+    "exception_recall",
+    "support_diversity",
+    "compression_ratio",
+    "grounding_success",
+    "operational_fanout",
+    "unsupported_principle_rate",
+    "duplicate_triage_precision",
+    "nodes_reviewed",
+    "invalidation_recall",
+    "false_affected_nodes",
+    "review_time_minutes",
+    "tree_overlay_edits",
+    "construction_cost",
     "maintenance_cost",
+    "blast_radius",
 )
 
 
@@ -318,8 +405,18 @@ def _paired_difference(
     def key(value: Observation):
         return value.corpus_kind, value.scale, value.seed, value.task_id, value.split
 
-    left_values = {key(value): getattr(value, metric) for value in observations if value.treatment == left}
-    right_values = {key(value): getattr(value, metric) for value in observations if value.treatment == right}
+    left_values = {
+        key(value): metric_value
+        for value in observations
+        if value.treatment == left
+        and (metric_value := getattr(value, metric)) is not None
+    }
+    right_values = {
+        key(value): metric_value
+        for value in observations
+        if value.treatment == right
+        and (metric_value := getattr(value, metric)) is not None
+    }
     shared = sorted(set(left_values) & set(right_values))
     differences = [left_values[item] - right_values[item] for item in shared]
     return {
@@ -387,17 +484,32 @@ def build_report(observations: list[Observation], preregistration: dict[str, Any
     results = {}
     for (corpus_kind, treatment), values in sorted(groups.items()):
         key = f"{corpus_kind}:{treatment}"
+        metric_values = {
+            metric: [
+                float(metric_value)
+                for value in values
+                if (metric_value := getattr(value, metric)) is not None
+            ]
+            for metric in METRICS
+        }
         results[key] = {
             "observations": len(values),
             "task_families": sorted({value.task_family for value in values}),
-            "means": {metric: mean(getattr(value, metric) for value in values) for metric in METRICS},
+            "means": {
+                metric: mean(samples) if samples else None
+                for metric, samples in metric_values.items()
+            },
             "mean_bootstrap_95_ci": {
-                metric: _bootstrap_ci([getattr(value, metric) for value in values])
-                for metric in METRICS
+                metric: _bootstrap_ci(samples)
+                for metric, samples in metric_values.items()
             },
             "scale_slopes": {
                 metric: _slope(
-                    [(value.n_code or value.scale, getattr(value, metric)) for value in values]
+                    [
+                        (value.n_code or value.scale, float(metric_value))
+                        for value in values
+                        if (metric_value := getattr(value, metric)) is not None
+                    ]
                 )
                 for metric in METRICS
             },
@@ -475,10 +587,15 @@ def build_report(observations: list[Observation], preregistration: dict[str, Any
             value for value in runtime_observations if value.treatment == treatment
         ]
         if values:
-            treatment_means[treatment] = {
-                metric: mean(getattr(value, metric) for value in values)
-                for metric in METRICS
-            }
+            treatment_means[treatment] = {}
+            for metric in METRICS:
+                samples = [
+                    float(metric_value)
+                    for value in values
+                    if (metric_value := getattr(value, metric)) is not None
+                ]
+                if samples:
+                    treatment_means[treatment][metric] = mean(samples)
     structured = [
         value for value in runtime_observations if value.treatment in {"D", "E"}
     ]
@@ -486,30 +603,38 @@ def build_report(observations: list[Observation], preregistration: dict[str, Any
     structured_skill_recalls = [
         treatment_means[treatment]["relevant_skill_recall"]
         for treatment in ("D", "E")
-        if treatment in treatment_means
+        if "relevant_skill_recall" in treatment_means.get(treatment, {})
     ]
     principle_recalls = [
         treatment_means[treatment]["relevant_principle_recall"]
         for treatment in ("D", "E")
-        if treatment in treatment_means
+        if "relevant_principle_recall" in treatment_means.get(treatment, {})
     ]
     runtime_values = {
         "minimum_principle_recall_at_8": min(principle_recalls, default=None),
         "minimum_operational_skill_recall": min(structured_skill_recalls, default=None),
         "canonical_baseline_skill_recall": baseline_skill_recall,
         "maximum_unsupported_principle_escape": max(
-            (value.unsupported_principle_escape for value in structured),
+            (
+                value.unsupported_principle_escape
+                for value in structured
+                if value.unsupported_principle_escape is not None
+            ),
             default=None,
         ),
         "maximum_exception_hard_violation_escape": max(
-            (value.exception_hard_violation_escape for value in structured),
+            (
+                value.exception_hard_violation_escape
+                for value in structured
+                if value.exception_hard_violation_escape is not None
+            ),
             default=None,
         ),
         "maximum_fallback_rate": max(
             (
                 treatment_means[treatment]["fallback"]
                 for treatment in ("D", "E")
-                if treatment in treatment_means
+                if "fallback" in treatment_means.get(treatment, {})
             ),
             default=None,
         ),

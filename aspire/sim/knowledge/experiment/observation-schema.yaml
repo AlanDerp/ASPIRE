@@ -8,13 +8,22 @@
   "corpus_kind": ["organic", "synthetic"],
   "split": ["development", "held-out", "adversarial", "maintenance"],
   "metrics": [
-    "success", "context_tokens", "compile_latency_ms", "irrelevant_exposure",
-    "relevant_principle_recall", "relevant_skill_recall", "requirement_coverage",
-    "fallback", "negative_transfer", "unsupported_principle_escape",
-    "exception_hard_violation_escape", "maintenance_cost"
+    "success", "reward", "crash", "forbidden_api", "context_tokens",
+    "compile_latency_ms", "irrelevant_exposure", "redundancy_exposure",
+    "relevant_principle_precision", "relevant_principle_recall",
+    "relevant_skill_recall", "requirement_coverage", "fallback",
+    "negative_transfer", "unsupported_principle_escape",
+    "exception_hard_violation_escape", "stale_conflict_escape",
+    "principle_faithfulness", "principle_purity", "exception_precision",
+    "exception_recall", "support_diversity", "compression_ratio",
+    "grounding_success", "operational_fanout", "unsupported_principle_rate",
+    "duplicate_triage_precision", "nodes_reviewed", "invalidation_recall",
+    "false_affected_nodes", "review_time_minutes", "tree_overlay_edits",
+    "construction_cost", "maintenance_cost", "blast_radius"
   ],
+  "missing_metric_policy": "Optional metrics must be omitted or null when unmeasured; missing is never interpreted as zero.",
   "artifact_locks": [
     "checkpoint_id", "manifest_id", "corpus_hash", "context_hash",
-    "portfolio_hash", "model_id", "prompt_hash"
+    "portfolio_hash", "model_id", "prompt_hash", "token_budget", "n_code"
   ]
 }

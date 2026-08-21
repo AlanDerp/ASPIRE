@@ -1,9 +1,11 @@
 {
-  "audit_hash": "ca087c73498b72b068f2b388fa5090356402287b293956ee05b8db2ce68f32e8",
+  "audit_hash": "c762fd3d616ecf82c659a6842ac03b8a5b26352603a64bdcc638400f3a1c1c4e",
   "checks": {
     "conclusion_quality": [
       {
-        "evidence": {},
+        "evidence": {
+          "artifact_bound": false
+        },
         "id": "prespecified-conclusion",
         "passed": false,
         "requirement": "The final claim must resolve to a prespecified supported/partial/not-supported outcome."
@@ -25,10 +27,15 @@
     ],
     "research_design": [
       {
-        "evidence": "preregistered-engineering-draft",
+        "evidence": {
+          "integrity_errors": [
+            "status is not frozen"
+          ],
+          "status": "preregistered-engineering-draft"
+        },
         "id": "preregistration-frozen",
         "passed": false,
-        "requirement": "The preregistration must be frozen before evaluation."
+        "requirement": "The preregistration and all hash-locked inputs must remain intact."
       },
       {
         "evidence": {
@@ -76,6 +83,8 @@
       },
       {
         "evidence": {
+          "checkpoint_map_hash": null,
+          "execution_config_hash": null,
           "library_scales": [
             1,
             4,
@@ -94,7 +103,7 @@
         },
         "id": "fixed-experimental-artifacts",
         "passed": false,
-        "requirement": "Model, prompt, split, budget, scales, and seeds must be fixed."
+        "requirement": "Model, prompt, split, checkpoints, execution config, budget, scales, and seeds must be fixed."
       }
     ],
     "shadow_entry": [

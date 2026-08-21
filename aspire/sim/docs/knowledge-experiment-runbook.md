@@ -4,6 +4,36 @@ This runbook operationalizes the repository-level
 [`../../../doc/aspire-upward-abstraction-knowledge-graph-blueprint.md`](../../../doc/aspire-upward-abstraction-knowledge-graph-blueprint.md).
 Run commands from `aspire/sim` with `PYTHONPATH=../..`.
 
+## 0. Freeze the research design
+
+Keep the checked-in preregistration as a draft until the real model, base
+prompt, disjoint task split, organic/synthetic checkpoint map, and execution
+configuration are known. The task split must contain nonempty `development`,
+`held-out`, `adversarial`, and `maintenance` lists. The checkpoint map must
+contain every preregistered scale under both `organic` and `synthetic`; organic
+entries set `evidence_eligible: true`, synthetic entries set it to `false`.
+
+The execution configuration fixes `model_id`, `temperature`, `simulator`,
+`execution_api`, `perception_backend`, `task_seeds`, `token_budget`,
+`max_runs`, `max_retries`, `retrieval_lexical_normalization`, and
+`held_out_writeback: false`. Freeze once, before A--F execution:
+
+```bash
+python -m aspire.sim.cap.knowledge --root knowledge \
+  experiment freeze-preregistration \
+  --draft knowledge/experiment/preregistration.yaml \
+  --model-id <exact-model-and-version> --prompt <base-prompt.txt> \
+  --task-split <task-split.yaml> --checkpoint-map <checkpoint-map.yaml> \
+  --execution-config <execution-config.yaml> \
+  --frozen-at <RFC3339-time> \
+  --output knowledge/experiment/preregistration-frozen.yaml
+```
+
+The output stores semantic hashes and absolute source paths. Completion audit
+reloads every source and fails if a file or the frozen document changes. Do not
+overwrite the draft with guessed values and do not re-freeze after seeing
+held-out results; a changed design starts a separately versioned experiment.
+
 ## 1. Development acquisition
 
 After a task program has actually executed, ingest its relevant code symbol with
@@ -124,6 +154,16 @@ done
 Actor prompt remains unchanged. Do not switch to principle runtime until its
 separate runtime gates pass.
 
+For an actual A--F research run, use the internal `experiment` runtime mode
+with exactly one portfolio. It is deliberately separate from the production
+Actor modes and permits A, C and F only inside fixed evaluation configs:
+
+```bash
+python -m aspire.sim.cap.knowledge --root knowledge experiment runtime-config \
+  --mode experiment --portfolio C=<artifacts>/C.yaml \
+  --output <artifacts>/runtime-C.yaml
+```
+
 Generate a hash-locked runtime block after compiling all six shadow artifacts:
 
 ```bash
@@ -171,13 +211,19 @@ python -m aspire.sim.cap.knowledge --root knowledge experiment report \
   --observations <observations.jsonl> \
   --preregistration knowledge/experiment/preregistration.yaml \
   --output knowledge/experiment/reports/report.yaml
+python -m aspire.sim.cap.knowledge --root knowledge experiment claim-audit \
+  --observations <observations.jsonl> \
+  --preregistration knowledge/experiment/preregistration-frozen.yaml \
+  --output knowledge/experiment/reports/claim-audit.yaml
 ```
 
 The reporter keeps organic and synthetic groups separate and returns
 `not-evaluable` until every preregistered treatment/scale/corpus cell exists.
-Engineering aggregation alone is not a statistical conclusion; confidence
-intervals and the preregistered non-inferiority and interaction analyses remain
-required.
+Unmeasured optional metrics remain `null`; they are never interpreted as zero.
+The claim auditor uses task-clustered bootstrap intervals for slope,
+non-inferiority, exposure, overlay, exception, maintenance-cost and blast-radius
+rules. It remains `not-evaluable` unless every prespecified comparison spans the
+minimum independent tasks and task families.
 
 For the manually reviewed golden corpus, retain one JSONL row per reviewer and
 run:
@@ -216,6 +262,7 @@ python -m aspire.sim.cap.knowledge --root knowledge completion audit \
   --golden-report knowledge/experiment/reports/golden-report.yaml \
   --experiment-report knowledge/experiment/reports/report.yaml \
   --determinism-report knowledge/experiment/reports/determinism.yaml \
+  --claim-audit knowledge/experiment/reports/claim-audit.yaml \
   --output knowledge/experiment/reports/completion-audit.yaml
 ```
 

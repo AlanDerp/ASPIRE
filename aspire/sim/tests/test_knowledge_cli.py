@@ -48,6 +48,103 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
         path.write_text(json.dumps(value, indent=2) + "\n")
         return path
 
+    def test_freeze_preregistration_locks_all_experimental_inputs(self):
+        draft = self.write_json(
+            "draft.yaml",
+            {
+                "status": "preregistered-engineering-draft",
+                "hypotheses": {
+                    f"H{index}": {
+                        "claim": f"claim {index}",
+                        "refutation": f"refutation {index}",
+                    }
+                    for index in range(1, 7)
+                },
+                "treatments": {treatment: treatment for treatment in "ABCDEF"},
+                "library_scales": [1, 4],
+                "seeds": [11, 29],
+                "token_budget": 2400,
+            },
+        )
+        prompt = self.workspace / "prompt.txt"
+        prompt.write_text("fixed task prompt\n")
+        task_split = self.write_json(
+            "task-split.yaml",
+            {
+                "development": ["dev-1"],
+                "held-out": ["test-1"],
+                "adversarial": ["adversarial-1"],
+                "maintenance": ["maintenance-1"],
+            },
+        )
+        checkpoint_map = self.write_json(
+            "checkpoint-map.yaml",
+            {
+                corpus_kind: {
+                    str(scale): {
+                        "checkpoint_id": f"{corpus_kind}-n{scale}",
+                        "corpus_hash": f"{corpus_kind}-hash-{scale}",
+                        "n_code": scale,
+                        "evidence_eligible": corpus_kind == "organic",
+                    }
+                    for scale in (1, 4)
+                }
+                for corpus_kind in ("organic", "synthetic")
+            },
+        )
+        execution_config = self.write_json(
+            "execution-config.yaml",
+            {
+                "model_id": "model-pinned-v1",
+                "temperature": 0,
+                "simulator": "libero-pro-long-v1",
+                "execution_api": "aspire-cap-v1",
+                "perception_backend": "ground-truth-v1",
+                "task_seeds": [11, 29],
+                "token_budget": 2400,
+                "max_runs": 1,
+                "max_retries": 2,
+                "retrieval_lexical_normalization": "v1",
+                "held_out_writeback": False,
+            },
+        )
+        output = self.workspace / "frozen.yaml"
+
+        result = self.run_cli(
+            "experiment",
+            "freeze-preregistration",
+            "--draft",
+            str(draft),
+            "--model-id",
+            "model-pinned-v1",
+            "--prompt",
+            str(prompt),
+            "--task-split",
+            str(task_split),
+            "--checkpoint-map",
+            str(checkpoint_map),
+            "--execution-config",
+            str(execution_config),
+            "--frozen-at",
+            "2026-08-21T00:00:00+00:00",
+            "--output",
+            str(output),
+        )
+
+        self.assertEqual(result["status"], "frozen")
+        self.assertTrue(output.is_file())
+        completion = self.run_cli(
+            "completion", "audit", "--preregistration", str(output)
+        )
+        self.assertNotIn("preregistration-frozen", completion["failed_check_ids"])
+        self.assertNotIn("fixed-experimental-artifacts", completion["failed_check_ids"])
+
+        prompt.write_text("prompt changed after freeze\n")
+        tampered = self.run_cli(
+            "completion", "audit", "--preregistration", str(output)
+        )
+        self.assertIn("preregistration-frozen", tampered["failed_check_ids"])
+
     def test_full_skill_code_to_treatment_pipeline(self):
         self.run_cli("init")
         policy = self.write_json(

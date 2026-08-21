@@ -1111,6 +1111,8 @@ class ForestAndRetrievalTests(unittest.TestCase):
                             ),
                             relevant_skill_recall=0.80,
                             fallback=(0.05 if treatment in {"D", "E"} else 0.0),
+                            unsupported_principle_escape=0.0,
+                            exception_hard_violation_escape=0.0,
                             n_code=6 * scale,
                             token_budget=2400,
                             checkpoint_id="snapshot-n3",

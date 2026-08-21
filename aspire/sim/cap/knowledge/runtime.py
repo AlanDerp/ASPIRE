@@ -14,9 +14,9 @@ from .serialization import content_hash, load_structured
 
 
 KnowledgeMode = Literal[
-    "off", "shadow", "canonical", "principle-tree", "principle-graph"
+    "off", "shadow", "experiment", "canonical", "principle-tree", "principle-graph"
 ]
-MODES = {"off", "shadow", "canonical", "principle-tree", "principle-graph"}
+MODES = {"off", "shadow", "experiment", "canonical", "principle-tree", "principle-graph"}
 PRODUCTION_TREATMENTS = {
     "canonical": "B",
     "principle-tree": "D",
@@ -30,6 +30,7 @@ class KnowledgeRuntimeConfig:
     mode: KnowledgeMode = "off"
     portfolio_path: str | None = None
     portfolio_hash: str | None = None
+    experimental_treatment: str | None = None
     shadow_portfolios: dict[str, str] = field(default_factory=dict)
     shadow_hashes: dict[str, str] = field(default_factory=dict)
     token_budget: int = 2400
@@ -41,7 +42,7 @@ class KnowledgeRuntimeConfig:
         if self.token_budget < 1:
             raise ValueError("knowledge token budget must be positive")
         if self.mode == "off":
-            if self.portfolio_path or self.shadow_portfolios:
+            if self.portfolio_path or self.shadow_portfolios or self.experimental_treatment:
                 raise ValueError("off mode cannot load knowledge portfolios")
             return
         if self.mode == "shadow":
@@ -49,11 +50,21 @@ class KnowledgeRuntimeConfig:
                 raise ValueError("shadow mode requires exact A--F portfolio paths")
             if set(self.shadow_hashes) != SHADOW_TREATMENTS:
                 raise ValueError("shadow mode requires exact A--F portfolio hashes")
-            if self.portfolio_path or self.portfolio_hash:
+            if self.portfolio_path or self.portfolio_hash or self.experimental_treatment:
                 raise ValueError("shadow mode uses shadow_portfolios, not portfolio_path")
+            return
+        if self.mode == "experiment":
+            if self.experimental_treatment not in SHADOW_TREATMENTS:
+                raise ValueError("experiment mode requires one treatment A--F")
+            if not self.portfolio_path or not self.portfolio_hash:
+                raise ValueError("experiment mode requires a portfolio path and hash")
+            if self.shadow_portfolios or self.shadow_hashes:
+                raise ValueError("experiment mode cannot configure shadow portfolios")
             return
         if not self.portfolio_path or not self.portfolio_hash:
             raise ValueError(f"{self.mode} mode requires a portfolio path and hash")
+        if self.experimental_treatment:
+            raise ValueError("production modes cannot set experimental_treatment")
         if self.shadow_portfolios or self.shadow_hashes:
             raise ValueError("actor-visible modes cannot also configure shadow portfolios")
 
@@ -163,7 +174,11 @@ def load_runtime_knowledge(
             },
         )
 
-    treatment = PRODUCTION_TREATMENTS[config.mode]
+    treatment = (
+        str(config.experimental_treatment)
+        if config.mode == "experiment"
+        else PRODUCTION_TREATMENTS[config.mode]
+    )
     portfolio = _load_portfolio(
         config.portfolio_path or "",
         config.portfolio_hash or "",
@@ -207,6 +222,18 @@ def build_runtime_config(
             token_budget=token_budget,
             require_manifest=require_manifest,
         )
+    elif mode == "experiment":
+        if len(portfolio_paths) != 1 or not set(portfolio_paths) <= SHADOW_TREATMENTS:
+            raise ValueError("experiment runtime config requires exactly one treatment A--F")
+        treatment, path = next(iter(portfolio_paths.items()))
+        config = KnowledgeRuntimeConfig(
+            mode=mode,
+            portfolio_path=path,
+            portfolio_hash=hashes[treatment],
+            experimental_treatment=treatment,
+            token_budget=token_budget,
+            require_manifest=require_manifest,
+        )
     elif mode in PRODUCTION_TREATMENTS:
         expected = PRODUCTION_TREATMENTS[mode]
         if set(portfolio_paths) != {expected}:
@@ -229,6 +256,7 @@ def build_runtime_config(
         "mode": config.mode,
         "portfolio_path": config.portfolio_path,
         "portfolio_hash": config.portfolio_hash,
+        "experimental_treatment": config.experimental_treatment,
         "shadow_portfolios": config.shadow_portfolios,
         "shadow_hashes": config.shadow_hashes,
         "token_budget": config.token_budget,

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .checkpoints import freeze_checkpoint, instances_at_checkpoint
+from .claim_audit import audit_claim_files
 from .completion import audit_blueprint_completion
 from .consolidation import canonicalize_cluster, propose_principle
 from .counterexample import (
@@ -39,6 +40,7 @@ from .models import (
     model_to_dict,
 )
 from .placement import analyze_placement
+from .preregistration import freeze_preregistration
 from .projection import lineage_view, overlay_view, vertical_forest
 from .repository import KnowledgeRepository
 from .review_artifacts import (
@@ -488,6 +490,28 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             write_structured_atomic(args.output, report)
         return report
 
+    if args.command == "experiment" and args.experiment_command == "claim-audit":
+        result = audit_claim_files(args.observations, args.preregistration)
+        if args.output:
+            write_structured_atomic(args.output, result)
+        return result
+
+    if (
+        args.command == "experiment"
+        and args.experiment_command == "freeze-preregistration"
+    ):
+        result = freeze_preregistration(
+            args.draft,
+            model_id=args.model_id,
+            prompt_path=args.prompt,
+            task_split_path=args.task_split,
+            checkpoint_map_path=args.checkpoint_map,
+            execution_config_path=args.execution_config,
+            frozen_at=args.frozen_at,
+        )
+        write_structured_atomic(args.output, result)
+        return {"path": str(args.output), **result}
+
     if args.command == "experiment" and args.experiment_command == "build-corpus":
         result = build_stress_corpus(
             repository,
@@ -551,6 +575,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             golden_report_path=args.golden_report,
             experiment_report_path=args.experiment_report,
             determinism_report_path=args.determinism_report,
+            claim_audit_path=args.claim_audit,
         )
         if args.output:
             write_structured_atomic(args.output, result)
@@ -747,6 +772,23 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--observations", type=Path, required=True)
     report.add_argument("--preregistration", type=Path, required=True)
     report.add_argument("--output", type=Path)
+    claim_audit = experiment.add_parser("claim-audit")
+    claim_audit.add_argument("--observations", type=Path, required=True)
+    claim_audit.add_argument("--preregistration", type=Path, required=True)
+    claim_audit.add_argument("--output", type=Path)
+    freeze_preregistration_parser = experiment.add_parser("freeze-preregistration")
+    freeze_preregistration_parser.add_argument("--draft", type=Path, required=True)
+    freeze_preregistration_parser.add_argument("--model-id", required=True)
+    freeze_preregistration_parser.add_argument("--prompt", type=Path, required=True)
+    freeze_preregistration_parser.add_argument("--task-split", type=Path, required=True)
+    freeze_preregistration_parser.add_argument(
+        "--checkpoint-map", type=Path, required=True
+    )
+    freeze_preregistration_parser.add_argument(
+        "--execution-config", type=Path, required=True
+    )
+    freeze_preregistration_parser.add_argument("--frozen-at", required=True)
+    freeze_preregistration_parser.add_argument("--output", type=Path, required=True)
     corpus = experiment.add_parser("build-corpus")
     corpus.add_argument("--checkpoint", required=True)
     corpus.add_argument("--scales", default="1,4,16,64")
@@ -759,7 +801,14 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_config = experiment.add_parser("runtime-config")
     runtime_config.add_argument(
         "--mode",
-        choices=("off", "shadow", "canonical", "principle-tree", "principle-graph"),
+        choices=(
+            "off",
+            "shadow",
+            "experiment",
+            "canonical",
+            "principle-tree",
+            "principle-graph",
+        ),
         required=True,
     )
     runtime_config.add_argument(
@@ -785,6 +834,7 @@ def build_parser() -> argparse.ArgumentParser:
     completion_audit.add_argument("--golden-report", type=Path)
     completion_audit.add_argument("--experiment-report", type=Path)
     completion_audit.add_argument("--determinism-report", type=Path)
+    completion_audit.add_argument("--claim-audit", type=Path)
     completion_audit.add_argument("--output", type=Path)
     return parser
 

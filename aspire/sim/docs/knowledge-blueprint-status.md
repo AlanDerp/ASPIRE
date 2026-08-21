@@ -37,10 +37,11 @@ This document separates engineering completion from empirical research claims.
 | Deterministic views | vertical forest, task-family, overlay incoming/outgoing, and lineage projections with content hashes |
 | A–F comparable interface | `experiment.py`; flat code, canonical, summary tree, principle tree, forest+graph, and no-exception treatments |
 | Controlled stress growth | `stress.py`; 1x/4x/16x/64x synthetic records marked ineligible for evidence and success claims |
-| Statistical report inputs | treatment/scale/seed coverage, artifact fairness locks, `log2(N_code)` slopes, bootstrap CIs and paired non-inferiority comparisons |
+| Statistical report and claim audit | complete metric schema with missing-is-not-zero semantics, treatment/scale/seed coverage, artifact fairness locks, `log2(N_code)` slopes, task-clustered bootstrap CIs, non-inferiority, exposure, overlay, exception, cost and blast-radius decisions |
+| Preregistration freeze | `preregistration.py`; validates H1--H6/A--F, disjoint partitions, organic/synthetic checkpoint eligibility and all fixed execution variables, then hash-locks every source artifact |
 | Golden evaluation | reviewer-level labels, retained disagreement, polarity coverage and faithfulness gate |
 | ASPIRE fast path | fix-loop records exact executed code in `knowledge/` and legacy Markdown in one promotion; slow consolidation stays checkpoint-driven |
-| Actor runtime modes | `knowledge/runtime.py` and `CodeExecutionEnvBase`; hash-locked off/shadow/B/D/E loading, prompt injection, reset/step telemetry, and per-trial `knowledge_runtime.json` provenance |
+| Actor runtime modes | `knowledge/runtime.py` and `CodeExecutionEnvBase`; hash-locked off/shadow/production B-D-E plus isolated A--F experiment loading, prompt injection, reset/step telemetry, and per-trial `knowledge_runtime.json` provenance |
 | Completion and determinism gates | `completion.py`, `verification.py`; fail-closed Actor-mode audit and independent semantic rebuild comparison for forest/index/A--F portfolios |
 
 The end-to-end test starts with six executed code files and reaches three
@@ -60,7 +61,7 @@ must not be fabricated:
 - no 20-task retrieval/token comparison has been run;
 - no LIBERO held-out A–F GPU execution has been run with fixed model, prompt,
   seeds, API and token budget;
-- no confidence interval currently establishes D/E success non-inferiority to B;
+- no task-clustered confidence interval currently establishes D/E success non-inferiority to B;
 - no observed slope currently establishes that D beats B/C or E beats D;
 - no observed negative-transfer comparison currently establishes that F is
   worse than E;
@@ -84,6 +85,7 @@ Run from the repository root:
 PYTHONPATH=. python3 -m unittest -q \
   aspire.sim.tests.test_knowledge \
   aspire.sim.tests.test_knowledge_cli \
+  aspire.sim.tests.test_preregistration \
   aspire.sim.tests.test_knowledge_runtime \
   aspire.sim.tests.test_record_skill_promotion
 PYTHONPATH=. mypy --ignore-missing-imports aspire/sim/cap/knowledge
