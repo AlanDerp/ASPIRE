@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "entry_required": [
+    "id", "target_ref", "expected_skill_ids", "expected_principle_ids",
+    "expected_task_ids"
+  ],
+  "entry_optional": ["measured_review_minutes"],
+  "constraints": [
+    "Targets are development instances or canonical skills, not principles.",
+    "Expected affected sets are reviewer labels, not system predictions.",
+    "Simulation is read-only and compares canonical B search with E graph localization."
+  ]
+}

@@ -63,6 +63,11 @@
     "claim_min_independent_tasks": 2,
     "claim_min_task_families": 2,
     "claim_min_advantage_scales": 2,
+    "total_cost_weights": {
+      "compute_minute": 0.1,
+      "model_1k_tokens": 0.01,
+      "monetary_unit": 1.0
+    },
     "claim_requires_slope_comparison": true
   },
   "status": "preregistered-engineering-draft",

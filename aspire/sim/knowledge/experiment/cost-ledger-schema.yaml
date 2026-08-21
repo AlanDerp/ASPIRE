@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "required": [
+    "event_id", "treatment", "scale", "task_id", "task_family", "phase",
+    "source_partition", "human_minutes", "compute_seconds", "model_tokens",
+    "monetary_cost", "evidence_path", "evidence_hash"
+  ],
+  "phase": ["construction", "maintenance"],
+  "constraints": [
+    "Every event ID is unique and every resource value is non-negative.",
+    "Construction evidence is development-only; maintenance evidence uses the maintenance split.",
+    "Evidence paths are absolute files with raw SHA-256 locks.",
+    "The primary total is a preregistered human-minute-equivalent; raw resources remain visible."
+  ]
+}

@@ -5,13 +5,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
-from .lifecycle import invalidated_refs, principle_metrics
+from .lifecycle import impact_report, invalidated_refs, principle_metrics
 from .models import CanonicalSkill, Principle
 from .repository import KnowledgeRepository
 from .retrieval import resolve_view
-from .serialization import content_hash
+from .serialization import content_hash, load_structured
 
 
 def _principle_signature(value) -> str:
@@ -99,3 +100,124 @@ def audit_maintenance(
         "destructive_changes_performed": False,
     }
     return {**payload, "audit_hash": content_hash(payload)}
+
+
+def _recall(predicted: set[str], expected: set[str]) -> float | None:
+    if not expected:
+        return None
+    return len(predicted & expected) / len(expected)
+
+
+def simulate_maintenance(
+    repository: KnowledgeRepository,
+    scenarios_path: Path,
+) -> dict[str, Any]:
+    """Run read-only invalidation localization scenarios for B and E."""
+    document = load_structured(scenarios_path)
+    scenarios = document.get("scenarios")
+    if not isinstance(scenarios, list) or not scenarios:
+        raise ValueError("maintenance simulation requires a nonempty scenarios list")
+    skills, principles, _, _ = resolve_view(repository, None)
+    instances = {value.id: value for value in repository.list_instances()}
+    results = []
+    seen_ids: set[str] = set()
+    for scenario in scenarios:
+        if not isinstance(scenario, dict):
+            raise ValueError("maintenance scenarios must be objects")
+        scenario_id = str(scenario.get("id", ""))
+        target = str(scenario.get("target_ref", ""))
+        if not scenario_id or scenario_id in seen_ids:
+            raise ValueError("maintenance scenario ids must be nonempty and unique")
+        seen_ids.add(scenario_id)
+        if target in principles:
+            raise ValueError("B/E maintenance comparisons must target an instance or skill")
+        if target in skills:
+            vertical = skills[target].vertical_capability
+        elif target in instances:
+            vertical = instances[target].vertical_capability
+        else:
+            raise ValueError(f"maintenance target does not exist: {target}")
+        expected_skills = {str(value) for value in scenario.get("expected_skill_ids", [])}
+        expected_principles = {
+            str(value) for value in scenario.get("expected_principle_ids", [])
+        }
+        expected_tasks = {str(value) for value in scenario.get("expected_task_ids", [])}
+        if not expected_skills or not expected_tasks:
+            raise ValueError(
+                f"maintenance scenario {scenario_id} requires expected skills and tasks"
+            )
+        measured = scenario.get("measured_review_minutes", {})
+        if not isinstance(measured, dict):
+            raise ValueError("measured_review_minutes must be an object")
+        if any(
+            treatment in measured
+            and (
+                not isinstance(measured[treatment], (int, float))
+                or isinstance(measured[treatment], bool)
+                or measured[treatment] < 0
+            )
+            for treatment in ("B", "E")
+        ):
+            raise ValueError("measured review minutes must be non-negative")
+
+        impact = impact_report(repository, target)
+        affected_skills = set(impact.affected_skill_ids)
+        affected_principles = set(impact.affected_principle_ids)
+        affected_tasks = set(impact.affected_task_ids)
+        baseline_reviewed = {
+            skill.id
+            for skill in skills.values()
+            if skill.vertical_capability == vertical
+        }
+        forest_reviewed = {target, *affected_skills, *affected_principles}
+        expected_baseline = {target, *expected_skills}
+        expected_forest = {target, *expected_skills, *expected_principles}
+        treatment_metrics = {
+            "B": {
+                "reviewed_refs": sorted(baseline_reviewed | {target}),
+                "predicted_affected_refs": sorted(affected_skills),
+                "nodes_reviewed": len(baseline_reviewed | {target}),
+                "invalidation_recall": _recall(affected_skills, expected_skills),
+                "false_affected_nodes": len(
+                    (baseline_reviewed | {target}) - expected_baseline
+                ),
+                "review_time_minutes": measured.get("B"),
+            },
+            "E": {
+                "reviewed_refs": sorted(forest_reviewed),
+                "predicted_affected_refs": sorted(
+                    affected_skills | affected_principles
+                ),
+                "nodes_reviewed": len(forest_reviewed),
+                "invalidation_recall": _recall(
+                    affected_skills | affected_principles,
+                    expected_skills | expected_principles,
+                ),
+                "false_affected_nodes": len(forest_reviewed - expected_forest),
+                "review_time_minutes": measured.get("E"),
+            },
+        }
+        results.append(
+            {
+                "id": scenario_id,
+                "target_ref": target,
+                "vertical_capability": vertical,
+                "expected": {
+                    "skill_ids": sorted(expected_skills),
+                    "principle_ids": sorted(expected_principles),
+                    "task_ids": sorted(expected_tasks),
+                },
+                "task_impact_recall": _recall(affected_tasks, expected_tasks),
+                "false_affected_tasks": sorted(affected_tasks - expected_tasks),
+                "blast_radius": len(affected_tasks),
+                "treatments": treatment_metrics,
+            }
+        )
+    payload = {
+        "schema_version": 1,
+        "source_scenarios_hash": content_hash(document),
+        "scenario_count": len(results),
+        "scenarios": results,
+        "mutation_performed": False,
+    }
+    return {**payload, "simulation_hash": content_hash(payload)}

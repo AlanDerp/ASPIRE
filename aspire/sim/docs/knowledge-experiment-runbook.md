@@ -249,6 +249,8 @@ python -m aspire.sim.cap.knowledge --root knowledge experiment report \
 python -m aspire.sim.cap.knowledge --root knowledge experiment claim-audit \
   --observations <observations.jsonl> \
   --preregistration knowledge/experiment/preregistration-frozen.yaml \
+  --cost-report knowledge/experiment/reports/cost-report.yaml \
+  --maintenance-simulation knowledge/experiment/reports/maintenance-simulation.yaml \
   --output knowledge/experiment/reports/claim-audit.yaml
 ```
 
@@ -286,11 +288,26 @@ python -m aspire.sim.cap.knowledge --root knowledge impact invalidate <ref> \
   --reason '<development evidence>'
 python -m aspire.sim.cap.knowledge --root knowledge maintenance audit \
   --output knowledge/proposals/maintenance-audit.yaml
+python -m aspire.sim.cap.knowledge --root knowledge maintenance simulate \
+  --scenarios <reviewed-maintenance-scenarios.yaml> \
+  --output knowledge/experiment/reports/maintenance-simulation.yaml
+python -m aspire.sim.cap.knowledge --root knowledge maintenance cost-report \
+  --ledger <trace-backed-cost-events.jsonl> \
+  --preregistration knowledge/experiment/preregistration-frozen.yaml \
+  --output knowledge/experiment/reports/cost-report.yaml
 ```
 
 Invalidation never deletes revisions. It recalculates support and removes weak
 or broken principles from runtime retrieval. Maintenance audit proposes
 merge/split/prune work without performing destructive changes.
+
+Maintenance scenarios contain reviewer-labeled affected skills, principles and
+tasks. Simulation compares B's vertical canonical search surface with E's
+localized graph impact without recording an invalidation. Cost events retain
+raw human minutes, compute seconds, model tokens and monetary cost plus a
+hash-locked timing/log artifact; the primary total converts them with weights
+frozen in the preregistration. Claim audit rejects cost values that do not equal
+the independent cost report and requires a valid maintenance simulation.
 
 ## 7. Completion and mode gate
 

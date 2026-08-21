@@ -34,6 +34,7 @@ This document separates engineering completion from empirical research claims.
 | Explicit fallback | Canonical fallback and reasoned exclusions are persisted in every `Portfolio` |
 | Lifecycle | `lifecycle.py`; append-only invalidation, blast radius and sufficient/weak/broken support propagation |
 | Explosion maintenance | `maintenance.py`; non-destructive merge/split/conflict/hub/prune audit |
+| Maintenance experiment and total cost | reviewer-labeled B/E invalidation-surface simulation plus trace-backed construction/maintenance resource ledger under preregistered weights |
 | Deterministic views | vertical forest, task-family, overlay incoming/outgoing, and lineage projections with content hashes |
 | A–F comparable interface | `experiment.py`; flat code, canonical, summary tree, principle tree, forest+graph, and no-exception treatments |
 | Controlled stress growth | `stress.py`; 1x/4x/16x/64x synthetic records marked ineligible for evidence and success claims |
@@ -66,8 +67,8 @@ must not be fabricated:
 - no observed slope currently establishes that D beats B/C or E beats D;
 - no observed negative-transfer comparison currently establishes that F is
   worse than E;
-- no measured shadow fallback rate, recall@8, p95 compilation latency, or total
-  maintenance cost has crossed the blueprint's runtime gates.
+- no measured shadow fallback rate, recall@8, p95 compilation latency, or
+  trace-backed total maintenance cost has crossed the blueprint's runtime gates.
 
 Therefore the research claim is **not yet evaluable**, and `off` remains the
 only justified default mode. `shadow` is the next integration stage after its

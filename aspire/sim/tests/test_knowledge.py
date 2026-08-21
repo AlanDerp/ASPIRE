@@ -24,7 +24,7 @@ from aspire.sim.cap.knowledge.index import index_metadata, rebuild_index
 from aspire.sim.cap.knowledge.ingest import build_instance
 from aspire.sim.cap.knowledge.integrity import validate_repository
 from aspire.sim.cap.knowledge.lifecycle import invalidate, principle_metrics
-from aspire.sim.cap.knowledge.maintenance import audit_maintenance
+from aspire.sim.cap.knowledge.maintenance import audit_maintenance, simulate_maintenance
 from aspire.sim.cap.knowledge.models import (
     CanonicalSkill,
     Checkpoint,
@@ -765,6 +765,33 @@ class ForestAndRetrievalTests(unittest.TestCase):
                 "held-out failure",
                 source_partition="held-out",
             )
+
+    def test_maintenance_simulation_compares_search_surfaces_without_mutation(self):
+        scenarios = Path(self.temporary.name) / "maintenance-scenarios.yaml"
+        write_structured_atomic(
+            scenarios,
+            {
+                "scenarios": [
+                    {
+                        "id": "remove-first-transport-pattern",
+                        "target_ref": self.skills[0].id,
+                        "expected_skill_ids": [self.skills[0].id],
+                        "expected_principle_ids": [self.principle.id],
+                        "expected_task_ids": ["task-1", "task-2"],
+                        "measured_review_minutes": {"B": 8.0, "E": 3.0},
+                    }
+                ]
+            },
+        )
+
+        result = simulate_maintenance(self.repository, scenarios)
+
+        comparison = result["scenarios"][0]["treatments"]
+        self.assertEqual(comparison["B"]["nodes_reviewed"], 3)
+        self.assertEqual(comparison["E"]["nodes_reviewed"], 2)
+        self.assertEqual(comparison["E"]["invalidation_recall"], 1.0)
+        self.assertEqual(comparison["E"]["false_affected_nodes"], 0)
+        self.assertFalse(result["mutation_performed"])
 
     def test_forest_validation_materializes_latest_revision(self):
         revised_skill = replace(

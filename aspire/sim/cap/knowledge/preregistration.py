@@ -42,6 +42,7 @@ DECISION_FIELDS = (
     "claim_min_task_families",
     "claim_min_advantage_scales",
     "claim_requires_slope_comparison",
+    "total_cost_weights",
 )
 
 
@@ -109,6 +110,17 @@ def _validate_decision_rules(value: Any) -> None:
     latency = value["compile_latency_p95_ms_max"]
     if not isinstance(latency, (int, float)) or isinstance(latency, bool) or latency <= 0:
         raise ValueError("compile_latency_p95_ms_max must be positive")
+    weights = value["total_cost_weights"]
+    expected_weights = {"compute_minute", "model_1k_tokens", "monetary_unit"}
+    if not isinstance(weights, dict) or set(weights) != expected_weights:
+        raise ValueError(f"total_cost_weights requires exact keys: {sorted(expected_weights)}")
+    if any(
+        not isinstance(weight, (int, float))
+        or isinstance(weight, bool)
+        or weight < 0
+        for weight in weights.values()
+    ):
+        raise ValueError("total_cost_weights values must be non-negative")
 
 
 def _validate_checkpoint_map(

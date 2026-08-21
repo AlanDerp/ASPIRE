@@ -194,8 +194,84 @@ def _repeatability(
     }
 
 
+def _validate_cost_evidence(
+    observations: list[Observation],
+    preregistration: dict[str, Any],
+    report: dict[str, Any] | None,
+) -> list[str]:
+    if not report:
+        return ["cost report is missing"]
+    payload = {key: value for key, value in report.items() if key != "cost_report_hash"}
+    errors = []
+    if report.get("cost_report_hash") != content_hash(payload):
+        errors.append("cost report hash mismatch")
+    if report.get("status") != "complete":
+        errors.append("cost report is incomplete")
+    if report.get("preregistration_hash") != content_hash(preregistration):
+        errors.append("cost report preregistration hash mismatch")
+    rows = {
+        (row.get("treatment"), row.get("scale"), row.get("task_id")): row
+        for row in report.get("rows", [])
+        if isinstance(row, dict)
+    }
+    for value in observations:
+        if (
+            value.corpus_kind != "organic"
+            or value.split != "maintenance"
+            or value.treatment not in {"B", "E"}
+        ):
+            continue
+        row = rows.get((value.treatment, value.scale, value.task_id))
+        if not row:
+            errors.append(
+                f"cost row missing: {value.treatment}/{value.scale}/{value.task_id}"
+            )
+            continue
+        if value.construction_cost != row.get("construction_cost"):
+            errors.append(
+                f"construction cost mismatch: {value.treatment}/{value.scale}/{value.task_id}"
+            )
+        if value.maintenance_cost != row.get("maintenance_cost"):
+            errors.append(
+                f"maintenance cost mismatch: {value.treatment}/{value.scale}/{value.task_id}"
+            )
+    return sorted(set(errors))
+
+
+def _validate_maintenance_evidence(
+    report: dict[str, Any] | None,
+    *,
+    minimum_scenarios: int,
+) -> list[str]:
+    if not report:
+        return ["maintenance simulation is missing"]
+    payload = {
+        key: value for key, value in report.items() if key != "simulation_hash"
+    }
+    errors = []
+    if report.get("simulation_hash") != content_hash(payload):
+        errors.append("maintenance simulation hash mismatch")
+    if report.get("mutation_performed") is not False:
+        errors.append("maintenance simulation must be read-only")
+    scenarios = report.get("scenarios", [])
+    if not isinstance(scenarios, list) or len(scenarios) < minimum_scenarios:
+        errors.append(f"maintenance simulation needs at least {minimum_scenarios} scenarios")
+        return errors
+    for scenario in scenarios:
+        treatment = scenario.get("treatments", {}).get("E", {})
+        if scenario.get("task_impact_recall") != 1.0:
+            errors.append(f"task impact recall is incomplete: {scenario.get('id')}")
+        if treatment.get("invalidation_recall") != 1.0:
+            errors.append(f"invalidation recall is incomplete: {scenario.get('id')}")
+    return errors
+
+
 def audit_claim(
-    observations: list[Observation], preregistration: dict[str, Any]
+    observations: list[Observation],
+    preregistration: dict[str, Any],
+    *,
+    cost_report: dict[str, Any] | None = None,
+    maintenance_simulation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Evaluate only the hypotheses and decision rules fixed in the blueprint."""
     engineering_report = build_report(observations, preregistration)
@@ -209,6 +285,13 @@ def audit_claim(
     minimum_tasks = int(decision_rules.get("claim_min_independent_tasks", 2))
     minimum_families = int(decision_rules.get("claim_min_task_families", 2))
     minimum_scales = int(decision_rules.get("claim_min_advantage_scales", 2))
+    cost_evidence_errors = _validate_cost_evidence(
+        observations, preregistration, cost_report
+    )
+    maintenance_evidence_errors = _validate_maintenance_evidence(
+        maintenance_simulation,
+        minimum_scenarios=minimum_tasks,
+    )
     scales = sorted(int(value) for value in preregistration.get("library_scales", []))
     medium_scale = scales[len(scales) // 2] if scales else 1
 
@@ -371,6 +454,8 @@ def audit_claim(
     coverage = engineering_report["coverage"]
     design_evaluable = (
         not preregistration_errors
+        and not cost_evidence_errors
+        and not maintenance_evidence_errors
         and engineering_report["claim_status"]
         == "ready-for-prespecified-statistical-analysis"
         and coverage["organic_and_synthetic_reported_separately"]
@@ -421,6 +506,12 @@ def audit_claim(
         "design_evaluable": design_evaluable,
         "rules_evaluable": rules_evaluable,
         "preregistration_integrity_errors": preregistration_errors,
+        "cost_evidence_errors": cost_evidence_errors,
+        "maintenance_evidence_errors": maintenance_evidence_errors,
+        "cost_report_hash": (cost_report or {}).get("cost_report_hash"),
+        "maintenance_simulation_hash": (maintenance_simulation or {}).get(
+            "simulation_hash"
+        ),
         "engineering_coverage": coverage,
         "rules": rules,
         "repeatability": repeatability,
@@ -439,9 +530,17 @@ def audit_claim(
 
 
 def audit_claim_files(
-    observations_path: Path, preregistration_path: Path
+    observations_path: Path,
+    preregistration_path: Path,
+    cost_report_path: Path,
+    maintenance_simulation_path: Path,
 ) -> dict[str, Any]:
     observations = [
         Observation.from_dict(value) for value in iter_jsonl(observations_path)
     ]
-    return audit_claim(observations, load_structured(preregistration_path))
+    return audit_claim(
+        observations,
+        load_structured(preregistration_path),
+        cost_report=load_structured(cost_report_path),
+        maintenance_simulation=load_structured(maintenance_simulation_path),
+    )

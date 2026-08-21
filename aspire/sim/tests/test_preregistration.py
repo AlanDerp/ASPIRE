@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from aspire.sim.cap.knowledge.claim_audit import audit_claim
+from aspire.sim.cap.knowledge.cost import build_cost_report
 from aspire.sim.cap.knowledge.experiment import Observation
 from aspire.sim.cap.knowledge.preregistration import freeze_preregistration
 from aspire.sim.cap.knowledge.run_plan import (
@@ -62,6 +63,11 @@ class PreregistrationTests(unittest.TestCase):
                     "claim_min_independent_tasks": 2,
                     "claim_min_task_families": 2,
                     "claim_min_advantage_scales": 2,
+                    "total_cost_weights": {
+                        "compute_minute": 0.1,
+                        "model_1k_tokens": 0.01,
+                        "monetary_unit": 1.0,
+                    },
                     "claim_requires_slope_comparison": True,
                 },
             },
@@ -311,6 +317,44 @@ class PreregistrationTests(unittest.TestCase):
         self.assertEqual(result["completed_count"], 1)
         self.assertIn('"treatment":"D"', (self.root / "observations.jsonl").read_text())
 
+    def test_cost_report_requires_trace_backed_b_and_e_phases(self) -> None:
+        paths = self.valid_inputs()
+        frozen_path = self.write("frozen-cost.yaml", self.freeze(paths))
+        evidence = self.root / "review-timing.log"
+        evidence.write_text("review timer evidence\n")
+        evidence_hash = sha256_file(evidence)
+        events = []
+        for treatment in ("B", "E"):
+            for phase in ("construction", "maintenance"):
+                events.append(
+                    {
+                        "event_id": f"{treatment}-{phase}",
+                        "treatment": treatment,
+                        "scale": 1,
+                        "task_id": "maintenance",
+                        "task_family": "maintenance-family",
+                        "phase": phase,
+                        "source_partition": (
+                            "development" if phase == "construction" else "maintenance"
+                        ),
+                        "human_minutes": 5 if treatment == "B" else 2,
+                        "compute_seconds": 60,
+                        "model_tokens": 1000,
+                        "monetary_cost": 0,
+                        "evidence_path": str(evidence.resolve()),
+                        "evidence_hash": evidence_hash,
+                    }
+                )
+        ledger = self.root / "costs.jsonl"
+        ledger.write_text("\n".join(json.dumps(event) for event in events) + "\n")
+
+        report = build_cost_report(ledger, frozen_path)
+
+        self.assertEqual(report["status"], "complete")
+        self.assertEqual(report["event_count"], 4)
+        totals = {row["treatment"]: row["total_cost"] for row in report["rows"]}
+        self.assertLess(totals["E"], totals["B"])
+
     def test_claim_audit_applies_prespecified_rules(self) -> None:
         paths = self.valid_inputs()
         split = {
@@ -442,7 +486,52 @@ class PreregistrationTests(unittest.TestCase):
                                 )
                             )
 
-        result = audit_claim(observations, frozen)
+        cost_rows = [
+            {
+                "treatment": treatment,
+                "scale": scale,
+                "task_id": task_id,
+                "construction_cost": 3.0 if treatment == "E" else 5.0,
+                "maintenance_cost": 4.0 if treatment == "E" else 10.0,
+            }
+            for treatment in ("B", "E")
+            for scale in (1, 4)
+            for task_id in split["maintenance"]
+        ]
+        cost_payload = {
+            "schema_version": 1,
+            "status": "complete",
+            "preregistration_hash": content_hash(frozen),
+            "rows": cost_rows,
+        }
+        cost_report = {
+            **cost_payload,
+            "cost_report_hash": content_hash(cost_payload),
+        }
+        simulation_payload = {
+            "schema_version": 1,
+            "scenario_count": 2,
+            "scenarios": [
+                {
+                    "id": scenario_id,
+                    "task_impact_recall": 1.0,
+                    "treatments": {"E": {"invalidation_recall": 1.0}},
+                }
+                for scenario_id in ("scenario-a", "scenario-b")
+            ],
+            "mutation_performed": False,
+        }
+        simulation = {
+            **simulation_payload,
+            "simulation_hash": content_hash(simulation_payload),
+        }
+
+        result = audit_claim(
+            observations,
+            frozen,
+            cost_report=cost_report,
+            maintenance_simulation=simulation,
+        )
 
         self.assertEqual(result["status"], "supported")
         self.assertEqual(result["supported_scope"], "principle-forest-graph")

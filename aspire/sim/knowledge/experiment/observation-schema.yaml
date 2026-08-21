@@ -22,6 +22,7 @@
     "construction_cost", "maintenance_cost", "blast_radius"
   ],
   "missing_metric_policy": "Optional metrics must be omitted or null when unmeasured; missing is never interpreted as zero.",
+  "cost_metric_unit": "construction_cost and maintenance_cost use the preregistered human-minute-equivalent from the independent cost report.",
   "artifact_locks": [
     "checkpoint_id", "manifest_id", "corpus_hash", "context_hash",
     "portfolio_hash", "model_id", "prompt_hash", "token_budget", "n_code"

@@ -16,6 +16,7 @@ from .checkpoints import freeze_checkpoint, instances_at_checkpoint
 from .claim_audit import audit_claim_files
 from .completion import audit_blueprint_completion
 from .consolidation import canonicalize_cluster, propose_principle
+from .cost import build_cost_report
 from .counterexample import (
     search_counterexamples,
     validate_counterexample_dispositions,
@@ -28,7 +29,7 @@ from .golden import evaluate_golden_file
 from .index import index_metadata, rebuild_index
 from .ingest import build_instance
 from .lifecycle import impact_report, invalidate, principle_metrics
-from .maintenance import audit_maintenance
+from .maintenance import audit_maintenance, simulate_maintenance
 from .models import (
     CanonicalSkill,
     ConsolidationPolicy,
@@ -411,6 +412,18 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             write_structured_atomic(args.output, result)
         return result
 
+    if args.command == "maintenance" and args.maintenance_command == "simulate":
+        result = simulate_maintenance(repository, args.scenarios)
+        if args.output:
+            write_structured_atomic(args.output, result)
+        return result
+
+    if args.command == "maintenance" and args.maintenance_command == "cost-report":
+        result = build_cost_report(args.ledger, args.preregistration)
+        if args.output:
+            write_structured_atomic(args.output, result)
+        return result
+
     if args.command == "index" and args.index_command == "build":
         manifest = (
             repository.load_manifest(args.manifest, args.manifest_version)
@@ -492,7 +505,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         return report
 
     if args.command == "experiment" and args.experiment_command == "claim-audit":
-        result = audit_claim_files(args.observations, args.preregistration)
+        result = audit_claim_files(
+            args.observations,
+            args.preregistration,
+            args.cost_report,
+            args.maintenance_simulation,
+        )
         if args.output:
             write_structured_atomic(args.output, result)
         return result
@@ -752,6 +770,13 @@ def build_parser() -> argparse.ArgumentParser:
     maintenance_audit.add_argument("--max-principle-fanout", type=int, default=12)
     maintenance_audit.add_argument("--max-exception-rate", type=float, default=0.2)
     maintenance_audit.add_argument("--output", type=Path)
+    maintenance_simulation = maintenance.add_parser("simulate")
+    maintenance_simulation.add_argument("--scenarios", type=Path, required=True)
+    maintenance_simulation.add_argument("--output", type=Path)
+    maintenance_cost = maintenance.add_parser("cost-report")
+    maintenance_cost.add_argument("--ledger", type=Path, required=True)
+    maintenance_cost.add_argument("--preregistration", type=Path, required=True)
+    maintenance_cost.add_argument("--output", type=Path)
 
     index = commands.add_parser("index").add_subparsers(dest="index_command", required=True)
     build = index.add_parser("build")
@@ -794,6 +819,8 @@ def build_parser() -> argparse.ArgumentParser:
     claim_audit = experiment.add_parser("claim-audit")
     claim_audit.add_argument("--observations", type=Path, required=True)
     claim_audit.add_argument("--preregistration", type=Path, required=True)
+    claim_audit.add_argument("--cost-report", type=Path, required=True)
+    claim_audit.add_argument("--maintenance-simulation", type=Path, required=True)
     claim_audit.add_argument("--output", type=Path)
     plan = experiment.add_parser("plan")
     plan.add_argument("--preregistration", type=Path, required=True)
