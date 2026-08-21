@@ -22,8 +22,8 @@ This document separates engineering completion from empirical research claims.
 | --- | --- |
 | Skill-code-first acquisition | `cap/knowledge/ingest.py`; exact executed symbol or line range, source hash, AST/API fingerprints, development-only partition gate |
 | Frozen consolidation checkpoints | `checkpoints.py`; immutable instance IDs and content hashes |
-| Repetition before canonicalization | `repetition.py`, `consolidation.py`; multi-instance/task/success/share thresholds and API-aware duplicate gate |
-| No direct principle generation | Proposal requires repeated canonical skills; model requires checkpoint and repetition-audit provenance |
+| Repetition before canonicalization | `repetition.py`, `consolidation.py`; thresholds only nominate clusters, explicit pairwise review accepts them, and shared audit/policy artifacts are stored once by content hash |
+| No direct principle generation | Proposal recomputes a connected canonical-skill repetition audit over exact frozen child revisions; direct CLI save is absent and exact promotion events gate Actor visibility |
 | Explicit principle review | `review.py`; proposal → reviewed candidate → validated revision with reviewer, counterexample, exception and leave-family-out reports |
 | Vertical forest + overlay | `forest.py`; cycles, primary parents, vertical membership, declared children and dangling edges validated |
 | Exact revision locks | `KnowledgeManifest`; checkpoint plus exact skill/principle/tree/edge versions and development partition |
@@ -39,6 +39,7 @@ This document separates engineering completion from empirical research claims.
 | Statistical report inputs | treatment/scale/seed coverage, artifact fairness locks, `log2(N_code)` slopes, bootstrap CIs and paired non-inferiority comparisons |
 | Golden evaluation | reviewer-level labels, retained disagreement, polarity coverage and faithfulness gate |
 | ASPIRE fast path | fix-loop records exact executed code in `knowledge/` and legacy Markdown in one promotion; slow consolidation stays checkpoint-driven |
+| Actor runtime modes | `knowledge/runtime.py` and `CodeExecutionEnvBase`; hash-locked off/shadow/B/D/E loading, prompt injection, reset/step telemetry, and per-trial `knowledge_runtime.json` provenance |
 
 The end-to-end test starts with six executed code files and reaches three
 canonical skills, a reviewed/validated principle, a vertical tree, a manifest,
@@ -76,6 +77,7 @@ Run from the repository root:
 PYTHONPATH=. python3 -m unittest -q \
   aspire.sim.tests.test_knowledge \
   aspire.sim.tests.test_knowledge_cli \
+  aspire.sim.tests.test_knowledge_runtime \
   aspire.sim.tests.test_record_skill_promotion
 PYTHONPATH=. mypy --ignore-missing-imports aspire/sim/cap/knowledge
 git diff --check

@@ -655,7 +655,7 @@ def _run_single_trial(
     use_wrist = config.get("use_wrist_camera", False)
 
     # --- 1. Reset environment ---
-    obs, _ = env.reset(options={"trial": trial}, seed=trial)
+    obs, reset_info = env.reset(options={"trial": trial}, seed=trial)
     # Reset the SIGALRM timer AFTER env.reset() so the timeout only covers
     # actual task execution, not scene loading / cuRobo JIT compilation.
     import signal
@@ -678,7 +678,12 @@ def _run_single_trial(
     stderr_history: list[str] = []
     num_regenerations = 0
     num_finishes = 0
-    info_step: dict[str, Any] = {"sandbox_rc": -1, "stdout": "", "stderr": ""}
+    info_step: dict[str, Any] = {
+        "sandbox_rc": -1,
+        "stdout": "",
+        "stderr": "",
+        "knowledge": reset_info.get("knowledge"),
+    }
     reward = 0.0
     terminated = truncated = False
     sandbox_rc_override = None
@@ -775,7 +780,12 @@ def _run_single_trial(
             f.write("\n".join(initial_blocks))
 
     # --- 4. Execute code blocks (with optional multi-turn) ---
-    info_step = {"sandbox_rc": -1, "stdout": "", "stderr": ""}
+    info_step = {
+        "sandbox_rc": -1,
+        "stdout": "",
+        "stderr": "",
+        "knowledge": reset_info.get("knowledge"),
+    }
     reward = 0.0
     terminated = truncated = False
     code_block_idx = 0
@@ -887,6 +897,7 @@ def _run_single_trial(
             all_responses, ["-" * 100, "Generated program:", final_code],
             visual_feedback_imgs,
             differencing_feedback_history=differencing_feedback_history,
+            knowledge_telemetry=info_step.get("knowledge"),
         )
 
         # Only save intermediate video if NOT doing per-turn saving
@@ -927,6 +938,7 @@ def _run_single_trial(
         ensemble_data=ensemble_data,
         multiturn_ensemble_data=multiturn_ensemble_data,
         differencing_feedback_history=differencing_feedback_history,
+        knowledge_telemetry=info_step.get("knowledge"),
     )
 
     # Save trace.json from TracedApiMixin APIs

@@ -388,6 +388,7 @@ def _build_timeout_summary(
         visual_feedback_imgs=pa.get("visual_feedback_imgs", []),
         ensemble_data=pa.get("ensemble_data"),
         multiturn_ensemble_data=pa.get("multiturn_ensemble_data", []),
+        knowledge_telemetry=info_step.get("knowledge"),
     )
 
     env = pa.get("env")

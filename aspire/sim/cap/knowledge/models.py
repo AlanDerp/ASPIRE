@@ -177,6 +177,20 @@ class CanonicalSkill:
             raise ModelError("canonical skill requires checkpoint provenance")
         if not self.provenance.get("repetition_cluster_id"):
             raise ModelError("canonical skill requires repetition-audit provenance")
+        if not self.provenance.get("instance_repetition_report_hash"):
+            raise ModelError("canonical skill requires an instance repetition report hash")
+        cluster_review = self.provenance.get("cluster_review")
+        if not isinstance(cluster_review, dict):
+            raise ModelError("canonical skill requires an explicit cluster review")
+        if (
+            cluster_review.get("cluster_id") != self.provenance.get("repetition_cluster_id")
+            or cluster_review.get("decision") != "accept"
+            or cluster_review.get("pair_assessments_reviewed") is not True
+            or not cluster_review.get("reviewer")
+            or not cluster_review.get("reviewed_at")
+            or not cluster_review.get("rationale")
+        ):
+            raise ModelError("canonical skill cluster review is incomplete or inconsistent")
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "CanonicalSkill":
@@ -241,8 +255,14 @@ class Principle:
             validate_id(child_id)
         if not self.provenance.get("checkpoint_id"):
             raise ModelError("principle requires checkpoint provenance")
-        if self.provenance.get("proposal_method") != "repetition-audit":
+        if self.provenance.get("proposal_method") != "canonical-skill-repetition-audit":
             raise ModelError("principle must originate from repetition-audited canonical skills")
+        if not isinstance(self.provenance.get("canonical_repetition_audit"), dict):
+            raise ModelError("principle requires its canonical-skill repetition audit")
+        if not self.provenance.get("canonical_repetition_audit_hash"):
+            raise ModelError("principle requires a canonical-skill repetition audit hash")
+        if not isinstance(self.provenance.get("canonical_skill_versions"), dict):
+            raise ModelError("principle requires exact canonical-skill revisions")
         if self.status in {"validated", "stable"}:
             if self.review_required:
                 raise ModelError("validated principle cannot require review")

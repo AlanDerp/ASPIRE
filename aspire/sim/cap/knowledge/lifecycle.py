@@ -22,6 +22,17 @@ def invalidated_refs(repository: KnowledgeRepository) -> set[str]:
     }
 
 
+def validated_revisions(repository: KnowledgeRepository) -> set[tuple[str, str]]:
+    """Return principle revisions that passed the recorded promotion workflow."""
+    return {
+        (str(event["subject"]), str(event["version"]))
+        for event in repository.iter_evidence("lifecycle")
+        if event.get("event") == "knowledge.validated"
+        and event.get("subject")
+        and event.get("version")
+    }
+
+
 SupportState = Literal["sufficient", "weak", "broken"]
 
 

@@ -6,7 +6,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 import sqlite3
-from dataclasses import replace
+from dataclasses import asdict, replace
 from pathlib import Path
 
 from aspire.sim.cap.knowledge.checkpoints import freeze_checkpoint
@@ -37,7 +37,11 @@ from aspire.sim.cap.knowledge.predicates import evaluate
 from aspire.sim.cap.knowledge.projection import lineage_view, overlay_view, vertical_forest
 from aspire.sim.cap.knowledge.repository import KnowledgeRepository, RepositoryConflict
 from aspire.sim.cap.knowledge.review import promote_principle, review_principle
-from aspire.sim.cap.knowledge.repetition import assess_pair, audit_repetition
+from aspire.sim.cap.knowledge.repetition import (
+    assess_pair,
+    audit_principle_repetition,
+    audit_repetition,
+)
 from aspire.sim.cap.knowledge.retrieval import compile_portfolio
 from aspire.sim.cap.knowledge.serialization import content_hash
 from aspire.sim.cap.knowledge.stress import build_stress_corpus
@@ -87,7 +91,28 @@ def make_skill(index: int, *, vertical: str = "transport") -> CanonicalSkill:
         provenance={
             "checkpoint_id": "snapshot-n20",
             "repetition_cluster_id": f"cluster-{index}",
+            "instance_repetition_report_hash": f"report-{index}",
+            "cluster_review": {
+                "cluster_id": f"cluster-{index}",
+                "decision": "accept",
+                "reviewer": "reviewer-a",
+                "reviewed_at": "2026-01-01T00:00:00+00:00",
+                "rationale": "reviewed repeated implementation evidence",
+                "pair_assessments_reviewed": True,
+            },
         },
+    )
+
+
+def checkpoint_for_skills(*skills: CanonicalSkill) -> Checkpoint:
+    instance_ids = tuple(
+        sorted({instance_id for skill in skills for instance_id in skill.instance_ids})
+    )
+    return Checkpoint(
+        id="snapshot-n20",
+        instance_ids=instance_ids,
+        instance_hashes={instance_id: f"hash-{instance_id}" for instance_id in instance_ids},
+        created_at="2026-01-01T00:00:00+00:00",
     )
 
 
@@ -141,7 +166,14 @@ class KnowledgeModelTests(unittest.TestCase):
                 review_required=False,
                 provenance={
                     "checkpoint_id": "snapshot-n20",
-                    "proposal_method": "repetition-audit",
+                    "proposal_method": "canonical-skill-repetition-audit",
+                    "canonical_repetition_audit": {},
+                    "canonical_repetition_audit_hash": "audit-hash",
+                    "canonical_skill_versions": {
+                        "skill.a": "1.0.0",
+                        "skill.b": "1.0.0",
+                        "skill.c": "1.0.0",
+                    },
                 },
             )
 
@@ -246,21 +278,54 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
         report = audit_repetition(instances, checkpoint, policy)
         self.assertEqual(len(report.clusters), 1)
         self.assertTrue(report.clusters[0].accepted)
-        skill = canonicalize_cluster(report.clusters[0], instances, checkpoint.id)
+        skill = canonicalize_cluster(
+            report.clusters[0],
+            instances,
+            checkpoint,
+            policy,
+            report,
+            {
+                "cluster_id": report.clusters[0].id,
+                "decision": "accept",
+                "reviewer": "reviewer-a",
+                "reviewed_at": "2026-01-01T00:00:00+00:00",
+                "rationale": "the pair implements the same operation contract",
+                "pair_assessments_reviewed": True,
+            },
+        )
         self.assertEqual(set(skill.instance_ids), {value.id for value in instances})
         self.assertEqual(skill.provenance["checkpoint_id"], checkpoint.id)
+        with self.assertRaisesRegex(ValueError, "explicit accept"):
+            canonicalize_cluster(
+                report.clusters[0],
+                instances,
+                checkpoint,
+                policy,
+                report,
+                {
+                    "cluster_id": report.clusters[0].id,
+                    "decision": "reject",
+                    "reviewer": "reviewer-a",
+                    "reviewed_at": "2026-01-01T00:00:00+00:00",
+                    "rationale": "pair is an alternative, not an equivalent implementation",
+                    "pair_assessments_reviewed": True,
+                },
+            )
 
     def test_principle_proposal_is_review_required(self):
         skills = [make_skill(index) for index in range(1, 4)]
-        principle = propose_principle(skills, "snapshot-n20", ConsolidationPolicy())
+        principle = propose_principle(
+            skills, checkpoint_for_skills(*skills), ConsolidationPolicy()
+        )
         self.assertEqual(principle.status, "proposal")
         self.assertTrue(principle.review_required)
         self.assertFalse(principle.falsifiers)
 
     def test_principle_requires_review_revision_before_promotion(self):
+        skills = [make_skill(index) for index in range(1, 4)]
         proposal = propose_principle(
-            [make_skill(index) for index in range(1, 4)],
-            "snapshot-n20",
+            skills,
+            checkpoint_for_skills(*skills),
             ConsolidationPolicy(),
         )
         candidate = review_principle(
@@ -288,6 +353,48 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
         self.assertEqual(validated.status, "validated")
         self.assertFalse(validated.review_required)
 
+    def test_principle_proposal_requires_unique_skills_frozen_in_checkpoint(self):
+        skills = [make_skill(index) for index in range(1, 4)]
+        incomplete = Checkpoint(
+            id="snapshot-n20",
+            instance_ids=skills[0].instance_ids + skills[1].instance_ids,
+            instance_hashes={
+                instance_id: f"hash-{instance_id}"
+                for instance_id in skills[0].instance_ids + skills[1].instance_ids
+            },
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+        with self.assertRaisesRegex(ValueError, "instances outside checkpoint"):
+            propose_principle(skills, incomplete, ConsolidationPolicy())
+        with self.assertRaisesRegex(ValueError, "requires 3 canonical skills"):
+            propose_principle(
+                [skills[0], skills[0], skills[1]],
+                checkpoint_for_skills(*skills),
+                ConsolidationPolicy(),
+            )
+
+    def test_principle_repetition_audit_rejects_disconnected_skill(self):
+        skills = [make_skill(index) for index in range(1, 4)]
+        skills[2] = replace(
+            skills[2],
+            goal="calibrate camera pixels",
+            trigger="camera intrinsics changed",
+            effect="image reprojection error decreases",
+        )
+        checkpoint = checkpoint_for_skills(*skills)
+        audit = audit_principle_repetition(
+            skills,
+            checkpoint,
+            ConsolidationPolicy(),
+        )
+        self.assertFalse(audit.accepted)
+        self.assertIn(
+            "canonical-skill repetition graph is disconnected",
+            audit.rejection_reasons,
+        )
+        with self.assertRaisesRegex(ValueError, "repetition audit rejected"):
+            propose_principle(skills, checkpoint, ConsolidationPolicy())
+
 
 class ForestAndRetrievalTests(unittest.TestCase):
     def setUp(self):
@@ -297,6 +404,10 @@ class ForestAndRetrievalTests(unittest.TestCase):
         self.instances = [
             make_instance(
                 index,
+                code=(
+                    "get_observation()\n"
+                    f"move_group_{(index - 1) // 2 + 1}()\n"
+                ),
                 task_family="pick-place" if index % 2 else "long-horizon",
             )
             for index in range(1, 7)
@@ -310,19 +421,68 @@ class ForestAndRetrievalTests(unittest.TestCase):
             created_at="2026-01-01T00:00:00+00:00",
         )
         self.repository.save_checkpoint(checkpoint)
+        instance_policy = ConsolidationPolicy(
+            min_cluster_instances=2,
+            min_cluster_tasks=2,
+            min_successful_instances=2,
+            max_single_task_share=0.5,
+        )
+        instance_audit = audit_repetition(
+            self.instances,
+            checkpoint,
+            instance_policy,
+        )
+        self.repository.save_audit(
+            "instance-repetition",
+            instance_audit.content_hash,
+            asdict(instance_audit),
+        )
+        clusters_by_members = {
+            frozenset(cluster.instance_ids): cluster
+            for cluster in instance_audit.clusters
+        }
         self.skills = [
             replace(
                 make_skill(index),
                 instance_ids=(self.instances[2 * index - 2].id, self.instances[2 * index - 1].id),
                 provenance={
                     "checkpoint_id": "snapshot-n3",
-                    "repetition_cluster_id": f"cluster-{index}",
+                    "repetition_cluster_id": clusters_by_members[
+                        frozenset(
+                            (
+                                self.instances[2 * index - 2].id,
+                                self.instances[2 * index - 1].id,
+                            )
+                        )
+                    ].id,
+                    "instance_repetition_report_hash": instance_audit.content_hash,
+                    "cluster_review": {
+                        "cluster_id": clusters_by_members[
+                            frozenset(
+                                (
+                                    self.instances[2 * index - 2].id,
+                                    self.instances[2 * index - 1].id,
+                                )
+                            )
+                        ].id,
+                        "decision": "accept",
+                        "reviewer": "reviewer-a",
+                        "reviewed_at": "2026-01-01T00:00:00+00:00",
+                        "rationale": "same contract and API implementation",
+                        "pair_assessments_reviewed": True,
+                    },
                 },
             )
             for index in range(1, 4)
         ]
         for value in self.skills:
             self.repository.save_skill(value)
+        principle_audit = audit_principle_repetition(
+            self.skills,
+            checkpoint,
+            ConsolidationPolicy(),
+        )
+        self.assertTrue(principle_audit.accepted, principle_audit.rejection_reasons)
         self.principle = Principle(
             id="principle.transport.preserve-clearance",
             version="1.0.0",
@@ -347,13 +507,26 @@ class ForestAndRetrievalTests(unittest.TestCase):
             review_required=False,
             provenance={
                 "checkpoint_id": "snapshot-n3",
-                "proposal_method": "repetition-audit",
+                "proposal_method": "canonical-skill-repetition-audit",
+                "canonical_repetition_audit": asdict(principle_audit),
+                "canonical_repetition_audit_hash": principle_audit.content_hash,
+                "canonical_skill_versions": principle_audit.skill_versions,
                 "reviewer": "reviewer-a",
                 "counterexample_report": "reports/counterexample-1.yaml",
                 "leave_one_family_out_report": "reports/lofo-1.yaml",
             },
         )
         self.repository.save_principle(self.principle)
+        self.repository.append_evidence(
+            {
+                "event": "knowledge.validated",
+                "subject": self.principle.id,
+                "version": self.principle.version,
+                "at": "2026-01-02T00:00:00+00:00",
+                "reviewer": "reviewer-a",
+            },
+            stream="lifecycle",
+        )
         self.tree = VerticalTree(
             id="tree.transport",
             version="1.0.0",
@@ -378,9 +551,95 @@ class ForestAndRetrievalTests(unittest.TestCase):
     def test_repository_integrity_covers_lineage_and_support(self):
         report = validate_repository(self.repository)
         self.assertTrue(report.ok, report.issues)
+
+    def test_integrity_rejects_principle_support_outside_its_checkpoint(self):
+        instance_ids = self.skills[0].instance_ids
+        checkpoint = Checkpoint(
+            id="snapshot-too-early",
+            instance_ids=instance_ids,
+            instance_hashes={
+                instance_id: content_hash(
+                    next(value for value in self.instances if value.id == instance_id)
+                )
+                for instance_id in instance_ids
+            },
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+        self.repository.save_checkpoint(checkpoint)
+        self.repository.save_principle(
+            replace(
+                self.principle,
+                version="1.1.0",
+                provenance={
+                    **self.principle.provenance,
+                    "checkpoint_id": checkpoint.id,
+                },
+            )
+        )
+        report = validate_repository(self.repository)
+        self.assertIn(
+            "principle-child-outside-checkpoint",
+            {issue.code for issue in report.issues},
+        )
+
+    def test_integrity_recomputes_principle_repetition_audit(self):
+        self.repository.save_principle(
+            replace(
+                self.principle,
+                version="1.1.0",
+                provenance={
+                    **self.principle.provenance,
+                    "canonical_repetition_audit_hash": "tampered",
+                },
+            )
+        )
+        report = validate_repository(self.repository)
+        self.assertIn(
+            "invalid-principle-repetition-audit",
+            {issue.code for issue in report.issues},
+        )
         metrics = principle_metrics(self.repository, self.principle)
         self.assertEqual(metrics.support_sufficiency, "sufficient")
         self.assertEqual(metrics.support_count, 6)
+
+    def test_integrity_recomputes_instance_repetition_audit(self):
+        self.repository.save_skill(
+            replace(
+                self.skills[0],
+                version="1.1.0",
+                provenance={
+                    **self.skills[0].provenance,
+                    "instance_repetition_report_hash": "tampered",
+                },
+            )
+        )
+        report = validate_repository(self.repository)
+        self.assertIn(
+            "invalid-instance-repetition-audit",
+            {issue.code for issue in report.issues},
+        )
+
+    def test_unrecorded_principle_revision_is_not_actor_visible(self):
+        revised = replace(self.principle, version="1.1.0")
+        self.repository.save_principle(revised)
+        context = TaskContext(
+            task_id="task-eval",
+            suite="libero",
+            task_language="transport the grasped object",
+            task_family="pick-place",
+            vertical_capabilities=("transport",),
+            facts={"state": {"object_grasped": True}},
+        )
+        portfolio = compile_portfolio(self.repository, "snapshot-n3", context)
+        self.assertFalse(portfolio.principle_ids)
+        self.assertIn(
+            "unrecorded-promotion",
+            {item["reason"] for item in portfolio.exclusions},
+        )
+        self.assertIn(
+            "unrecorded-principle-promotion",
+            {issue.code for issue in validate_repository(self.repository).issues},
+        )
 
     def test_integrity_rejects_multiple_instance_membership_and_unplaced_skill(self):
         duplicate = replace(
@@ -519,6 +778,16 @@ class ForestAndRetrievalTests(unittest.TestCase):
         self.repository.save_skill(extra)
         self.repository.save_principle(revised_principle)
         self.repository.save_tree(revised_tree)
+        self.repository.append_evidence(
+            {
+                "event": "knowledge.validated",
+                "subject": revised_principle.id,
+                "version": revised_principle.version,
+                "at": "2026-01-03T00:00:00+00:00",
+                "reviewer": "reviewer-a",
+            },
+            stream="lifecycle",
+        )
         context = TaskContext(
             task_id="task-eval",
             suite="libero",

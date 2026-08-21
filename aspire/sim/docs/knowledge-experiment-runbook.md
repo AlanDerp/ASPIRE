@@ -34,18 +34,31 @@ python -m aspire.sim.cap.knowledge --root knowledge repetition audit \
   --output knowledge/proposals/repetition-n20.yaml
 python -m aspire.sim.cap.knowledge --root knowledge skill canonicalize \
   --checkpoint snapshot-n20 --cluster <accepted-cluster-id> \
-  --policy knowledge/consolidation-policy.yaml
+  --policy knowledge/consolidation-policy.yaml --review <cluster-review.yaml>
 ```
 
+The cluster review must explicitly accept the exact cluster, identify the
+reviewer and time, explain the equivalence rationale, and confirm that the
+pair assessments were inspected. Similarity thresholds only nominate a
+cluster; they never authorize canonicalization by themselves.
+
 A principle proposal requires at least three canonical skills across at least
-two task families. Review creates a newer candidate revision; promotion creates
-another newer validated revision. The review file must name the reviewer,
-exceptions (or an explicit empty-exception review), falsifiers, a counterexample
-report, and a leave-one-family-out report.
+two task families. The command first performs a second, canonical-skill-level
+repetition audit and rejects a disconnected candidate set. Instance-level
+pairwise reports are stored once under content-addressed `proposals/` artifacts;
+canonical skills reference their hash. Canonical-skill-level audit payloads,
+policies, exact child revisions, and content hashes stay with the principle.
+`forest validate` reloads and recomputes both layers.
+Review creates a newer candidate revision; promotion creates another newer
+validated revision. The review file must name the reviewer, exceptions (or an
+explicit empty-exception review), falsifiers, a counterexample report, and a
+leave-one-family-out report.
 
 ```bash
 python -m aspire.sim.cap.knowledge --root knowledge principle propose \
-  --checkpoint snapshot-n20 --skills <skill-1> <skill-2> <skill-3>
+  --checkpoint snapshot-n20 \
+  --skills <skill-1>@<version> <skill-2>@<version> <skill-3>@<version> \
+  --policy knowledge/consolidation-policy.yaml
 python -m aspire.sim.cap.knowledge --root knowledge principle review \
   --id <principle-id> --version 1.1.0 --review <review.yaml>
 python -m aspire.sim.cap.knowledge --root knowledge principle promote \
@@ -84,6 +97,26 @@ done
 `shadow` is the first integration mode: compile and log portfolios while the
 actor still sees the legacy library. Do not switch to principle runtime until
 the engineering gates in the blueprint pass.
+
+Generate a hash-locked runtime block after compiling all six shadow artifacts:
+
+```bash
+python -m aspire.sim.cap.knowledge --root knowledge experiment runtime-config \
+  --mode shadow \
+  --portfolio A=<artifacts>/A.yaml --portfolio B=<artifacts>/B.yaml \
+  --portfolio C=<artifacts>/C.yaml --portfolio D=<artifacts>/D.yaml \
+  --portfolio E=<artifacts>/E.yaml --portfolio F=<artifacts>/F.yaml \
+  --output <artifacts>/knowledge-runtime.yaml
+```
+
+Place the generated `knowledge:` object under `env.cfg.knowledge` in the ASPIRE
+evaluation YAML. `CodeExecutionEnvBase` verifies every hash and fairness lock at
+construction. Shadow mode records all six hashes in reset/step telemetry but
+does not alter the Actor prompt. Actor-visible modes accept only B (`canonical`),
+D (`principle-tree`), or E (`principle-graph`) artifacts. Each trial persists
+this provenance as `knowledge_runtime.json` beside `code.py`, including
+timeout-recovery trials. Treat a missing file as an invalid experimental
+observation whenever `knowledge` is configured.
 
 ## 5. Scale and reporting
 

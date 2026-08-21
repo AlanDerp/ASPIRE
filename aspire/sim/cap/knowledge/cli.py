@@ -22,6 +22,7 @@ from .ingest import build_instance
 from .lifecycle import impact_report, invalidate, principle_metrics
 from .maintenance import audit_maintenance
 from .models import (
+    CanonicalSkill,
     ConsolidationPolicy,
     KnowledgeManifest,
     OverlayEdge,
@@ -35,6 +36,7 @@ from .repository import KnowledgeRepository
 from .repetition import audit_repetition
 from .retrieval import compile_portfolio
 from .review import promote_principle, review_principle
+from .runtime import build_runtime_config
 from .serialization import content_hash, load_structured, write_structured_atomic
 from .stress import build_stress_corpus
 
@@ -71,6 +73,24 @@ def _principle_revision(
         suffix = f"@{version}" if version else ""
         raise ValueError(f"principle not found: {principle_id}{suffix}")
     return max(matches, key=lambda value: tuple(int(part) for part in value.version.split(".")))
+
+
+def _canonical_skill_revision(
+    repository: KnowledgeRepository,
+    reference: str,
+) -> CanonicalSkill:
+    skill_id, separator, version = reference.rpartition("@")
+    if not separator:
+        skill_id, version = reference, ""
+    matches = [value for value in repository.list_skills() if value.id == skill_id]
+    if version:
+        matches = [value for value in matches if value.version == version]
+    if not matches:
+        raise ValueError(f"canonical skill revision not found: {reference}")
+    return max(
+        matches,
+        key=lambda value: tuple(int(part) for part in value.version.split(".")),
+    )
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
@@ -120,6 +140,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if args.command == "repetition" and args.repetition_command == "audit":
         report, _ = _audit(repository, args.checkpoint, _policy(args.policy))
         payload = asdict(report)
+        repository.save_audit("instance-repetition", report.content_hash, payload)
         if args.output:
             write_structured_atomic(args.output, payload)
         return payload
@@ -130,25 +151,43 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         cluster = next((value for value in report.clusters if value.id == args.cluster), None)
         if cluster is None:
             raise ValueError(f"repetition cluster not found: {args.cluster}")
-        value = canonicalize_cluster(cluster, instances, args.checkpoint)
+        repository.save_audit(
+            "instance-repetition",
+            report.content_hash,
+            asdict(report),
+        )
+        value = canonicalize_cluster(
+            cluster,
+            instances,
+            repository.load_checkpoint(args.checkpoint),
+            policy,
+            report,
+            load_structured(args.review),
+        )
         path = repository.save_skill(value)
         return {"path": str(path), "skill": model_to_dict(value)}
 
     if args.command == "principle" and args.principle_command == "propose":
-        skills_by_id = {value.id: value for value in repository.list_skills()}
-        missing = sorted(set(args.skills) - set(skills_by_id))
-        if missing:
-            raise ValueError(f"canonical skills not found: {missing}")
+        checkpoint = repository.load_checkpoint(args.checkpoint)
+        instances_at_checkpoint(repository, checkpoint)
+        selected_skills = [
+            _canonical_skill_revision(repository, reference)
+            for reference in args.skills
+        ]
+        for skill in selected_skills:
+            source_checkpoint = repository.load_checkpoint(
+                str(skill.provenance["checkpoint_id"])
+            )
+            instances_at_checkpoint(repository, source_checkpoint)
+            if not set(skill.instance_ids) <= set(source_checkpoint.instance_ids):
+                raise ValueError(
+                    f"canonical skill {skill.id} is not grounded in its source checkpoint"
+                )
         value = propose_principle(
-            [skills_by_id[skill_id] for skill_id in args.skills],
-            args.checkpoint,
+            selected_skills,
+            checkpoint,
             _policy(args.policy),
         )
-        path = repository.save_principle(value)
-        return {"path": str(path), "principle": model_to_dict(value)}
-
-    if args.command == "principle" and args.principle_command == "save":
-        value = Principle.from_dict(load_structured(args.file))
         path = repository.save_principle(value)
         return {"path": str(path), "principle": model_to_dict(value)}
 
@@ -287,6 +326,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         return {"path": str(args.path), "metadata": index_metadata(args.path)}
 
     if args.command == "retrieve":
+        validate_repository(repository).require_ok()
         context = TaskContext.from_dict(load_structured(args.context))
         manifest = (
             repository.load_manifest(args.manifest, args.manifest_version)
@@ -311,6 +351,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         return {"portfolio": payload, "portfolio_hash": content_hash(payload)}
 
     if args.command == "experiment" and args.experiment_command == "compile":
+        validate_repository(repository).require_ok()
         context = TaskContext.from_dict(load_structured(args.context))
         manifest = (
             repository.load_manifest(args.manifest, args.manifest_version)
@@ -371,6 +412,25 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         if args.output:
             write_structured_atomic(args.output, result)
         return result
+
+    if args.command == "experiment" and args.experiment_command == "runtime-config":
+        portfolio_paths: dict[str, str] = {}
+        for assignment in args.portfolio:
+            if "=" not in assignment:
+                raise ValueError("portfolio must use TREATMENT=PATH syntax")
+            treatment, portfolio_path = assignment.split("=", 1)
+            if treatment in portfolio_paths:
+                raise ValueError(f"duplicate portfolio treatment: {treatment}")
+            portfolio_paths[treatment] = portfolio_path
+        result = {
+            "knowledge": build_runtime_config(
+                args.mode,
+                portfolio_paths,
+                token_budget=args.token_budget,
+            )
+        }
+        write_structured_atomic(args.output, result)
+        return {"path": str(args.output), **result}
     raise ValueError("unsupported command")
 
 
@@ -425,16 +485,20 @@ def build_parser() -> argparse.ArgumentParser:
     canonicalize.add_argument("--checkpoint", required=True)
     canonicalize.add_argument("--cluster", required=True)
     canonicalize.add_argument("--policy", type=Path)
+    canonicalize.add_argument("--review", type=Path, required=True)
 
     principle = commands.add_parser("principle").add_subparsers(
         dest="principle_command", required=True
     )
     propose = principle.add_parser("propose")
     propose.add_argument("--checkpoint", required=True)
-    propose.add_argument("--skills", nargs="+", required=True)
+    propose.add_argument(
+        "--skills",
+        nargs="+",
+        required=True,
+        help="Canonical skill IDs, optionally locked as ID@VERSION",
+    )
     propose.add_argument("--policy", type=Path)
-    save_principle = principle.add_parser("save")
-    save_principle.add_argument("--file", type=Path, required=True)
     review = principle.add_parser("review")
     review.add_argument("--id", required=True)
     review.add_argument("--from-version")
@@ -549,6 +613,20 @@ def build_parser() -> argparse.ArgumentParser:
     golden.add_argument("--labels", type=Path, required=True)
     golden.add_argument("--faithfulness-gate", type=float, default=0.85)
     golden.add_argument("--output", type=Path)
+    runtime_config = experiment.add_parser("runtime-config")
+    runtime_config.add_argument(
+        "--mode",
+        choices=("off", "shadow", "canonical", "principle-tree", "principle-graph"),
+        required=True,
+    )
+    runtime_config.add_argument(
+        "--portfolio",
+        action="append",
+        default=[],
+        help="Repeat TREATMENT=PATH; shadow requires A through F",
+    )
+    runtime_config.add_argument("--token-budget", type=int, default=2400)
+    runtime_config.add_argument("--output", type=Path, required=True)
     return parser
 
 

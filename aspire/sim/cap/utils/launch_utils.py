@@ -28,6 +28,7 @@ from PIL import Image
 
 from aspire.sim.cap.envs.configs.instantiate import instantiate
 from aspire.sim.cap.envs.configs.loader import DictLoader
+from aspire.sim.cap.knowledge.runtime import write_runtime_telemetry
 
 # Re-export LLM client symbols for backward compatibility
 from aspire.sim.cap.llm.client import (  # noqa: F401
@@ -397,6 +398,7 @@ def _save_trial_artifacts(
     ensemble_data: dict[str, str] | None = None,
     multiturn_ensemble_data: list[dict[str, str]] | None = None,
     differencing_feedback_history: list[str] | None = None,
+    knowledge_telemetry: dict[str, Any] | None = None,
 ) -> str | None:
     """Save trial artifacts (code, logs, images) to the output directory.
 
@@ -429,6 +431,7 @@ def _save_trial_artifacts(
 
     (trial_dir / "all_responses.json").write_text(json.dumps(all_responses, indent=2))
     (trial_dir / "summary.txt").write_text("\n".join(log_lines))
+    write_runtime_telemetry(trial_dir, knowledge_telemetry)
 
     # Save initial ensemble data if provided
     if ensemble_data:

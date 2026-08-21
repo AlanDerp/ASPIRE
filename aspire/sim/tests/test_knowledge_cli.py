@@ -114,6 +114,17 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
 
         skill_ids = []
         for cluster in accepted:
+            cluster_review = self.write_json(
+                f"review-{cluster['id']}.yaml",
+                {
+                    "cluster_id": cluster["id"],
+                    "decision": "accept",
+                    "reviewer": "reviewer-a",
+                    "reviewed_at": "2026-01-01T00:00:00+00:00",
+                    "rationale": "same operation contract across distinct tasks",
+                    "pair_assessments_reviewed": True,
+                },
+            )
             result = self.run_cli(
                 "skill",
                 "canonicalize",
@@ -123,9 +134,21 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
                 cluster["id"],
                 "--policy",
                 str(policy),
+                "--review",
+                str(cluster_review),
             )
             skill_ids.append(result["skill"]["id"])
         self.assertEqual(len(set(skill_ids)), 3)
+        self.assertEqual(
+            len(
+                list(
+                    (self.knowledge / "proposals" / "instance-repetition").glob(
+                        "*.yaml"
+                    )
+                )
+            ),
+            1,
+        )
 
         proposal = self.run_cli(
             "principle",
@@ -133,7 +156,7 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             "--checkpoint",
             "snapshot-n6",
             "--skills",
-            *skill_ids,
+            *(f"{skill_id}@1.0.0" for skill_id in skill_ids),
             "--policy",
             str(policy),
         )["principle"]
@@ -245,7 +268,9 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             },
         )
         hashes = set()
+        portfolio_paths = {}
         for treatment in "ABCDEF":
+            portfolio_path = self.workspace / f"portfolio-{treatment}.yaml"
             result = self.run_cli(
                 "experiment",
                 "compile",
@@ -259,11 +284,30 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
                 "1.0.0",
                 "--context",
                 str(context),
+                "--output",
+                str(portfolio_path),
             )
             self.assertEqual(result["portfolio"]["treatment"], treatment)
             self.assertLessEqual(result["portfolio"]["estimated_tokens"], 2400)
             hashes.add(result["portfolio_hash"])
+            portfolio_paths[treatment] = portfolio_path
         self.assertGreaterEqual(len(hashes), 4)
+        runtime_config = self.workspace / "knowledge-runtime.yaml"
+        generated = self.run_cli(
+            "experiment",
+            "runtime-config",
+            "--mode",
+            "shadow",
+            *(
+                argument
+                for treatment in "ABCDEF"
+                for argument in ("--portfolio", f"{treatment}={portfolio_paths[treatment]}")
+            ),
+            "--output",
+            str(runtime_config),
+        )
+        self.assertTrue(runtime_config.is_file())
+        self.assertEqual(set(generated["knowledge"]["shadow_hashes"]), set("ABCDEF"))
 
         database = self.workspace / "knowledge.sqlite3"
         index = self.run_cli(

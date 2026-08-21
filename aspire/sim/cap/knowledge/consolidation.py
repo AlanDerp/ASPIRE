@@ -7,10 +7,24 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from dataclasses import asdict
+from typing import Any
 
 from .fingerprint import text_tokens
-from .models import CanonicalSkill, ConsolidationPolicy, Principle, Scope, SkillCodeInstance
-from .repetition import RepetitionCluster
+from .models import (
+    CanonicalSkill,
+    Checkpoint,
+    ConsolidationPolicy,
+    Principle,
+    Scope,
+    SkillCodeInstance,
+)
+from .repetition import (
+    RepetitionCluster,
+    RepetitionReport,
+    audit_principle_repetition,
+    audit_repetition,
+)
 
 
 def _slug(value: str, fallback: str) -> str:
@@ -30,10 +44,32 @@ def _common_tokens(values: list[str]) -> list[str]:
 def canonicalize_cluster(
     cluster: RepetitionCluster,
     instances: list[SkillCodeInstance],
-    checkpoint_id: str,
+    checkpoint: Checkpoint,
+    policy: ConsolidationPolicy,
+    report: RepetitionReport,
+    review: dict[str, Any],
 ) -> CanonicalSkill:
+    recomputed = audit_repetition(instances, checkpoint, policy)
+    if report.content_hash != recomputed.content_hash:
+        raise ValueError("instance repetition report does not match checkpoint and policy")
+    audited_cluster = next(
+        (value for value in recomputed.clusters if value.id == cluster.id),
+        None,
+    )
+    if audited_cluster != cluster:
+        raise ValueError("canonical skill cluster does not match the repetition report")
     if not cluster.accepted:
         raise ValueError(f"cluster is not eligible for canonicalization: {cluster.rejection_reasons}")
+    required_review = ("reviewer", "reviewed_at", "rationale")
+    missing_review = [key for key in required_review if not review.get(key)]
+    if missing_review:
+        raise ValueError(f"canonical cluster review is incomplete: {missing_review}")
+    if review.get("cluster_id") != cluster.id:
+        raise ValueError("canonical cluster review targets a different cluster")
+    if review.get("decision") != "accept":
+        raise ValueError("canonicalization requires an explicit accept decision")
+    if review.get("pair_assessments_reviewed") is not True:
+        raise ValueError("canonicalization requires review of pair assessments")
     by_id = {value.id: value for value in instances}
     group = [by_id[value] for value in cluster.instance_ids]
     missing = sorted(set(cluster.instance_ids) - set(by_id))
@@ -73,8 +109,17 @@ def canonicalize_cluster(
         ),
         scope=Scope(task_families=tuple(task_families)),
         provenance={
-            "checkpoint_id": checkpoint_id,
+            "checkpoint_id": checkpoint.id,
             "repetition_cluster_id": cluster.id,
+            "instance_repetition_report_hash": report.content_hash,
+            "cluster_review": {
+                "cluster_id": cluster.id,
+                "decision": "accept",
+                "reviewer": str(review["reviewer"]),
+                "reviewed_at": str(review["reviewed_at"]),
+                "rationale": str(review["rationale"]),
+                "pair_assessments_reviewed": True,
+            },
             "task_count": cluster.task_count,
         },
     )
@@ -82,21 +127,19 @@ def canonicalize_cluster(
 
 def propose_principle(
     skills: list[CanonicalSkill],
-    checkpoint_id: str,
+    checkpoint: Checkpoint,
     policy: ConsolidationPolicy,
 ) -> Principle:
-    if len(skills) < policy.min_canonical_skills_for_principle:
+    audit = audit_principle_repetition(skills, checkpoint, policy)
+    if not audit.accepted:
         raise ValueError(
-            f"principle proposal requires {policy.min_canonical_skills_for_principle} canonical skills"
+            "canonical-skill repetition audit rejected principle proposal: "
+            + "; ".join(audit.rejection_reasons)
         )
+    skills_by_id = {value.id: value for value in skills}
+    skills = [skills_by_id[skill_id] for skill_id in audit.skill_ids]
     verticals = {value.vertical_capability for value in skills}
-    if len(verticals) != 1:
-        raise ValueError("principle proposal must stay within one vertical capability tree")
     families = {family for value in skills for family in value.scope.task_families}
-    if len(families) < policy.min_task_families_for_principle:
-        raise ValueError(
-            f"principle proposal requires {policy.min_task_families_for_principle} task families"
-        )
     common = _common_tokens([value.goal + " " + value.effect for value in skills])
     vertical = next(iter(verticals))
     label = "-".join(common[:6]) or f"{vertical}-shared-invariant"
@@ -121,5 +164,11 @@ def propose_principle(
         scope=Scope(task_families=tuple(sorted(families))),
         status="proposal",
         review_required=True,
-        provenance={"checkpoint_id": checkpoint_id, "proposal_method": "repetition-audit"},
+        provenance={
+            "checkpoint_id": checkpoint.id,
+            "proposal_method": "canonical-skill-repetition-audit",
+            "canonical_repetition_audit": asdict(audit),
+            "canonical_repetition_audit_hash": audit.content_hash,
+            "canonical_skill_versions": audit.skill_versions,
+        },
     )

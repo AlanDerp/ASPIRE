@@ -19,6 +19,11 @@ from aspire.sim.cap.envs.base import BaseEnv, ObsType, get_env
 from aspire.sim.cap.envs.configs.instantiate import instantiate as cfg_instantiate
 from aspire.sim.cap.envs.configs.loader import DictLoader
 from aspire.sim.cap.integrations.base_api import ApiBase, get_api
+from aspire.sim.cap.knowledge.runtime import (
+    KnowledgeRuntimeConfig,
+    append_actor_knowledge,
+    load_runtime_knowledge,
+)
 
 
 class Tee(io.TextIOBase):
@@ -59,6 +64,7 @@ class CodeExecEnvConfig:
     privileged: bool = False
     enable_render: bool = True
     viser_debug: bool = False
+    knowledge: KnowledgeRuntimeConfig | dict[str, Any] | None = None
 
 
 class SimpleExecutor:
@@ -114,6 +120,7 @@ class CodeExecutionEnvBase(Env):
         # YAML configs should only set prompt when they need to override the class default
         # (e.g., multi-turn variants that add extra instructions).
         self._task_prompt = cfg.prompt if cfg.prompt is not None else self.prompt
+        self._runtime_knowledge = load_runtime_knowledge(cfg.knowledge)
 
         # Oracle code: YAML config overrides class attribute
         if cfg.oracle_code is not None:
@@ -154,7 +161,8 @@ class CodeExecutionEnvBase(Env):
             # NOTE: we need to discuss this further down the line
             # docs.append(f"- {name}:\n{text.strip()}")
             docs.append(f"\n{text.strip()}")
-        return f"{self._task_prompt}\nAPIs:\n" + "\n".join(docs)
+        prompt = f"{self._task_prompt}\nAPIs:\n" + "\n".join(docs)
+        return append_actor_knowledge(prompt, self._runtime_knowledge)
 
     def _exec_user_code(self, code: str) -> dict[str, Any]:
         obs = self._get_observation()
@@ -263,7 +271,12 @@ class CodeExecutionEnvBase(Env):
         # Reinitialize globals for a fresh episode and prime INPUTS with the reset observation
         self._init_exec_globals()
         self._exec_globals["INPUTS"] = obs
-        info.update({"task_prompt": self._task_prompt})
+        info.update(
+            {
+                "task_prompt": self._task_prompt,
+                "knowledge": self._runtime_knowledge.telemetry,
+            }
+        )
         return obs, info
 
     def step(self, action: str) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
@@ -300,6 +313,7 @@ class CodeExecutionEnvBase(Env):
             "stderr": exec_result["stderr"],
             "task_prompt": self._task_prompt,
             "task_completed": task_completed,
+            "knowledge": self._runtime_knowledge.telemetry,
         }
         return obs, reward, bool(terminated), bool(truncated), info
 

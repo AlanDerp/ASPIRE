@@ -197,9 +197,10 @@ def compile_portfolio(
     validate_forest(trees, list(skills_by_id.values()), list(principles_by_id.values()), edges).require_ok()
     # Local import avoids coupling lifecycle's graph traversal back into module
     # initialization while still removing invalidated/weak nodes at runtime.
-    from .lifecycle import invalidated_refs, principle_metrics
+    from .lifecycle import invalidated_refs, principle_metrics, validated_revisions
 
     invalidated = invalidated_refs(repository)
+    promoted = validated_revisions(repository)
 
     requested_verticals = set(context.vertical_capabilities)
     selected_trees = [
@@ -221,6 +222,8 @@ def compile_portfolio(
             allowed, reason = True, "selected-without-exception-gate"
         if value.id in invalidated:
             allowed, reason = False, "invalidated"
+        elif (value.id, value.version) not in promoted:
+            allowed, reason = False, "unrecorded-promotion"
         elif allowed:
             support = principle_metrics(repository, value, invalidated=invalidated)
             if support.support_sufficiency != "sufficient":

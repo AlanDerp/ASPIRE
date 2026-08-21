@@ -101,6 +101,29 @@ class KnowledgeRepository:
         path = self._safe("manifests", value.id, f"{value.version}.yaml")
         return self._write_immutable(path, value)
 
+    def save_audit(self, category: str, digest: str, payload: dict[str, Any]) -> Path:
+        """Save one shared content-addressed audit artifact."""
+        if not category.replace("-", "").isalnum():
+            raise ValueError(f"invalid audit category: {category!r}")
+        if content_hash(payload) != digest:
+            raise ValueError("audit digest does not match its payload")
+        path = self._safe("proposals", category, f"{digest}.yaml")
+        if path.exists():
+            if content_hash(load_structured(path)) != digest:
+                raise RepositoryConflict(f"content-addressed audit changed: {path}")
+            return path
+        write_structured_atomic(path, payload)
+        return path
+
+    def load_audit(self, category: str, digest: str) -> dict[str, Any]:
+        if not category.replace("-", "").isalnum():
+            raise ValueError(f"invalid audit category: {category!r}")
+        path = self._safe("proposals", category, f"{digest}.yaml")
+        payload = load_structured(path)
+        if content_hash(payload) != digest:
+            raise ValueError(f"audit content hash mismatch: {path}")
+        return payload
+
     def append_evidence(self, event: dict[str, Any], stream: str = "events") -> None:
         if not stream.replace("-", "").isalnum():
             raise ValueError(f"invalid evidence stream: {stream!r}")
