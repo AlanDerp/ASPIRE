@@ -11,6 +11,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from aspire.sim.cap.knowledge.serialization import content_hash, sha256_file
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 
@@ -94,6 +96,29 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
                 "maintenance": ["maintenance-1"],
             },
         )
+        task_ids = ("dev-1", "test-1", "adversarial-1", "maintenance-1")
+        catalog_tasks = {}
+        for task_id in task_ids:
+            context = self.write_json(
+                f"context-{task_id}.yaml",
+                {
+                    "task_id": task_id,
+                    "suite": "libero",
+                    "task_language": f"perform {task_id}",
+                    "task_family": task_id,
+                    "token_budget": 2400,
+                },
+            )
+            env_config = self.write_json(
+                f"env-{task_id}.yaml", {"env": {"cfg": {"prompt": task_id}}}
+            )
+            catalog_tasks[task_id] = {
+                "context_path": str(context.resolve()),
+                "context_hash": content_hash(json.loads(context.read_text())),
+                "env_config_path": str(env_config.resolve()),
+                "env_config_hash": content_hash(json.loads(env_config.read_text())),
+            }
+        job_catalog = self.write_json("job-catalog.yaml", {"tasks": catalog_tasks})
         checkpoint_map = self.write_json(
             "checkpoint-map.yaml",
             {
@@ -123,6 +148,16 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
                 "max_retries": 2,
                 "retrieval_lexical_normalization": "v1",
                 "held_out_writeback": False,
+                "runner_command": [
+                    sys.executable,
+                    "--config={config_path}",
+                    "--model={model_id}",
+                    "--prompt={prompt_path}",
+                    "--seed={seed}",
+                    "--observation={observation_path}",
+                ],
+                "runner_executable_hash": sha256_file(Path(sys.executable)),
+                "runner_timeout_seconds": 3600,
             },
         )
         output = self.workspace / "frozen.yaml"
@@ -142,6 +177,8 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             str(checkpoint_map),
             "--execution-config",
             str(execution_config),
+            "--job-catalog",
+            str(job_catalog),
             "--frozen-at",
             "2026-08-21T00:00:00+00:00",
             "--output",

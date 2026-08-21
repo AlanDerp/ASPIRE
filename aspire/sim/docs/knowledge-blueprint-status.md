@@ -42,6 +42,7 @@ This document separates engineering completion from empirical research claims.
 | Golden evaluation | reviewer-level labels, retained disagreement, polarity coverage and faithfulness gate |
 | ASPIRE fast path | fix-loop records exact executed code in `knowledge/` and legacy Markdown in one promotion; slow consolidation stays checkpoint-driven |
 | Actor runtime modes | `knowledge/runtime.py` and `CodeExecutionEnvBase`; hash-locked off/shadow/production B-D-E plus isolated A--F experiment loading, prompt injection, reset/step telemetry, and per-trial `knowledge_runtime.json` provenance |
+| A--F execution harness | `run_plan.py`; exact frozen task/treatment/scale/corpus/seed matrix, generated ASPIRE configs, no-shell commands, timeout/resume state, and observation-lock validation |
 | Completion and determinism gates | `completion.py`, `verification.py`; fail-closed Actor-mode audit and independent semantic rebuild comparison for forest/index/A--F portfolios |
 
 The end-to-end test starts with six executed code files and reaches three

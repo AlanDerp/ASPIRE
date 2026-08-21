@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "required": [
+    "model_id", "temperature", "simulator", "execution_api",
+    "perception_backend", "task_seeds", "token_budget", "max_runs",
+    "max_retries", "retrieval_lexical_normalization", "held_out_writeback",
+    "runner_command", "runner_executable_hash", "runner_timeout_seconds"
+  ],
+  "runner_placeholders": [
+    "{config_path}", "{model_id}", "{prompt_path}", "{seed}",
+    "{observation_path}"
+  ],
+  "constraints": [
+    "runner_command is an argument list and is never evaluated by a shell.",
+    "runner_command[0] is an absolute file whose SHA-256 is pinned.",
+    "held_out_writeback is false.",
+    "model_id, task_seeds and token_budget equal the preregistration."
+  ]
+}

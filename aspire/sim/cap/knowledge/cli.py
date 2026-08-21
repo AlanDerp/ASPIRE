@@ -51,6 +51,7 @@ from .repetition import audit_repetition
 from .retrieval import compile_portfolio, resolve_view
 from .review import promote_principle, review_principle
 from .runtime import build_runtime_config
+from .run_plan import execute_experiment_plan, materialize_experiment_plan
 from .serialization import content_hash, load_structured, write_structured_atomic
 from .stress import build_stress_corpus
 from .verification import verify_deterministic_rebuild
@@ -496,6 +497,23 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             write_structured_atomic(args.output, result)
         return result
 
+    if args.command == "experiment" and args.experiment_command == "plan":
+        result = materialize_experiment_plan(
+            args.preregistration,
+            args.portfolio_catalog,
+            args.output_root,
+        )
+        write_structured_atomic(args.output, result)
+        return {"path": str(args.output), **result}
+
+    if args.command == "experiment" and args.experiment_command == "run":
+        return execute_experiment_plan(
+            args.plan,
+            args.state,
+            args.observations,
+            resume=args.resume,
+        )
+
     if (
         args.command == "experiment"
         and args.experiment_command == "freeze-preregistration"
@@ -507,6 +525,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             task_split_path=args.task_split,
             checkpoint_map_path=args.checkpoint_map,
             execution_config_path=args.execution_config,
+            job_catalog_path=args.job_catalog,
             frozen_at=args.frozen_at,
         )
         write_structured_atomic(args.output, result)
@@ -776,6 +795,16 @@ def build_parser() -> argparse.ArgumentParser:
     claim_audit.add_argument("--observations", type=Path, required=True)
     claim_audit.add_argument("--preregistration", type=Path, required=True)
     claim_audit.add_argument("--output", type=Path)
+    plan = experiment.add_parser("plan")
+    plan.add_argument("--preregistration", type=Path, required=True)
+    plan.add_argument("--portfolio-catalog", type=Path, required=True)
+    plan.add_argument("--output-root", type=Path, required=True)
+    plan.add_argument("--output", type=Path, required=True)
+    execute = experiment.add_parser("run")
+    execute.add_argument("--plan", type=Path, required=True)
+    execute.add_argument("--state", type=Path, required=True)
+    execute.add_argument("--observations", type=Path, required=True)
+    execute.add_argument("--resume", action="store_true")
     freeze_preregistration_parser = experiment.add_parser("freeze-preregistration")
     freeze_preregistration_parser.add_argument("--draft", type=Path, required=True)
     freeze_preregistration_parser.add_argument("--model-id", required=True)
@@ -786,6 +815,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     freeze_preregistration_parser.add_argument(
         "--execution-config", type=Path, required=True
+    )
+    freeze_preregistration_parser.add_argument(
+        "--job-catalog", type=Path, required=True
     )
     freeze_preregistration_parser.add_argument("--frozen-at", required=True)
     freeze_preregistration_parser.add_argument("--output", type=Path, required=True)

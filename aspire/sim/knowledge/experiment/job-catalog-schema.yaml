@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "shape": {"tasks": {"<task-id>": {
+    "context_path": "<absolute-path>",
+    "context_hash": "<semantic-sha256>",
+    "env_config_path": "<absolute-path>",
+    "env_config_hash": "<semantic-sha256>"
+  }}},
+  "constraints": [
+    "Task keys exactly equal the union of the frozen task split.",
+    "Context task_id and token_budget match the key and preregistration.",
+    "Every environment document contains env.cfg."
+  ]
+}

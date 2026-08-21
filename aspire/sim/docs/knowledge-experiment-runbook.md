@@ -14,11 +14,18 @@ contain every preregistered scale under both `organic` and `synthetic`; organic
 entries set `evidence_eligible: true`, synthetic entries set it to `false`.
 `evaluation_partitions` fixes which disjoint task lists must be run for each
 corpus kind.
+The job catalog contains exactly those task IDs. Each entry points to an
+absolute `TaskContext` and ASPIRE environment YAML and records the semantic
+hash of each file.
 
 The execution configuration fixes `model_id`, `temperature`, `simulator`,
 `execution_api`, `perception_backend`, `task_seeds`, `token_budget`,
 `max_runs`, `max_retries`, `retrieval_lexical_normalization`, and
-`held_out_writeback: false`. Freeze once, before A--F execution:
+`held_out_writeback: false`. It also stores a no-shell `runner_command` argument
+list with `{config_path}`, `{model_id}`, `{prompt_path}`, `{seed}` and
+`{observation_path}` placeholders, an absolute hash-pinned executable, and a
+positive `runner_timeout_seconds`.
+Freeze once, before A--F execution:
 
 ```bash
 python -m aspire.sim.cap.knowledge --root knowledge \
@@ -27,6 +34,7 @@ python -m aspire.sim.cap.knowledge --root knowledge \
   --model-id <exact-model-and-version> --prompt <base-prompt.txt> \
   --task-split <task-split.yaml> --checkpoint-map <checkpoint-map.yaml> \
   --execution-config <execution-config.yaml> \
+  --job-catalog <job-catalog.yaml> \
   --frozen-at <RFC3339-time> \
   --output knowledge/experiment/preregistration-frozen.yaml
 ```
@@ -150,6 +158,31 @@ for treatment in A B C D E F; do
     --markdown "<artifacts>/${treatment}.md"
 done
 ```
+
+After all derived portfolios are built, list each one in a portfolio catalog
+with `corpus_kind`, `scale`, `split`, `task_id`, `treatment`, absolute `path`
+and semantic `hash`. Materialize the exact Cartesian matrix before starting
+any runner:
+
+```bash
+python -m aspire.sim.cap.knowledge --root knowledge experiment plan \
+  --preregistration knowledge/experiment/preregistration-frozen.yaml \
+  --portfolio-catalog <portfolio-catalog.yaml> \
+  --output-root <immutable-run-directory> \
+  --output <immutable-run-directory>/plan.yaml
+python -m aspire.sim.cap.knowledge --root knowledge experiment run \
+  --plan <immutable-run-directory>/plan.yaml \
+  --state <immutable-run-directory>/state.yaml \
+  --observations <immutable-run-directory>/observations.jsonl
+```
+
+`plan` rejects missing, duplicate or extra A--F cells and checks every
+portfolio against its frozen checkpoint, manifest, task-context hash and token
+budget. It writes one ASPIRE config per portfolio and one job per seed, but does
+not execute anything. `run` invokes the frozen argument vector without a shell,
+enforces the timeout, persists logs/state after every job, and accepts only an
+observation whose artifact locks match the job. Use `--resume` only with that
+same plan and state.
 
 `off` is the current default. After the blueprint's shadow-entry gate passes,
 `shadow` is the first integration mode: compile and log portfolios while the

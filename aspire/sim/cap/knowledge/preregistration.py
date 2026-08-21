@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .models import TaskContext
 from .serialization import content_hash, load_structured, sha256_file
 
 
@@ -25,6 +26,9 @@ EXECUTION_FIELDS = (
     "max_retries",
     "retrieval_lexical_normalization",
     "held_out_writeback",
+    "runner_command",
+    "runner_executable_hash",
+    "runner_timeout_seconds",
 )
 DECISION_FIELDS = (
     "task_noninferiority_margin",
@@ -161,6 +165,31 @@ def _validate_execution_config(
         raise ValueError("execution config task_seeds differ from the preregistration")
     if execution_config["held_out_writeback"] is not False:
         raise ValueError("execution config must set held_out_writeback=false")
+    command = execution_config["runner_command"]
+    if not isinstance(command, list) or not command or any(
+        not isinstance(value, str) or not value for value in command
+    ):
+        raise ValueError("execution config runner_command must be a nonempty string list")
+    executable = Path(command[0])
+    if not executable.is_absolute() or not executable.is_file():
+        raise ValueError("runner_command executable must be an existing absolute file")
+    if sha256_file(executable) != execution_config["runner_executable_hash"]:
+        raise ValueError("runner executable hash mismatch")
+    rendered = "\n".join(command)
+    required_placeholders = {
+        "{config_path}",
+        "{model_id}",
+        "{prompt_path}",
+        "{seed}",
+        "{observation_path}",
+    }
+    missing_placeholders = sorted(
+        placeholder for placeholder in required_placeholders if placeholder not in rendered
+    )
+    if missing_placeholders:
+        raise ValueError(
+            f"execution config runner_command lacks placeholders: {missing_placeholders}"
+        )
     if not isinstance(execution_config["temperature"], (int, float)):
         raise ValueError("execution config temperature must be numeric")
     for field in ("max_runs", "max_retries"):
@@ -168,6 +197,54 @@ def _validate_execution_config(
         minimum = 1 if field == "max_runs" else 0
         if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
             raise ValueError(f"execution config {field} must be an integer >= {minimum}")
+    timeout = execution_config["runner_timeout_seconds"]
+    if not isinstance(timeout, int) or isinstance(timeout, bool) or timeout < 1:
+        raise ValueError("execution config runner_timeout_seconds must be positive")
+
+
+def _validate_job_catalog(
+    catalog: dict[str, Any],
+    task_split: dict[str, Any],
+    *,
+    token_budget: int,
+) -> None:
+    tasks = catalog.get("tasks")
+    expected_ids = {
+        str(task_id)
+        for partition in PARTITIONS
+        for task_id in task_split[partition]
+    }
+    if not isinstance(tasks, dict) or set(tasks) != expected_ids:
+        raise ValueError("job catalog tasks must exactly match the frozen task split")
+    for task_id, artifact in tasks.items():
+        if not isinstance(artifact, dict):
+            raise ValueError(f"job catalog task must be an object: {task_id}")
+        required = (
+            "context_path",
+            "context_hash",
+            "env_config_path",
+            "env_config_hash",
+        )
+        if any(not artifact.get(field) for field in required):
+            raise ValueError(f"job catalog task lacks paths or hashes: {task_id}")
+        context_path = Path(str(artifact["context_path"]))
+        env_config_path = Path(str(artifact["env_config_path"]))
+        if not context_path.is_absolute() or not env_config_path.is_absolute():
+            raise ValueError("job catalog paths must be absolute")
+        context_payload = load_structured(context_path)
+        env_config = load_structured(env_config_path)
+        if content_hash(context_payload) != artifact["context_hash"]:
+            raise ValueError(f"job catalog context hash mismatch: {task_id}")
+        if content_hash(env_config) != artifact["env_config_hash"]:
+            raise ValueError(f"job catalog environment hash mismatch: {task_id}")
+        context = TaskContext.from_dict(context_payload)
+        if context.task_id != task_id:
+            raise ValueError(f"job catalog context task id mismatch: {task_id}")
+        if context.token_budget != token_budget:
+            raise ValueError(f"job catalog context token budget mismatch: {task_id}")
+        env = env_config.get("env")
+        if not isinstance(env, dict) or not isinstance(env.get("cfg"), dict):
+            raise ValueError(f"job catalog environment lacks env.cfg: {task_id}")
 
 
 def validate_frozen_preregistration(document: dict[str, Any]) -> list[str]:
@@ -196,6 +273,10 @@ def validate_frozen_preregistration(document: dict[str, Any]) -> list[str]:
         ),
         "execution_config_path": (
             "execution_config_hash",
+            lambda path: content_hash(load_structured(path)),
+        ),
+        "job_catalog_path": (
+            "job_catalog_hash",
             lambda path: content_hash(load_structured(path)),
         ),
     }
@@ -237,6 +318,12 @@ def validate_frozen_preregistration(document: dict[str, Any]) -> list[str]:
                 token_budget=token_budget,
                 seeds=seeds,
             )
+        if "job_catalog_path" in loaded and "task_split_path" in loaded:
+            _validate_job_catalog(
+                loaded["job_catalog_path"],
+                loaded["task_split_path"],
+                token_budget=token_budget,
+            )
     except (TypeError, ValueError) as error:
         errors.append(str(error))
     return errors
@@ -250,6 +337,7 @@ def freeze_preregistration(
     task_split_path: Path,
     checkpoint_map_path: Path,
     execution_config_path: Path,
+    job_catalog_path: Path,
     frozen_at: str,
 ) -> dict[str, Any]:
     """Return a frozen document containing semantic hashes for every fixed input."""
@@ -303,6 +391,7 @@ def freeze_preregistration(
     task_split = load_structured(task_split_path)
     checkpoint_map = load_structured(checkpoint_map_path)
     execution_config = load_structured(execution_config_path)
+    job_catalog = load_structured(job_catalog_path)
     _validate_task_split(task_split)
     _validate_checkpoint_map(checkpoint_map, scales)
     _validate_execution_config(
@@ -311,6 +400,7 @@ def freeze_preregistration(
         token_budget=token_budget,
         seeds=seeds,
     )
+    _validate_job_catalog(job_catalog, task_split, token_budget=token_budget)
 
     payload: dict[str, Any] = {
         **draft,
@@ -323,10 +413,12 @@ def freeze_preregistration(
             "task_split_hash": content_hash(task_split),
             "checkpoint_map_hash": content_hash(checkpoint_map),
             "execution_config_hash": content_hash(execution_config),
+            "job_catalog_hash": content_hash(job_catalog),
             "prompt_path": str(prompt_path.resolve()),
             "task_split_path": str(task_split_path.resolve()),
             "checkpoint_map_path": str(checkpoint_map_path.resolve()),
             "execution_config_path": str(execution_config_path.resolve()),
+            "job_catalog_path": str(job_catalog_path.resolve()),
         },
     }
     frozen: dict[str, Any] = {

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "entry_required": [
+    "corpus_kind", "scale", "split", "task_id", "treatment", "path", "hash"
+  ],
+  "constraints": [
+    "Entries exactly cover the frozen corpus/scale/partition/task/A--F matrix.",
+    "Paths are absolute and hashes are semantic SHA-256 values.",
+    "Each portfolio matches its checkpoint, manifest, context and token budget."
+  ]
+}

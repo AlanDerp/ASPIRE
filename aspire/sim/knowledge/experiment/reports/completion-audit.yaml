@@ -1,5 +1,5 @@
 {
-  "audit_hash": "c762fd3d616ecf82c659a6842ac03b8a5b26352603a64bdcc638400f3a1c1c4e",
+  "audit_hash": "ffddd50ae64a8f45a51914bc993bbb82ccecfe27b74e4181104ad50243593b20",
   "checks": {
     "conclusion_quality": [
       {
@@ -85,6 +85,7 @@
         "evidence": {
           "checkpoint_map_hash": null,
           "execution_config_hash": null,
+          "job_catalog_hash": null,
           "library_scales": [
             1,
             4,
@@ -103,7 +104,7 @@
         },
         "id": "fixed-experimental-artifacts",
         "passed": false,
-        "requirement": "Model, prompt, split, checkpoints, execution config, budget, scales, and seeds must be fixed."
+        "requirement": "Model, prompt, split, checkpoints, job catalog, execution config, budget, scales, and seeds must be fixed."
       }
     ],
     "shadow_entry": [

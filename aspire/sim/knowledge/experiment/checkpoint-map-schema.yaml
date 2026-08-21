@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "required_corpus_kinds": ["organic", "synthetic"],
+  "entry_required": [
+    "checkpoint_id", "corpus_hash", "n_code", "evidence_eligible"
+  ],
+  "execution_plan_entry_required": ["manifest_id", "manifest_version"],
+  "constraints": [
+    "Each corpus kind contains exactly the preregistered scale keys.",
+    "Organic entries set evidence_eligible=true.",
+    "Synthetic entries set evidence_eligible=false."
+  ]
+}

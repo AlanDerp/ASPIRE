@@ -43,7 +43,8 @@
     "prompt_hash": null,
     "task_split_hash": null,
     "checkpoint_map_hash": null,
-    "execution_config_hash": null
+    "execution_config_hash": null,
+    "job_catalog_hash": null
   },
   "primary_baseline": "B",
   "required_separations": ["development", "held-out", "organic", "synthetic"],

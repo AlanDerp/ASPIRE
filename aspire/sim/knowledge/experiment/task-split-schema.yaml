@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "required_partitions": ["development", "held-out", "adversarial", "maintenance"],
+  "constraints": [
+    "Every partition is a nonempty list of task-id strings.",
+    "Task IDs are unique within and across partitions."
+  ]
+}

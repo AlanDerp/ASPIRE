@@ -22,6 +22,7 @@ REQUIRED_FIXED_FIELDS = {
     "task_split_hash",
     "checkpoint_map_hash",
     "execution_config_hash",
+    "job_catalog_hash",
     "token_budget",
     "library_scales",
     "seeds",
@@ -123,8 +124,8 @@ def audit_blueprint_completion(
             "fixed-experimental-artifacts",
             fixed_values_complete,
             fixed_values,
-            "Model, prompt, split, checkpoints, execution config, budget, scales, "
-            "and seeds must be fixed.",
+            "Model, prompt, split, checkpoints, job catalog, execution config, "
+            "budget, scales, and seeds must be fixed.",
         ),
     ]
 
