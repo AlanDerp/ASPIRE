@@ -12,6 +12,8 @@ configuration are known. The task split must contain nonempty `development`,
 `held-out`, `adversarial`, and `maintenance` lists. The checkpoint map must
 contain every preregistered scale under both `organic` and `synthetic`; organic
 entries set `evidence_eligible: true`, synthetic entries set it to `false`.
+`evaluation_partitions` fixes which disjoint task lists must be run for each
+corpus kind.
 
 The execution configuration fixes `model_id`, `temperature`, `simulator`,
 `execution_api`, `perception_backend`, `task_seeds`, `token_budget`,
@@ -220,6 +222,10 @@ python -m aspire.sim.cap.knowledge --root knowledge experiment claim-audit \
 The reporter keeps organic and synthetic groups separate and returns
 `not-evaluable` until every preregistered treatment/scale/corpus cell exists.
 Unmeasured optional metrics remain `null`; they are never interpreted as zero.
+Every observation is checked against the frozen model, prompt, budget, seed,
+task partition, checkpoint ID, corpus hash and code count. Six treatments that
+are mutually consistent but jointly use the wrong artifact still fail, as do
+duplicate treatment rows in one experimental cell.
 The claim auditor uses task-clustered bootstrap intervals for slope,
 non-inferiority, exposure, overlay, exception, maintenance-cost and blast-radius
 rules. It remains `not-evaluable` unless every prespecified comparison spans the

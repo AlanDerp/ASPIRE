@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,19 @@ EXECUTION_FIELDS = (
     "retrieval_lexical_normalization",
     "held_out_writeback",
 )
+DECISION_FIELDS = (
+    "task_noninferiority_margin",
+    "principle_recall_at_8_min",
+    "operational_skill_recall_margin",
+    "unsupported_principle_escape_max",
+    "exception_hard_violation_escape_max",
+    "shadow_fallback_rate_max",
+    "compile_latency_p95_ms_max",
+    "claim_min_independent_tasks",
+    "claim_min_task_families",
+    "claim_min_advantage_scales",
+    "claim_requires_slope_comparison",
+)
 
 
 def _validate_task_split(task_split: dict[str, Any]) -> None:
@@ -32,6 +46,8 @@ def _validate_task_split(task_split: dict[str, Any]) -> None:
         values = task_split.get(partition)
         if not isinstance(values, list) or not values:
             raise ValueError(f"task split requires a nonempty {partition} list")
+        if any(not isinstance(value, str) or not value.strip() for value in values):
+            raise ValueError(f"task split {partition} ids must be nonempty strings")
         if len({str(value) for value in values}) != len(values):
             raise ValueError(f"task split contains duplicate {partition} task ids")
     seen: dict[str, str] = {}
@@ -46,6 +62,49 @@ def _validate_task_split(task_split: dict[str, Any]) -> None:
                 seen[task_id] = partition
     if overlaps:
         raise ValueError(f"task split partitions overlap: {overlaps}")
+
+
+def _validate_evaluation_partitions(value: Any) -> None:
+    if not isinstance(value, dict) or set(value) != {"organic", "synthetic"}:
+        raise ValueError("evaluation_partitions requires exact organic and synthetic keys")
+    for corpus_kind, partitions in value.items():
+        if not isinstance(partitions, list) or not partitions:
+            raise ValueError(f"evaluation_partitions {corpus_kind} must be nonempty")
+        if len(set(partitions)) != len(partitions) or not set(partitions) <= set(PARTITIONS):
+            raise ValueError(
+                f"evaluation_partitions {corpus_kind} contains duplicates or unknown partitions"
+            )
+
+
+def _validate_decision_rules(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise ValueError("decision_rules must be an object")
+    missing = [field for field in DECISION_FIELDS if field not in value]
+    if missing:
+        raise ValueError(f"decision_rules lacks fixed fields: {missing}")
+    if value["claim_requires_slope_comparison"] is not True:
+        raise ValueError("claim_requires_slope_comparison must be true")
+    for field in (
+        "claim_min_independent_tasks",
+        "claim_min_task_families",
+        "claim_min_advantage_scales",
+    ):
+        if not isinstance(value[field], int) or isinstance(value[field], bool) or value[field] < 2:
+            raise ValueError(f"decision_rules {field} must be an integer >= 2")
+    for field in (
+        "task_noninferiority_margin",
+        "principle_recall_at_8_min",
+        "operational_skill_recall_margin",
+        "unsupported_principle_escape_max",
+        "exception_hard_violation_escape_max",
+        "shadow_fallback_rate_max",
+    ):
+        number = value[field]
+        if not isinstance(number, (int, float)) or isinstance(number, bool) or not 0 <= number <= 1:
+            raise ValueError(f"decision_rules {field} must be numeric in [0, 1]")
+    latency = value["compile_latency_p95_ms_max"]
+    if not isinstance(latency, (int, float)) or isinstance(latency, bool) or latency <= 0:
+        raise ValueError("compile_latency_p95_ms_max must be positive")
 
 
 def _validate_checkpoint_map(
@@ -165,6 +224,8 @@ def validate_frozen_preregistration(document: dict[str, Any]) -> list[str]:
         scales = [int(value) for value in document.get("library_scales", [])]
         seeds = [int(value) for value in document.get("seeds", [])]
         token_budget = int(document.get("token_budget", 0))
+        _validate_evaluation_partitions(document.get("evaluation_partitions"))
+        _validate_decision_rules(document.get("decision_rules"))
         if "task_split_path" in loaded:
             _validate_task_split(loaded["task_split_path"])
         if "checkpoint_map_path" in loaded:
@@ -197,6 +258,12 @@ def freeze_preregistration(
         raise ValueError("only a preregistered-engineering-draft can be frozen")
     if not model_id.strip() or not frozen_at.strip():
         raise ValueError("freezing requires exact model_id and frozen_at values")
+    try:
+        frozen_time = datetime.fromisoformat(frozen_at.strip().replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ValueError("frozen_at must be an RFC3339 timestamp") from error
+    if frozen_time.tzinfo is None:
+        raise ValueError("frozen_at must include a timezone")
     hypotheses = draft.get("hypotheses", {})
     if not isinstance(hypotheses, dict) or set(hypotheses) != {
         f"H{index}" for index in range(1, 7)
@@ -211,10 +278,26 @@ def freeze_preregistration(
         raise ValueError("every hypothesis requires claim and refutation text")
     if set(draft.get("treatments", {})) != set("ABCDEF"):
         raise ValueError("preregistration must contain exactly treatments A--F")
-    scales = [int(value) for value in draft.get("library_scales", [])]
-    seeds = [int(value) for value in draft.get("seeds", [])]
+    _validate_evaluation_partitions(draft.get("evaluation_partitions"))
+    _validate_decision_rules(draft.get("decision_rules"))
+    raw_scales = draft.get("library_scales", [])
+    raw_seeds = draft.get("seeds", [])
+    if any(not isinstance(value, int) or isinstance(value, bool) for value in raw_scales):
+        raise ValueError("library scales must be integers")
+    if any(not isinstance(value, int) or isinstance(value, bool) for value in raw_seeds):
+        raise ValueError("seeds must be integers")
+    scales = [int(value) for value in raw_scales]
+    seeds = [int(value) for value in raw_seeds]
     token_budget = int(draft.get("token_budget", 0))
-    if not scales or not seeds or token_budget < 1:
+    if (
+        not scales
+        or not seeds
+        or token_budget < 1
+        or len(scales) != len(set(scales))
+        or len(seeds) != len(set(seeds))
+        or any(value < 1 for value in scales)
+        or any(value < 0 for value in seeds)
+    ):
         raise ValueError("scales, seeds, and token budget must be nonempty")
 
     task_split = load_structured(task_split_path)

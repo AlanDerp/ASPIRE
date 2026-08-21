@@ -36,9 +36,26 @@ class PreregistrationTests(unittest.TestCase):
                     for index in range(1, 7)
                 },
                 "treatments": {treatment: treatment for treatment in "ABCDEF"},
+                "evaluation_partitions": {
+                    "organic": ["held-out", "adversarial", "maintenance"],
+                    "synthetic": ["held-out", "adversarial", "maintenance"],
+                },
                 "library_scales": [1],
                 "seeds": [11],
                 "token_budget": 2400,
+                "decision_rules": {
+                    "task_noninferiority_margin": 0.03,
+                    "principle_recall_at_8_min": 0.9,
+                    "operational_skill_recall_margin": 0.03,
+                    "unsupported_principle_escape_max": 0,
+                    "exception_hard_violation_escape_max": 0,
+                    "shadow_fallback_rate_max": 0.1,
+                    "compile_latency_p95_ms_max": 300,
+                    "claim_min_independent_tasks": 2,
+                    "claim_min_task_families": 2,
+                    "claim_min_advantage_scales": 2,
+                    "claim_requires_slope_comparison": True,
+                },
             },
         )
         prompt = self.root / "prompt.txt"
@@ -121,6 +138,13 @@ class PreregistrationTests(unittest.TestCase):
 
     def test_claim_audit_applies_prespecified_rules(self) -> None:
         paths = self.valid_inputs()
+        split = {
+            "development": ["development-a", "development-b"],
+            "held-out": ["held-out-a", "held-out-b"],
+            "adversarial": ["adversarial-a", "adversarial-b"],
+            "maintenance": ["maintenance-a", "maintenance-b"],
+        }
+        paths["split"].write_text(json.dumps(split))
         draft = json.loads(paths["draft"].read_text())
         draft["library_scales"] = [1, 4]
         paths["draft"].write_text(json.dumps(draft))
@@ -140,16 +164,16 @@ class PreregistrationTests(unittest.TestCase):
         frozen = self.freeze(paths)
 
         observations = []
-        tasks = (("task-a", "family-a"), ("task-b", "family-b"))
+        families = ("family-a", "family-b")
         for corpus_kind in ("organic", "synthetic"):
-            splits = (
+            partitions = (
                 ("held-out", "adversarial", "maintenance")
                 if corpus_kind == "organic"
-                else ("held-out",)
+                else ("held-out", "adversarial", "maintenance")
             )
             for scale in (1, 4):
-                for task_id, family in tasks:
-                    for split in splits:
+                for partition in partitions:
+                    for task_id, family in zip(split[partition], families):
                         for treatment in "ABCDEF":
                             context_tokens = {
                                 "A": 130 * scale,
@@ -167,7 +191,7 @@ class PreregistrationTests(unittest.TestCase):
                                     task_id=task_id,
                                     task_family=family,
                                     corpus_kind=corpus_kind,
-                                    split=split,
+                                    split=partition,
                                     success=0.8,
                                     context_tokens=context_tokens,
                                     compile_latency_ms=10,
@@ -203,14 +227,19 @@ class PreregistrationTests(unittest.TestCase):
                                     n_code=scale * 10,
                                     token_budget=2400,
                                     checkpoint_id=f"{corpus_kind}-{scale}",
-                                    manifest_id=f"manifest-{corpus_kind}-{scale}@1.0.0",
+                                    manifest_id=(
+                                        f"manifest-{corpus_kind}-{scale}@1.0.0"
+                                    ),
                                     corpus_hash=f"{corpus_kind}-hash-{scale}",
-                                    context_hash=f"{task_id}-{split}-{scale}",
+                                    context_hash=f"{task_id}-{partition}-{scale}",
                                     portfolio_hash=(
-                                        f"{corpus_kind}-{task_id}-{split}-{scale}-{treatment}"
+                                        f"{corpus_kind}-{task_id}-{partition}-"
+                                        f"{scale}-{treatment}"
                                     ),
                                     model_id="model-v1",
-                                    prompt_hash="prompt-v1",
+                                    prompt_hash=(
+                                        frozen["fixed_artifacts"]["prompt_hash"]
+                                    ),
                                     cross_capability=True,
                                 )
                             )

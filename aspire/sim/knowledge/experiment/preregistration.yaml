@@ -47,6 +47,10 @@
   },
   "primary_baseline": "B",
   "required_separations": ["development", "held-out", "organic", "synthetic"],
+  "evaluation_partitions": {
+    "organic": ["held-out", "adversarial", "maintenance"],
+    "synthetic": ["held-out", "adversarial", "maintenance"]
+  },
   "decision_rules": {
     "task_noninferiority_margin": 0.03,
     "principle_recall_at_8_min": 0.9,

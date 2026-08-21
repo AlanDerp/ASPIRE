@@ -1089,7 +1089,7 @@ class ForestAndRetrievalTests(unittest.TestCase):
         self.assertEqual(report["claim_status"], "not-evaluable")
         self.assertGreater(report["results"]["organic:A"]["scale_slopes"]["context_tokens"], 0)
 
-    def test_experiment_report_accepts_complete_fair_cells_for_analysis(self):
+    def test_experiment_report_rejects_unbound_frozen_status(self):
         observations = []
         for corpus_kind in ("organic", "synthetic"):
             for scale in (1, 4):
@@ -1133,10 +1133,11 @@ class ForestAndRetrievalTests(unittest.TestCase):
                 "decision_rules": {"task_noninferiority_margin": 0.03},
             },
         )
-        self.assertEqual(report["claim_status"], "ready-for-prespecified-statistical-analysis")
+        self.assertEqual(report["claim_status"], "not-evaluable")
         self.assertTrue(report["heldout_success_noninferior_to_B"]["D"])
         self.assertTrue(report["runtime_gates"]["passed"])
-        self.assertFalse(report["coverage"]["fairness_violations"])
+        self.assertFalse(report["coverage"]["preregistration_frozen"])
+        self.assertTrue(report["coverage"]["fairness_violations"])
 
     def test_stress_corpus_is_deterministic_and_never_evidence_eligible(self):
         first = build_stress_corpus(

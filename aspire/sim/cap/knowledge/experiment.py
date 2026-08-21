@@ -15,6 +15,7 @@ from typing import Any, Literal
 from .checkpoints import instances_at_checkpoint
 from .fingerprint import jaccard, text_tokens
 from .models import KnowledgeManifest, Portfolio, TaskContext, model_to_dict
+from .preregistration import validate_frozen_preregistration
 from .repository import KnowledgeRepository
 from .retrieval import compile_portfolio, resolve_view
 from .serialization import content_hash, iter_jsonl, load_structured
@@ -447,12 +448,18 @@ def _fairness_violations(observations: list[Observation]) -> list[dict]:
     violations = []
     for cell_key, values in sorted(groups.items()):
         treatments = {value.treatment for value in values}
-        if treatments != set(TREATMENTS):
+        treatment_counts = {
+            treatment: sum(value.treatment == treatment for value in values)
+            for treatment in TREATMENTS
+        }
+        if treatments != set(TREATMENTS) or any(
+            count != 1 for count in treatment_counts.values()
+        ):
             violations.append(
                 {
                     "cell": list(cell_key),
                     "field": "treatment-coverage",
-                    "values": sorted(treatments),
+                    "values": treatment_counts,
                 }
             )
         for field in fixed_fields:
@@ -474,6 +481,91 @@ def _fairness_violations(observations: list[Observation]) -> list[dict]:
                 }
             )
     return violations
+
+
+def _preregistered_artifact_violations(
+    observations: list[Observation], preregistration: dict[str, Any]
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    integrity_errors = validate_frozen_preregistration(preregistration)
+    if integrity_errors:
+        return (
+            [
+                {
+                    "field": "preregistration-integrity",
+                    "values": integrity_errors,
+                }
+            ],
+            None,
+        )
+    fixed = preregistration["fixed_artifacts"]
+    task_split = load_structured(Path(str(fixed["task_split_path"])))
+    checkpoint_map = load_structured(Path(str(fixed["checkpoint_map_path"])))
+    expected_scales = {int(value) for value in preregistration["library_scales"]}
+    expected_seeds = {int(value) for value in preregistration["seeds"]}
+    expected_model = str(fixed["model_id"])
+    expected_prompt = str(fixed["prompt_hash"])
+    expected_budget = int(preregistration["token_budget"])
+    violations: list[dict[str, Any]] = []
+    for index, value in enumerate(observations):
+        expected_tasks = task_split.get(value.split, [])
+        checkpoint = checkpoint_map.get(value.corpus_kind, {}).get(str(value.scale))
+        checks = {
+            "scale": value.scale in expected_scales,
+            "seed": value.seed in expected_seeds,
+            "task-split": value.task_id in expected_tasks,
+            "model_id": value.model_id == expected_model,
+            "prompt_hash": value.prompt_hash == expected_prompt,
+            "token_budget": value.token_budget == expected_budget,
+            "checkpoint_id": bool(
+                checkpoint and value.checkpoint_id == checkpoint.get("checkpoint_id")
+            ),
+            "corpus_hash": bool(
+                checkpoint and value.corpus_hash == checkpoint.get("corpus_hash")
+            ),
+            "n_code": bool(checkpoint and value.n_code == checkpoint.get("n_code")),
+        }
+        if checkpoint and checkpoint.get("manifest_id"):
+            expected_manifest = str(checkpoint["manifest_id"])
+            if checkpoint.get("manifest_version"):
+                expected_manifest += f"@{checkpoint['manifest_version']}"
+            checks["manifest_id"] = value.manifest_id == expected_manifest
+        for field, passed in checks.items():
+            if not passed:
+                violations.append(
+                    {
+                        "observation_index": index,
+                        "task_id": value.task_id,
+                        "treatment": value.treatment,
+                        "field": field,
+                        "value": getattr(value, field, None),
+                    }
+                )
+    return violations, task_split
+
+
+def _expected_cells(
+    preregistration: dict[str, Any], task_split: dict[str, Any] | None
+) -> set[tuple[Any, ...]]:
+    scales = set(preregistration.get("library_scales", []))
+    seeds = set(preregistration.get("seeds", []))
+    evaluation_partitions = preregistration.get("evaluation_partitions", {})
+    if not task_split or not isinstance(evaluation_partitions, dict) or not evaluation_partitions:
+        return {
+            (corpus_kind, treatment, scale, seed)
+            for corpus_kind in ("organic", "synthetic")
+            for treatment in TREATMENTS
+            for scale in scales
+            for seed in seeds
+        }
+    return {
+        (corpus_kind, treatment, scale, seed, split, str(task_id))
+        for corpus_kind, splits in evaluation_partitions.items()
+        for split in splits
+        for task_id in task_split.get(split, [])
+        for treatment in TREATMENTS
+        for scale in scales
+        for seed in seeds
+    }
 
 
 def build_report(observations: list[Observation], preregistration: dict[str, Any]) -> dict:
@@ -516,26 +608,31 @@ def build_report(observations: list[Observation], preregistration: dict[str, Any
         }
     expected_scales = set(preregistration.get("library_scales", []))
     expected_seeds = set(preregistration.get("seeds", []))
-    expected_cells = {
-        (corpus_kind, treatment, scale, seed)
-        for corpus_kind in ("organic", "synthetic")
-        for treatment in TREATMENTS
-        for scale in expected_scales
-        for seed in expected_seeds
-    }
+    artifact_violations, task_split = _preregistered_artifact_violations(
+        observations, preregistration
+    )
+    expected_cells = _expected_cells(preregistration, task_split)
+    detailed_cells = bool(task_split)
     present_cells = {
-        (value.corpus_kind, value.treatment, value.scale, value.seed)
+        (
+            value.corpus_kind,
+            value.treatment,
+            value.scale,
+            value.seed,
+            *((value.split, value.task_id) if detailed_cells else ()),
+        )
         for value in observations
     }
     missing_cells = sorted(expected_cells - present_cells)
     fairness_violations = _fairness_violations(observations)
     coverage = {
-        "preregistration_frozen": preregistration.get("status") == "frozen",
+        "preregistration_frozen": not validate_frozen_preregistration(preregistration),
         "all_treatment_scale_corpus_cells_present": not missing_cells,
         "missing_cells": [list(value) for value in missing_cells],
         "organic_and_synthetic_reported_separately": all(":" in key for key in results),
-        "artifact_locks_complete_and_fair": not fairness_violations,
-        "fairness_violations": fairness_violations,
+        "artifact_locks_complete_and_fair": not fairness_violations
+        and not artifact_violations,
+        "fairness_violations": [*fairness_violations, *artifact_violations],
     }
     comparisons = {
         "D_vs_B_heldout_success": _paired_difference(

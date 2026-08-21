@@ -61,9 +61,26 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
                     for index in range(1, 7)
                 },
                 "treatments": {treatment: treatment for treatment in "ABCDEF"},
+                "evaluation_partitions": {
+                    "organic": ["held-out", "adversarial", "maintenance"],
+                    "synthetic": ["held-out", "adversarial", "maintenance"],
+                },
                 "library_scales": [1, 4],
                 "seeds": [11, 29],
                 "token_budget": 2400,
+                "decision_rules": {
+                    "task_noninferiority_margin": 0.03,
+                    "principle_recall_at_8_min": 0.9,
+                    "operational_skill_recall_margin": 0.03,
+                    "unsupported_principle_escape_max": 0,
+                    "exception_hard_violation_escape_max": 0,
+                    "shadow_fallback_rate_max": 0.1,
+                    "compile_latency_p95_ms_max": 300,
+                    "claim_min_independent_tasks": 2,
+                    "claim_min_task_families": 2,
+                    "claim_min_advantage_scales": 2,
+                    "claim_requires_slope_comparison": True,
+                },
             },
         )
         prompt = self.workspace / "prompt.txt"
