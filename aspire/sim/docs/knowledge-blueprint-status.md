@@ -24,7 +24,8 @@ This document separates engineering completion from empirical research claims.
 | Frozen consolidation checkpoints | `checkpoints.py`; immutable instance IDs and content hashes |
 | Repetition before canonicalization | `repetition.py`, `consolidation.py`; thresholds only nominate clusters, explicit pairwise review accepts them, and shared audit/policy artifacts are stored once by content hash |
 | No direct principle generation | Proposal recomputes a connected canonical-skill repetition audit over exact frozen child revisions; direct CLI save is absent and exact promotion events gate Actor visibility |
-| Explicit principle review | `review.py`; proposal → reviewed candidate → validated revision with reviewer, counterexample, exception and leave-family-out reports |
+| Explicit principle review | `review.py`, `review_artifacts.py`; proposal → candidate → validated with hash-checked counterexample dispositions, all-family LOFO evidence, exceptions and falsifiers |
+| Counterexample and placement review | `counterexample.py`, `placement.py`; frozen-development candidate search with hash validation and read-only parent/depth/fan-out/coverage/cycle report |
 | Vertical forest + overlay | `forest.py`; cycles, primary parents, vertical membership, declared children and dangling edges validated |
 | Exact revision locks | `KnowledgeManifest`; checkpoint plus exact skill/principle/tree/edge versions and development partition |
 | Rebuildable three-layer index | `index.py`; checkpoint instances, active manifest nodes, FTS, tree/overlay and materialized principle metrics |

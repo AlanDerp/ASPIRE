@@ -281,7 +281,9 @@ class Principle:
             required_review = (
                 "reviewer",
                 "counterexample_report",
+                "counterexample_report_hash",
                 "leave_one_family_out_report",
+                "leave_one_family_out_report_hash",
             )
             missing_review = [key for key in required_review if not self.provenance.get(key)]
             if missing_review:

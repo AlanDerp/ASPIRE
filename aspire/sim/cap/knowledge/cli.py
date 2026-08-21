@@ -15,7 +15,13 @@ from typing import Any
 from .checkpoints import freeze_checkpoint, instances_at_checkpoint
 from .completion import audit_blueprint_completion
 from .consolidation import canonicalize_cluster, propose_principle
+from .counterexample import (
+    search_counterexamples,
+    validate_counterexample_dispositions,
+    validate_counterexample_report,
+)
 from .experiment import compile_treatment, report_from_files
+from .forest import validate_forest
 from .integrity import validate_repository
 from .golden import evaluate_golden_file
 from .index import index_metadata, rebuild_index
@@ -32,10 +38,15 @@ from .models import (
     VerticalTree,
     model_to_dict,
 )
+from .placement import analyze_placement
 from .projection import lineage_view, overlay_view, vertical_forest
 from .repository import KnowledgeRepository
+from .review_artifacts import (
+    finalize_leave_family_out_report,
+    validate_leave_family_out_report,
+)
 from .repetition import audit_repetition
-from .retrieval import compile_portfolio
+from .retrieval import compile_portfolio, resolve_view
 from .review import promote_principle, review_principle
 from .runtime import build_runtime_config
 from .serialization import content_hash, load_structured, write_structured_atomic
@@ -89,6 +100,23 @@ def _canonical_skill_revision(
         matches = [value for value in matches if value.version == version]
     if not matches:
         raise ValueError(f"canonical skill revision not found: {reference}")
+    return max(
+        matches,
+        key=lambda value: tuple(int(part) for part in value.version.split(".")),
+    )
+
+
+def _tree_revision(
+    repository: KnowledgeRepository,
+    tree_id: str,
+    version: str | None = None,
+) -> VerticalTree:
+    matches = [value for value in repository.list_trees() if value.id == tree_id]
+    if version:
+        matches = [value for value in matches if value.version == version]
+    if not matches:
+        suffix = f"@{version}" if version else ""
+        raise ValueError(f"vertical tree not found: {tree_id}{suffix}")
     return max(
         matches,
         key=lambda value: tuple(int(part) for part in value.version.split(".")),
@@ -195,11 +223,48 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
     if args.command == "principle" and args.principle_command == "review":
         proposal = _principle_revision(repository, args.id, args.from_version)
+        review_payload = load_structured(args.review)
+        counterexample_path = Path(str(review_payload["counterexample_report"]))
+        counterexample_report = validate_counterexample_report(
+            counterexample_path,
+            proposal,
+        )
+        review_payload["counterexample_dispositions"] = (
+            validate_counterexample_dispositions(
+                counterexample_report,
+                review_payload.get("counterexample_dispositions", {}),
+            )
+        )
+        review_payload["counterexample_report_hash"] = counterexample_report[
+            "report_hash"
+        ]
+        lofo_path = Path(str(review_payload["leave_one_family_out_report"]))
+        lofo_report = validate_leave_family_out_report(lofo_path, proposal)
+        review_payload["leave_one_family_out_report_hash"] = lofo_report[
+            "report_hash"
+        ]
         value = review_principle(
-            proposal, load_structured(args.review), version=args.version
+            proposal,
+            review_payload,
+            version=args.version,
         )
         path = repository.save_principle(value)
         return {"path": str(path), "principle": model_to_dict(value)}
+
+    if args.command == "principle" and args.principle_command == "counterexamples":
+        proposal = _principle_revision(repository, args.id, args.from_version)
+        result = search_counterexamples(repository, proposal)
+        write_structured_atomic(args.output, result)
+        return {"path": str(args.output), **result}
+
+    if args.command == "principle" and args.principle_command == "finalize-lofo":
+        proposal = _principle_revision(repository, args.id, args.from_version)
+        result = finalize_leave_family_out_report(
+            proposal,
+            load_structured(args.report),
+        )
+        write_structured_atomic(args.output, result)
+        return {"path": str(args.output), **result}
 
     if args.command == "principle" and args.principle_command == "promote":
         candidate = _principle_revision(repository, args.id, args.from_version)
@@ -235,6 +300,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         )
         path = repository.save_tree(value)
         return {"path": str(path), "tree": model_to_dict(value)}
+
+    if args.command == "forest" and args.forest_command == "placement":
+        principle = _principle_revision(
+            repository,
+            args.principle,
+            args.principle_version,
+        )
+        tree = _tree_revision(repository, args.tree, args.tree_version)
+        result = analyze_placement(repository, principle, tree, args.parent)
+        write_structured_atomic(args.output, result)
+        return {"path": str(args.output), **result}
 
     if args.command == "forest" and args.forest_command == "save-edge":
         value = OverlayEdge.from_dict(load_structured(args.file))
@@ -273,6 +349,28 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         if args.output:
             write_structured_atomic(args.output, result)
         return result
+
+    if args.command == "overlay" and args.overlay_command == "validate":
+        manifest = (
+            repository.load_manifest(args.manifest, args.manifest_version)
+            if args.manifest
+            else None
+        )
+        skills, principles, trees, edges = resolve_view(repository, manifest)
+        report = validate_forest(
+            list(trees.values()),
+            list(skills.values()),
+            list(principles.values()),
+            list(edges.values()),
+        )
+        report.require_ok()
+        return {
+            "ok": True,
+            "manifest_id": (
+                f"{manifest.id}@{manifest.version}" if manifest else None
+            ),
+            "edge_count": len(edges),
+        }
 
     if args.command == "lineage" and args.lineage_command == "show":
         manifest = (
@@ -530,6 +628,15 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--from-version")
     review.add_argument("--version", required=True)
     review.add_argument("--review", type=Path, required=True)
+    counterexamples = principle.add_parser("counterexamples")
+    counterexamples.add_argument("--id", required=True)
+    counterexamples.add_argument("--from-version")
+    counterexamples.add_argument("--output", type=Path, required=True)
+    finalize_lofo = principle.add_parser("finalize-lofo")
+    finalize_lofo.add_argument("--id", required=True)
+    finalize_lofo.add_argument("--from-version")
+    finalize_lofo.add_argument("--report", type=Path, required=True)
+    finalize_lofo.add_argument("--output", type=Path, required=True)
     promote = principle.add_parser("promote")
     promote.add_argument("--id", required=True)
     promote.add_argument("--from-version")
@@ -552,6 +659,13 @@ def build_parser() -> argparse.ArgumentParser:
     save_tree.add_argument("--structural-root", required=True)
     save_tree.add_argument("--checkpoint", required=True)
     save_tree.add_argument("--parents", type=Path, required=True)
+    placement = forest.add_parser("placement")
+    placement.add_argument("--principle", required=True)
+    placement.add_argument("--principle-version")
+    placement.add_argument("--tree", required=True)
+    placement.add_argument("--tree-version")
+    placement.add_argument("--parent", required=True)
+    placement.add_argument("--output", type=Path, required=True)
     save_edge = forest.add_parser("save-edge")
     save_edge.add_argument("--file", type=Path, required=True)
 
@@ -562,6 +676,9 @@ def build_parser() -> argparse.ArgumentParser:
     show_overlay.add_argument("--manifest")
     show_overlay.add_argument("--manifest-version")
     show_overlay.add_argument("--output", type=Path)
+    validate_overlay = overlay.add_parser("validate")
+    validate_overlay.add_argument("--manifest")
+    validate_overlay.add_argument("--manifest-version")
 
     lineage_parser = commands.add_parser("lineage").add_subparsers(
         dest="lineage_command", required=True

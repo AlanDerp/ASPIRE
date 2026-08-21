@@ -59,11 +59,26 @@ python -m aspire.sim.cap.knowledge --root knowledge principle propose \
   --checkpoint snapshot-n20 \
   --skills <skill-1>@<version> <skill-2>@<version> <skill-3>@<version> \
   --policy knowledge/consolidation-policy.yaml
+python -m aspire.sim.cap.knowledge --root knowledge principle counterexamples \
+  --id <principle-id> --from-version 1.0.0 \
+  --output knowledge/proposals/<principle-id>/counterexamples.yaml
+python -m aspire.sim.cap.knowledge --root knowledge principle finalize-lofo \
+  --id <principle-id> --from-version 1.0.0 \
+  --report <reviewed-lofo-input.yaml> \
+  --output knowledge/proposals/<principle-id>/lofo.yaml
 python -m aspire.sim.cap.knowledge --root knowledge principle review \
   --id <principle-id> --version 1.1.0 --review <review.yaml>
 python -m aspire.sim.cap.knowledge --root knowledge principle promote \
   --id <principle-id> --from-version 1.1.0 --version 1.2.0
 ```
+
+The review file must reference the generated counterexample report. The CLI
+verifies its content hash, development checkpoint, principle revision and
+search coverage before creating the candidate revision. High-severity leads
+require an explicit disposition. The LOFO report must cover every task family,
+name evaluated development tasks and grounding skills, pass every holdout, and
+match its content hash. Search candidates are leads for human disposition,
+never automatic counterevidence conclusions.
 
 ## 3. Freeze the active view
 
@@ -73,10 +88,20 @@ then run the integrity gate and build the derived index:
 ```bash
 python -m aspire.sim.cap.knowledge --root knowledge manifest save --file <manifest.yaml>
 python -m aspire.sim.cap.knowledge --root knowledge forest validate
+python -m aspire.sim.cap.knowledge --root knowledge forest placement \
+  --principle <principle-id> --principle-version <version> \
+  --tree <tree-id> --tree-version <version> --parent <root-or-principle-id> \
+  --output knowledge/proposals/<principle-id>/placement.yaml
+python -m aspire.sim.cap.knowledge --root knowledge overlay validate \
+  --manifest libero-active --manifest-version 1.0.0
 python -m aspire.sim.cap.knowledge --root knowledge index build \
   --checkpoint snapshot-n20 --manifest libero-active --manifest-version 1.0.0 \
   --output knowledge/projections/libero-active.sqlite3
 ```
+
+Placement analysis is read-only and reports primary parent, depth, direct
+fan-out, active operational coverage, reparenting, and potential cycles before
+the tree revision is saved.
 
 ## 4. Compile A–F under fixed inputs
 

@@ -36,7 +36,9 @@ def review_principle(
         "invariant",
         "falsifiers",
         "counterexample_report",
+        "counterexample_report_hash",
         "leave_one_family_out_report",
+        "leave_one_family_out_report_hash",
     )
     missing = [key for key in required if not review.get(key)]
     if missing:
@@ -66,7 +68,14 @@ def review_principle(
             "reviewer": str(review["reviewer"]),
             "reviewed_at": str(review["reviewed_at"]),
             "counterexample_report": str(review["counterexample_report"]),
+            "counterexample_report_hash": str(review["counterexample_report_hash"]),
+            "counterexample_dispositions": review.get(
+                "counterexample_dispositions", {}
+            ),
             "leave_one_family_out_report": str(review["leave_one_family_out_report"]),
+            "leave_one_family_out_report_hash": str(
+                review["leave_one_family_out_report_hash"]
+            ),
         },
     )
 

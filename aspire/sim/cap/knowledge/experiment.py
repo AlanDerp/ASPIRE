@@ -589,7 +589,10 @@ def build_report(observations: list[Observation], preregistration: dict[str, Any
         "claim_reason": (
             "Engineering aggregation is complete; the prespecified claim audit remains required."
             if evaluable
-            else "Preregistration, required cells, or fairness locks are incomplete; no research hypothesis may be claimed."
+            else (
+                "Preregistration, required cells, or fairness locks are incomplete; "
+                "no research hypothesis may be claimed."
+            )
         ),
     }
 

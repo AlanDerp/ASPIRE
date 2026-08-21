@@ -11,6 +11,11 @@ from pathlib import Path
 
 from aspire.sim.cap.knowledge.checkpoints import freeze_checkpoint
 from aspire.sim.cap.knowledge.consolidation import canonicalize_cluster, propose_principle
+from aspire.sim.cap.knowledge.counterexample import (
+    search_counterexamples,
+    validate_counterexample_dispositions,
+    validate_counterexample_report,
+)
 from aspire.sim.cap.knowledge.fingerprint import fingerprint_code
 from aspire.sim.cap.knowledge.golden import GoldenLabel, evaluate_golden
 from aspire.sim.cap.knowledge.experiment import Observation, build_report, compile_treatment
@@ -37,13 +42,17 @@ from aspire.sim.cap.knowledge.predicates import evaluate
 from aspire.sim.cap.knowledge.projection import lineage_view, overlay_view, vertical_forest
 from aspire.sim.cap.knowledge.repository import KnowledgeRepository, RepositoryConflict
 from aspire.sim.cap.knowledge.review import promote_principle, review_principle
+from aspire.sim.cap.knowledge.review_artifacts import (
+    finalize_leave_family_out_report,
+    validate_leave_family_out_report,
+)
 from aspire.sim.cap.knowledge.repetition import (
     assess_pair,
     audit_principle_repetition,
     audit_repetition,
 )
 from aspire.sim.cap.knowledge.retrieval import compile_portfolio
-from aspire.sim.cap.knowledge.serialization import content_hash
+from aspire.sim.cap.knowledge.serialization import content_hash, write_structured_atomic
 from aspire.sim.cap.knowledge.stress import build_stress_corpus
 
 
@@ -344,7 +353,9 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
                     }
                 ],
                 "counterexample_report": "reports/counterexamples.yaml",
+                "counterexample_report_hash": "counterexample-report-hash",
                 "leave_one_family_out_report": "reports/lofo.yaml",
+                "leave_one_family_out_report_hash": "lofo-report-hash",
             },
             version="1.1.0",
         )
@@ -394,6 +405,51 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "repetition audit rejected"):
             propose_principle(skills, checkpoint, ConsolidationPolicy())
+
+    def test_leave_family_out_report_requires_every_family_and_valid_hash(self):
+        skills = [make_skill(index) for index in range(1, 4)]
+        proposal = propose_principle(
+            skills,
+            checkpoint_for_skills(*skills),
+            ConsolidationPolicy(),
+        )
+        with self.assertRaisesRegex(ValueError, "exactly the principle task families"):
+            finalize_leave_family_out_report(
+                proposal,
+                {
+                    "reviewer": "reviewer-a",
+                    "reviewed_at": "2026-01-02T00:00:00+00:00",
+                    "family_results": {
+                        proposal.scope.task_families[0]: {
+                            "passed": True,
+                            "evaluated_task_ids": ["task-one"],
+                            "supporting_skill_ids": [skills[0].id],
+                        }
+                    },
+                },
+            )
+        report = finalize_leave_family_out_report(
+            proposal,
+            {
+                "reviewer": "reviewer-a",
+                "reviewed_at": "2026-01-02T00:00:00+00:00",
+                "family_results": {
+                    family: {
+                        "passed": True,
+                        "evaluated_task_ids": [f"task-{family}"],
+                        "supporting_skill_ids": [skill.id for skill in skills],
+                    }
+                    for family in proposal.scope.task_families
+                },
+            },
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "lofo.yaml"
+            write_structured_atomic(path, report)
+            self.assertEqual(
+                validate_leave_family_out_report(path, proposal)["report_hash"],
+                report["report_hash"],
+            )
 
 
 class ForestAndRetrievalTests(unittest.TestCase):
@@ -513,7 +569,9 @@ class ForestAndRetrievalTests(unittest.TestCase):
                 "canonical_skill_versions": principle_audit.skill_versions,
                 "reviewer": "reviewer-a",
                 "counterexample_report": "reports/counterexample-1.yaml",
+                "counterexample_report_hash": "counterexample-report-hash",
                 "leave_one_family_out_report": "reports/lofo-1.yaml",
+                "leave_one_family_out_report_hash": "lofo-report-hash",
             },
         )
         self.repository.save_principle(self.principle)
@@ -833,6 +891,45 @@ class ForestAndRetrievalTests(unittest.TestCase):
         self.assertEqual(
             projection["incoming_by_node"][self.skills[1].id], [edge.id]
         )
+
+    def test_counterexample_search_records_scope_conflicts_and_hash(self):
+        edge = OverlayEdge(
+            id="edge.transport.contradiction",
+            version="1.0.0",
+            kind="contradicts",
+            source_id=self.skills[0].id,
+            target_id=self.skills[1].id,
+        )
+        self.repository.save_edge(edge)
+        report = search_counterexamples(self.repository, self.principle)
+        self.assertEqual(report["high_severity_candidate_ids"], ["counterexample-0001"])
+        self.assertEqual(report["candidates"][0]["kind"], "existing-contradiction")
+        with self.assertRaisesRegex(ValueError, "lack disposition"):
+            validate_counterexample_dispositions(report, {})
+        self.assertIn(
+            "counterexample-0001",
+            validate_counterexample_dispositions(
+                report,
+                {
+                    "counterexample-0001": {
+                        "decision": "not-applicable",
+                        "rationale": "the edge guard excludes this proposal scope",
+                    }
+                },
+            ),
+        )
+        path = Path(self.temporary.name) / "counterexamples.yaml"
+        write_structured_atomic(path, report)
+        self.assertEqual(
+            validate_counterexample_report(path, self.principle)["report_hash"],
+            report["report_hash"],
+        )
+        write_structured_atomic(
+            path,
+            {**report, "no_result_boundary": "tampered"},
+        )
+        with self.assertRaisesRegex(ValueError, "hash mismatch"):
+            validate_counterexample_report(path, self.principle)
 
     def test_guarded_overlay_exception_blocks_target_branch(self):
         edge = OverlayEdge(

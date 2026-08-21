@@ -30,7 +30,7 @@ vacuously, so that result is not evidence that the shadow-entry gate passed.
 | --- | --- | --- |
 | M0 preregistration and baselines | Partial | H1--H6, metrics, A/B and margin exist; preregistration remains an engineering draft and does not freeze model, prompt or task split hashes |
 | M1 corpus and vertical forest | Partial | schemas, repository, fingerprints and validators exist; real instances, two checkpoints and 10--20 expert golden principles do not |
-| M2 upward abstraction | Partial | two content-addressed repetition audits, explicit cluster acceptance and review-only promotion exist; dedicated counterexample-search and tree-placement report tools plus real reviewer artifacts remain |
+| M2 upward abstraction | Engineering implemented | two content-addressed repetition audits, explicit cluster acceptance, hash-checked counterexample search, placement report and review-only promotion exist; real reviewer artifacts remain |
 | M3 top-down retrieval | Engineering implemented | three-layer index, tree selection, gates, bounded descent, overlay, fallback, portfolios and A--F compilers are tested |
 | M4 shadow and experiment | Partial | fix-loop recorder, contamination guards, A--F portfolio/runtime boundary, deterministic rebuild verifier and report aggregation exist; real 1x/4x/16x/64x organic runs, labels and GPU execution do not |
 | M5 lifecycle and conclusion | Partial | invalidation and maintenance audit exist; measured workload, total-cost accounting, case review and final go/no-go conclusion do not |

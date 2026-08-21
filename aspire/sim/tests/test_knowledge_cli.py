@@ -161,6 +161,49 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             str(policy),
         )["principle"]
         self.assertEqual(proposal["status"], "proposal")
+        counterexample_path = self.workspace / "counterexamples.yaml"
+        counterexamples = self.run_cli(
+            "principle",
+            "counterexamples",
+            "--id",
+            proposal["id"],
+            "--from-version",
+            "1.0.0",
+            "--output",
+            str(counterexample_path),
+        )
+        self.assertEqual(counterexamples["source_partition"], "development")
+        self.assertTrue(counterexamples["report_hash"])
+        lofo_input = self.write_json(
+            "lofo-input.yaml",
+            {
+                "reviewer": "reviewer-a",
+                "reviewed_at": "2026-01-02T00:00:00+00:00",
+                "family_results": {
+                    family: {
+                        "passed": True,
+                        "evaluated_task_ids": [f"lofo-{family}-task"],
+                        "supporting_skill_ids": skill_ids,
+                        "notes": "rule remains grounded when this family is held out",
+                    }
+                    for family in families
+                },
+            },
+        )
+        lofo_path = self.workspace / "lofo.yaml"
+        lofo = self.run_cli(
+            "principle",
+            "finalize-lofo",
+            "--id",
+            proposal["id"],
+            "--from-version",
+            "1.0.0",
+            "--report",
+            str(lofo_input),
+            "--output",
+            str(lofo_path),
+        )
+        self.assertTrue(lofo["passed"])
         review = self.write_json(
             "review.yaml",
             {
@@ -178,8 +221,8 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
                     }
                 ],
                 "falsifiers": ["clearance-preserving transport does not reduce collisions"],
-                "counterexample_report": "reports/counterexamples.yaml",
-                "leave_one_family_out_report": "reports/lofo.yaml",
+                "counterexample_report": str(counterexample_path),
+                "leave_one_family_out_report": str(lofo_path),
             },
         )
         self.run_cli(
@@ -229,6 +272,26 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             "--parents",
             str(parents),
         )
+        placement_path = self.workspace / "placement.yaml"
+        placement = self.run_cli(
+            "forest",
+            "placement",
+            "--principle",
+            proposal["id"],
+            "--principle-version",
+            "1.2.0",
+            "--tree",
+            "tree.transport",
+            "--tree-version",
+            "1.0.0",
+            "--parent",
+            "root.transport",
+            "--output",
+            str(placement_path),
+        )
+        self.assertTrue(placement["accepted_for_review"])
+        self.assertFalse(placement["mutation_performed"])
+        self.assertEqual(placement["direct_fanout"], 3)
         manifest = self.write_json(
             "manifest.yaml",
             {
@@ -245,6 +308,15 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
         )
         self.run_cli("manifest", "save", "--file", str(manifest))
         self.assertTrue(self.run_cli("forest", "validate")["ok"])
+        overlay_validation = self.run_cli(
+            "overlay",
+            "validate",
+            "--manifest",
+            "libero-active",
+            "--manifest-version",
+            "1.0.0",
+        )
+        self.assertTrue(overlay_validation["ok"])
 
         context = self.write_json(
             "context.yaml",
