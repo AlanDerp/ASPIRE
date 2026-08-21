@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "default": {
+    "mode": "shadow",
+    "token_budget": 2400,
+    "max_principles": 4,
+    "max_skills": 8,
+    "max_children_per_principle": 3,
+    "fallback": "canonical"
+  },
+  "production_modes": {
+    "off": "Legacy whole-library context; no structured portfolio is actor-visible.",
+    "shadow": "Compile all configured portfolios but keep the legacy context actor-visible.",
+    "canonical": "Actor sees treatment B canonical-skill portfolio.",
+    "principle-tree": "Actor sees treatment D without overlay traversal.",
+    "principle-graph": "Actor sees treatment E with guarded overlay traversal."
+  },
+  "experiment_only": {
+    "A": "flat-code",
+    "B": "canonical-skill",
+    "C": "summary-tree",
+    "D": "principle-tree",
+    "E": "forest-overlay-graph",
+    "F": "principle-tree-without-exceptions"
+  }
+}

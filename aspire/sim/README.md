@@ -12,7 +12,26 @@ For the paper overview and project-level context, see [the repository README](..
 | [`env_configs/`](env_configs/) | YAML configs for LIBERO, Robosuite, and BEHAVIOR tasks. |
 | [`scripts/`](scripts/) | Suite-specific and common analysis, replay, evaluation, and plotting scripts. |
 | [`docs/`](docs/) | Simulation docs, task notes, and experiment references. |
+| [`knowledge/`](knowledge/README.md) | Skill-code evidence, frozen checkpoints, canonical skills, principle forests, and experiment pre-registration. |
 | [`.claude/`](.claude/README.md) | Agent runbooks and skills for reproducing simulation experiments. |
+
+## Skill-code knowledge consolidation
+
+The structured knowledge workflow is additive and starts in shadow mode. It
+preserves executed task code as immutable evidence, consolidates only repeated
+code after a frozen checkpoint, and requires review before a principle can be
+actor-visible. The legacy `.claude/libero/skills/*.md` files remain operational
+inputs until an experiment explicitly selects another treatment.
+
+From this directory, inspect the command surface with:
+
+```bash
+PYTHONPATH=../.. python -m aspire.sim.cap.knowledge --help
+```
+
+See [`knowledge/README.md`](knowledge/README.md) for repository rules and
+[`../../doc/aspire-upward-abstraction-knowledge-graph-blueprint.md`](../../doc/aspire-upward-abstraction-knowledge-graph-blueprint.md)
+for the research design.
 
 ## Supported Simulation Suites
 

@@ -204,6 +204,8 @@ Write `$TASK_DIR/findings.md`. The coordinator reads ONLY this file to promote y
    - Trigger: the symptom or scene condition that calls for it
    - Code: the working snippet (5–20 lines) copied from your fix_code.py, with task-specific
      prompts and constants generalized into placeholders — do not paraphrase code into prose
+   - Executed source: the function name or inclusive line range in fix_code.py from which the
+     snippet was generalized (the coordinator records the exact executed source, not placeholders)
    - Evidence: which seeds it flipped to success
    - Target skill file: localize.md | grasp.md | transport.md | manipulation.md
    If nothing generalizes beyond this task, write "none".>

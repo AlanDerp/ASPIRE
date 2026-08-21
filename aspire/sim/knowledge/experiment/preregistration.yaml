@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "title": "Upward abstraction under skill-code library growth",
+  "hypotheses": {
+    "H1": "Principle trees reduce active retrieval surface growth beyond canonical deduplication.",
+    "H2": "Task performance degrades no faster than the canonical-skill baseline as the library grows.",
+    "H3": "Canonicalization and principle trees reduce actor-visible redundancy.",
+    "H4": "The forest localizes conflicts and invalidation work.",
+    "H5": "Explicit exception gates reduce negative transfer.",
+    "H6": "Any gain over canonical retrieval is not explained by shorter summaries alone."
+  },
+  "treatments": {
+    "A": "flat-code",
+    "B": "canonical-skill",
+    "C": "summary-tree",
+    "D": "principle-tree",
+    "E": "forest-overlay-graph",
+    "F": "principle-tree-without-exceptions"
+  },
+  "library_scales": [1, 4, 16, 64],
+  "seeds": [11, 29, 47],
+  "token_budget": 2400,
+  "primary_baseline": "B",
+  "required_separations": ["development", "held-out", "organic", "synthetic"],
+  "decision_rules": {
+    "task_noninferiority_margin": 0.03,
+    "principle_recall_at_8_min": 0.9,
+    "unsupported_principle_escape_max": 0,
+    "exception_hard_violation_escape_max": 0,
+    "compile_latency_p95_ms_max": 300,
+    "claim_requires_slope_comparison": true
+  },
+  "status": "preregistered-engineering-draft",
+  "note": "Freeze model identifiers, task split, corpus hashes, checkpoints and seeds before execution. Organic and synthetic results must be reported separately."
+}

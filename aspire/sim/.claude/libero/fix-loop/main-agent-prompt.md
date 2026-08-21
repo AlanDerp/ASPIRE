@@ -147,10 +147,14 @@ The result includes `GPU: <N>` (if missing, use your ledger + the nvidia-smi fal
 3. The GPU is now genuinely free — mark it FREE in the ledger and assign it the next job (step 2).
 4. Go idle.
 
-### 6. Update skills
+### 6. Record skill code and update the shadow library
 
 After each subagent completion, read
-`outputs/libero_fix_loop/$SUITE/$TASK/findings.md` and promote **generalizable patterns** to the skill library. Subagents never write to skills — only the coordinator does. If `findings.md` is missing, note it and use the subagent's returned summary instead.
+`outputs/libero_fix_loop/$SUITE/$TASK/findings.md`. For each **generalizable pattern**, first
+append the exact executed code from `fix_code.py` to the structured knowledge repository. During
+shadow operation, also merge the human-readable pattern into the legacy skill library. Subagents
+never write either store — only the coordinator does. If `findings.md` is missing, record a no-op;
+do not infer provenance from a returned prose summary.
 
 Snapshot the library before editing, then record the exact per-task patch afterwards:
 
@@ -158,7 +162,18 @@ Snapshot the library before editing, then record the exact per-task patch afterw
 .venv/bin/python3 scripts/libero/record_skill_promotion.py begin \
   --suite "$SUITE" --task "$TASK"
 
-# Read findings.md and update .claude/libero/skills/*.md.
+# For each reusable pattern, select the exact executed function or inclusive line range.
+# INSTANCE_ID must be a lowercase dot/hyphen slug; choose one vertical capability.
+PYTHONPATH="$PYTHON_ROOT" .venv/bin/python3 -m aspire.sim.cap.knowledge \
+  --root knowledge instance ingest \
+  --id "$INSTANCE_ID" --vertical "$VERTICAL" \
+  --task "$TASK" --task-family "$TASK_FAMILY" \
+  --code "outputs/libero_fix_loop/$SUITE/$TASK/fix_code.py" \
+  --lines "$START_LINE:$END_LINE" \
+  --goal "$GOAL" --trigger "$TRIGGER" --effect "$OBSERVED_EFFECT" \
+  --successful-seeds "$DEVELOPMENT_SUCCESS_SEEDS"
+
+# In shadow mode only, merge the readable pattern into .claude/libero/skills/*.md.
 
 .venv/bin/python3 scripts/libero/record_skill_promotion.py finish \
   --suite "$SUITE" --task "$TASK"
@@ -175,6 +190,11 @@ If there is nothing generalizable to promote, leave the library unchanged and pa
 The append-only ledger is
 `outputs/libero_fix_loop/$SUITE/skill_promotions.jsonl`; exact patches and before snapshots are
 stored under `outputs/libero_fix_loop/$SUITE/skill_promotions/`.
+
+The fast path ends here. **Do not create a canonical skill or principle for this task.** Only after
+the preregistered instance threshold may the coordinator freeze a checkpoint, run repetition
+audit, canonicalize accepted multi-task clusters, and begin the separate principle review flow in
+[`../../../docs/knowledge-experiment-runbook.md`](../../../docs/knowledge-experiment-runbook.md).
 
 Route by topic: SAM3 prompts and disambiguation → [../skills/localize.md](../skills/localize.md);
 grasp selection, offsets, verification → [../skills/grasp.md](../skills/grasp.md); waypoints, transit,
@@ -198,8 +218,9 @@ placement → [../skills/transport.md](../skills/transport.md); drawer/knob/push
   the new evidence, widen the trigger, note the variant. Never add a table row that paraphrases
   an existing section.
 
-Only Stage 1 evidence may drive skill edits. Report held-out outcomes separately; never use them
-to revise the shared library.
+Only Stage 1 evidence may drive instance ingestion or skill edits. Report held-out outcomes
+separately; never use them to revise either knowledge store. The exact executed source is evidence;
+the generalized snippet in `findings.md` is only a review aid and must not replace it.
 
 ---
 

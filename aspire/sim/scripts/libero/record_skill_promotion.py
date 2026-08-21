@@ -2,12 +2,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Record auditable, per-task updates to the shared LIBERO skill library.
+"""Record auditable updates to LIBERO skills and structured knowledge.
 
-The coordinator calls ``begin`` before editing ``.claude/libero/skills`` and
-``finish`` afterwards. Each completed promotion preserves the before snapshot,
-an exact patch, file hashes, and an append-only JSONL record. ``verify`` is the
-dispatch gate used before the task's GPU is assigned to another Stage 1 worker.
+The coordinator calls ``begin`` before editing ``.claude/libero/skills`` or the
+skill-code-first ``knowledge`` repository and ``finish`` afterwards. Each
+completed promotion preserves the before snapshot, an exact patch, file hashes,
+and an append-only JSONL record. ``verify`` is the dispatch gate used before the
+task's GPU is assigned to another Stage 1 worker.
 """
 
 from __future__ import annotations
@@ -26,8 +27,9 @@ from typing import Callable
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILLS_REL = Path(".claude/libero/skills")
+KNOWLEDGE_REL = Path("knowledge")
 BUILD_REL = Path("outputs/libero_fix_loop")
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
@@ -77,6 +79,27 @@ def skill_hashes(root: Path) -> dict[str, str]:
     return {
         relative_path(root, path): sha256_file(path)
         for path in skill_files(root)
+    }
+
+
+def knowledge_files(root: Path) -> list[Path]:
+    knowledge = root / KNOWLEDGE_REL
+    if not knowledge.is_dir():
+        return []
+    return sorted(
+        path
+        for path in knowledge.rglob("*")
+        if path.is_file()
+        and not path.name.endswith((".tmp", ".sqlite3"))
+        and "projections" not in path.relative_to(knowledge).parts
+        and path.relative_to(knowledge).parts[:2] != ("experiment", "reports")
+    )
+
+
+def knowledge_hashes(root: Path) -> dict[str, str]:
+    return {
+        relative_path(root, path): sha256_file(path)
+        for path in knowledge_files(root)
     }
 
 
@@ -192,7 +215,8 @@ def begin_promotion(
     directory = promotions_dir(root, suite) / promotion_id
     before_dir = directory / "before"
     before_hashes = skill_hashes(root)
-    for relative in before_hashes:
+    knowledge_before_hashes = knowledge_hashes(root)
+    for relative in sorted(set(before_hashes) | set(knowledge_before_hashes)):
         source = root / relative
         destination = before_dir / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -210,6 +234,8 @@ def begin_promotion(
         "findings_sha256": sha256_file(findings) if findings.is_file() else None,
         "library_before_sha256": library_sha256(before_hashes),
         "skill_sha256_before": before_hashes,
+        "knowledge_before_sha256": library_sha256(knowledge_before_hashes),
+        "knowledge_sha256_before": knowledge_before_hashes,
     }
     write_json_atomic(directory / "begin.json", record)
     return record
@@ -267,24 +293,43 @@ def finish_promotion(
     directory, begin = matches[0]
     before_hashes = begin["skill_sha256_before"]
     after_hashes = skill_hashes(root)
+    knowledge_before_hashes = begin.get("knowledge_sha256_before", {})
+    knowledge_after_hashes = knowledge_hashes(root)
     changed = sorted(
         relative
         for relative in set(before_hashes) | set(after_hashes)
         if before_hashes.get(relative) != after_hashes.get(relative)
     )
-    if not changed and not reason:
-        raise ValueError("no skill files changed; pass --reason to record an intentional no-op")
+    changed_knowledge = sorted(
+        relative
+        for relative in set(knowledge_before_hashes) | set(knowledge_after_hashes)
+        if knowledge_before_hashes.get(relative) != knowledge_after_hashes.get(relative)
+    )
+    if not changed and not changed_knowledge and not reason:
+        raise ValueError(
+            "no skill or knowledge files changed; pass --reason to record an intentional no-op"
+        )
 
     patch_path = directory / "changes.patch"
-    patch_path.write_text(build_patch(root, directory, before_hashes, after_hashes))
+    patch_path.write_text(
+        build_patch(
+            root,
+            directory,
+            {**before_hashes, **knowledge_before_hashes},
+            {**after_hashes, **knowledge_after_hashes},
+        )
+    )
     record = {
         **begin,
         "completed_at": timestamp(),
         "changed_skill_files": changed,
+        "changed_knowledge_files": changed_knowledge,
         "library_after_sha256": library_sha256(after_hashes),
         "skill_sha256_after": after_hashes,
+        "knowledge_after_sha256": library_sha256(knowledge_after_hashes),
+        "knowledge_sha256_after": knowledge_after_hashes,
         "patch_path": relative_path(root, patch_path),
-        "no_op": not changed,
+        "no_op": not changed and not changed_knowledge,
         "reason": reason,
     }
     write_json_atomic(directory / "record.json", record)
@@ -334,7 +379,8 @@ def main() -> int:
             )
             print(
                 f"promotion recorded: {record['promotion_id']} "
-                f"({len(record['changed_skill_files'])} skill files changed)"
+                f"({len(record['changed_skill_files'])} skill files, "
+                f"{len(record.get('changed_knowledge_files', []))} knowledge files changed)"
             )
         else:
             record = verify_promotion(root, suite=args.suite, task=args.task)

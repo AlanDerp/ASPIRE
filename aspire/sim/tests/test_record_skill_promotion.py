@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import tempfile
+import unittest
 from pathlib import Path
-
-import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,72 +41,101 @@ def make_campaign(tmp_path: Path) -> Path:
     return root
 
 
-def test_records_exact_per_task_patch_and_hashes(tmp_path: Path):
-    promotion = load_script()
-    root = make_campaign(tmp_path)
+class RecordSkillPromotionTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = make_campaign(Path(self.temporary.name))
+        self.promotion = load_script()
 
-    begin = promotion.begin_promotion(
-        root,
-        suite="libero_goal_swap",
-        task="example_task",
-        timestamp=lambda: "2026-01-01T00:00:00+00:00",
-    )
-    (root / ".claude/libero/skills/grasp.md").write_text("# Grasp\n\nReusable pattern.\n")
-    record = promotion.finish_promotion(
-        root,
-        suite="libero_goal_swap",
-        task="example_task",
-        timestamp=lambda: "2026-01-01T00:01:00+00:00",
-    )
+    def tearDown(self):
+        self.temporary.cleanup()
 
-    assert begin["library_before_sha256"] != record["library_after_sha256"]
-    assert record["changed_skill_files"] == [".claude/libero/skills/grasp.md"]
-    assert "Reusable pattern." in (root / record["patch_path"]).read_text()
-    ledger = root / "outputs/libero_fix_loop/libero_goal_swap/skill_promotions.jsonl"
-    entries = [json.loads(line) for line in ledger.read_text().splitlines()]
-    assert entries == [record]
-    assert promotion.verify_promotion(
-        root, suite="libero_goal_swap", task="example_task"
-    ) == record
-    assert len(ledger.read_text().splitlines()) == 1
-
-
-def test_requires_serial_promotions(tmp_path: Path):
-    promotion = load_script()
-    root = make_campaign(tmp_path)
-
-    promotion.begin_promotion(root, suite="libero_goal_swap", task="example_task")
-    with pytest.raises(ValueError, match="another promotion is unfinished"):
-        promotion.begin_promotion(root, suite="libero_goal_swap", task="second_task")
-
-
-def test_no_op_requires_and_records_reason(tmp_path: Path):
-    promotion = load_script()
-    root = make_campaign(tmp_path)
-
-    promotion.begin_promotion(root, suite="libero_goal_swap", task="example_task")
-    with pytest.raises(ValueError, match="pass --reason"):
-        promotion.finish_promotion(
-            root, suite="libero_goal_swap", task="example_task"
+    def test_records_exact_per_task_patch_and_hashes(self):
+        begin = self.promotion.begin_promotion(
+            self.root,
+            suite="libero_goal_swap",
+            task="example_task",
+            timestamp=lambda: "2026-01-01T00:00:00+00:00",
         )
-    record = promotion.finish_promotion(
-        root,
-        suite="libero_goal_swap",
-        task="example_task",
-        reason="No generalizable Stage 1 finding.",
-    )
-    assert record["no_op"]
-    assert record["changed_skill_files"] == []
-    assert record["library_before_sha256"] == record["library_after_sha256"]
-    assert record["reason"] == "No generalizable Stage 1 finding."
-
-
-def test_verify_fails_before_promotion_finishes(tmp_path: Path):
-    promotion = load_script()
-    root = make_campaign(tmp_path)
-
-    promotion.begin_promotion(root, suite="libero_goal_swap", task="example_task")
-    with pytest.raises(ValueError, match="promotion is not complete"):
-        promotion.verify_promotion(
-            root, suite="libero_goal_swap", task="example_task"
+        (self.root / ".claude/libero/skills/grasp.md").write_text(
+            "# Grasp\n\nReusable pattern.\n"
         )
+        record = self.promotion.finish_promotion(
+            self.root,
+            suite="libero_goal_swap",
+            task="example_task",
+            timestamp=lambda: "2026-01-01T00:01:00+00:00",
+        )
+
+        self.assertNotEqual(begin["library_before_sha256"], record["library_after_sha256"])
+        self.assertEqual(record["changed_skill_files"], [".claude/libero/skills/grasp.md"])
+        self.assertIn("Reusable pattern.", (self.root / record["patch_path"]).read_text())
+        ledger = self.root / "outputs/libero_fix_loop/libero_goal_swap/skill_promotions.jsonl"
+        entries = [json.loads(line) for line in ledger.read_text().splitlines()]
+        self.assertEqual(entries, [record])
+        self.assertEqual(
+            self.promotion.verify_promotion(
+                self.root, suite="libero_goal_swap", task="example_task"
+            ),
+            record,
+        )
+        self.assertEqual(len(ledger.read_text().splitlines()), 1)
+
+    def test_requires_serial_promotions(self):
+        self.promotion.begin_promotion(
+            self.root, suite="libero_goal_swap", task="example_task"
+        )
+        with self.assertRaisesRegex(ValueError, "another promotion is unfinished"):
+            self.promotion.begin_promotion(
+                self.root, suite="libero_goal_swap", task="second_task"
+            )
+
+    def test_no_op_requires_and_records_reason(self):
+        self.promotion.begin_promotion(
+            self.root, suite="libero_goal_swap", task="example_task"
+        )
+        with self.assertRaisesRegex(ValueError, "pass --reason"):
+            self.promotion.finish_promotion(
+                self.root, suite="libero_goal_swap", task="example_task"
+            )
+        record = self.promotion.finish_promotion(
+            self.root,
+            suite="libero_goal_swap",
+            task="example_task",
+            reason="No generalizable Stage 1 finding.",
+        )
+        self.assertTrue(record["no_op"])
+        self.assertEqual(record["changed_skill_files"], [])
+        self.assertEqual(record["library_before_sha256"], record["library_after_sha256"])
+        self.assertEqual(record["reason"], "No generalizable Stage 1 finding.")
+
+    def test_records_structured_knowledge_change(self):
+        knowledge = self.root / "knowledge"
+        knowledge.mkdir()
+        (knowledge / "schema-version.txt").write_text("1\n")
+
+        self.promotion.begin_promotion(
+            self.root, suite="libero_goal_swap", task="example_task"
+        )
+        (knowledge / "schema-version.txt").write_text("2\n")
+        record = self.promotion.finish_promotion(
+            self.root, suite="libero_goal_swap", task="example_task"
+        )
+
+        self.assertEqual(record["changed_skill_files"], [])
+        self.assertEqual(record["changed_knowledge_files"], ["knowledge/schema-version.txt"])
+        self.assertFalse(record["no_op"])
+        self.assertIn("schema-version.txt", (self.root / record["patch_path"]).read_text())
+
+    def test_verify_fails_before_promotion_finishes(self):
+        self.promotion.begin_promotion(
+            self.root, suite="libero_goal_swap", task="example_task"
+        )
+        with self.assertRaisesRegex(ValueError, "promotion is not complete"):
+            self.promotion.verify_promotion(
+                self.root, suite="libero_goal_swap", task="example_task"
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

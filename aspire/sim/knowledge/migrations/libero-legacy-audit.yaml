@@ -1,0 +1,88 @@
+{
+  "files": [
+    {
+      "code_blocks": 0,
+      "disposition": "requires-instance-provenance",
+      "headings": [
+        "LIBERO Shared Robot Skills"
+      ],
+      "parseable_python_blocks": 0,
+      "path": ".claude/libero/skills/README.md",
+      "python_blocks": 0,
+      "sha256": "f385fa3fd558b61e96e06928c6a318a710318ce2b80abc0f102f4a430817357f"
+    },
+    {
+      "code_blocks": 6,
+      "disposition": "requires-instance-provenance",
+      "headings": [
+        "Grasp — Code Template",
+        "Standard Pick-and-Place Template",
+        "Key Conventions",
+        "Object Geometry Utilities"
+      ],
+      "parseable_python_blocks": 6,
+      "path": ".claude/libero/skills/grasp.md",
+      "python_blocks": 6,
+      "sha256": "e496883b7b6c99cb91a8925cffe2bd1e5611176b3e1e2cb3e2dba5bc57c9851a"
+    },
+    {
+      "code_blocks": 4,
+      "disposition": "requires-instance-provenance",
+      "headings": [
+        "Localize — SAM3 Prompting & Object Localization",
+        "Standard Localization Helper",
+        "Prompt Registry",
+        "Disambiguation: Two Similar Objects in Scene",
+        "Base-Object Anchored Localization",
+        "Key Signals",
+        "Prompting Strategy",
+        "Placement Z Notes"
+      ],
+      "parseable_python_blocks": 4,
+      "path": ".claude/libero/skills/localize.md",
+      "python_blocks": 4,
+      "sha256": "f4c60b7c01171153d4fa3b5499c87193ac6c6f89dcbc5406d9e2b98f7ccac996"
+    },
+    {
+      "code_blocks": 0,
+      "disposition": "requires-instance-provenance",
+      "headings": [
+        "Manipulation — Articulated Object Patterns",
+        "Validated Parameters",
+        "Pushing / Sliding",
+        "General Notes"
+      ],
+      "parseable_python_blocks": 0,
+      "path": ".claude/libero/skills/manipulation.md",
+      "python_blocks": 0,
+      "sha256": "af80f4937b1999d2d2b95af6ff14838e93721008057334f883227f5bfcc68e70"
+    },
+    {
+      "code_blocks": 2,
+      "disposition": "requires-instance-provenance",
+      "headings": [
+        "Transport — Motion Patterns",
+        "Waypoint Sequences",
+        "Pre-Probe IK Conditioning",
+        "Interpolated Cartesian Motion",
+        "Safe Transit (Lateral Escape Before Lift)",
+        "Placement Approach",
+        "Physics Settling After Release"
+      ],
+      "parseable_python_blocks": 2,
+      "path": ".claude/libero/skills/transport.md",
+      "python_blocks": 2,
+      "sha256": "fccf00783eb11b9c4fbbfd99d51f2575d7798df07c5654038b26287ff6434e72"
+    }
+  ],
+  "migration_rule": "A legacy recipe becomes evidence only after its concrete code is executed, recorded with task/outcome provenance, and included in a frozen checkpoint.",
+  "schema_version": 1,
+  "source": ".claude/libero/skills",
+  "summary": {
+    "code_blocks": 12,
+    "knowledge_nodes_created": 0,
+    "markdown_files": 5,
+    "parseable_python_blocks": 12,
+    "python_blocks": 12
+  }
+}

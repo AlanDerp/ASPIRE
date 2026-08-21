@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "format": "JSONL; one reviewer judgment per line",
+  "required": [
+    "principle_id", "task_family", "reviewer", "dimension", "score", "polarity"
+  ],
+  "dimension": [
+    "faithfulness", "coverage", "purity", "discriminativeness", "grounding",
+    "falsifiability", "compression", "transfer", "blast-radius"
+  ],
+  "polarity": ["support", "hard-negative", "exception", "falsifier"],
+  "score": "number in [0, 1]",
+  "rule": "Keep each reviewer's row. Never replace disagreement with an unlabeled consensus."
+}

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "vertical_capabilities": [
+    {"id": "localization", "description": "Observe and localize task-relevant objects and regions."},
+    {"id": "grasp", "description": "Select and establish a stable grasp."},
+    {"id": "transport", "description": "Move a grasped object while preserving safety and task constraints."},
+    {"id": "manipulation", "description": "Apply task-specific contact, articulation, placement, or release."},
+    {"id": "long-horizon", "description": "Coordinate state transitions across multiple subtasks."}
+  ]
+}

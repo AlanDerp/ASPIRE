@@ -103,6 +103,9 @@ ovdet = [
   "pillow>=10",
   "requests>=2.32",
 ]
+[project.scripts]
+akl = "aspire.sim.cap.knowledge.cli:main"
+
 [tool.uv.sources]
 robosuite = [
   { path = "cap/third_party/robosuite", extra = "robosuite", editable = true},

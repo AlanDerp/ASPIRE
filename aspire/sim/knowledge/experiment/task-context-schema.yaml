@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "required": ["task_id", "suite", "task_language", "task_family", "token_budget"],
+  "optional": ["vertical_capabilities", "facts", "available_api_calls"],
+  "partition_rule": "Task contexts may describe held-out tasks, but held-out outcomes must never be passed to instance ingest, principle review, promotion, or invalidation."
+}

@@ -1,0 +1,557 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""Command-line interface for the ASPIRE consolidation forest."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import time
+from dataclasses import asdict
+from pathlib import Path
+from typing import Any
+
+from .checkpoints import freeze_checkpoint, instances_at_checkpoint
+from .consolidation import canonicalize_cluster, propose_principle
+from .experiment import compile_treatment, report_from_files
+from .integrity import validate_repository
+from .golden import evaluate_golden_file
+from .index import index_metadata, rebuild_index
+from .ingest import build_instance
+from .lifecycle import impact_report, invalidate, principle_metrics
+from .maintenance import audit_maintenance
+from .models import (
+    ConsolidationPolicy,
+    KnowledgeManifest,
+    OverlayEdge,
+    Principle,
+    TaskContext,
+    VerticalTree,
+    model_to_dict,
+)
+from .projection import lineage_view, overlay_view, vertical_forest
+from .repository import KnowledgeRepository
+from .repetition import audit_repetition
+from .retrieval import compile_portfolio
+from .review import promote_principle, review_principle
+from .serialization import content_hash, load_structured, write_structured_atomic
+from .stress import build_stress_corpus
+
+
+def _json(value: Any) -> str:
+    if hasattr(value, "__dataclass_fields__"):
+        value = asdict(value)
+    return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True)
+
+
+def _policy(path: Path | None) -> ConsolidationPolicy:
+    return ConsolidationPolicy.from_dict(load_structured(path) if path else None)
+
+
+def _repository(args: argparse.Namespace) -> KnowledgeRepository:
+    repository = KnowledgeRepository(args.root)
+    repository.initialize()
+    return repository
+
+
+def _audit(repository: KnowledgeRepository, checkpoint_id: str, policy: ConsolidationPolicy):
+    checkpoint = repository.load_checkpoint(checkpoint_id)
+    instances = instances_at_checkpoint(repository, checkpoint)
+    return audit_repetition(instances, checkpoint, policy), instances
+
+
+def _principle_revision(
+    repository: KnowledgeRepository, principle_id: str, version: str | None = None
+) -> Principle:
+    matches = [value for value in repository.list_principles() if value.id == principle_id]
+    if version:
+        matches = [value for value in matches if value.version == version]
+    if not matches:
+        suffix = f"@{version}" if version else ""
+        raise ValueError(f"principle not found: {principle_id}{suffix}")
+    return max(matches, key=lambda value: tuple(int(part) for part in value.version.split(".")))
+
+
+def run(args: argparse.Namespace) -> dict[str, Any]:
+    repository = _repository(args)
+    value: Any
+    if args.command == "init":
+        return {"root": str(repository.root), "initialized": True}
+
+    if args.command == "instance" and args.instance_command == "ingest":
+        outcomes = load_structured(args.outcomes) if args.outcomes else {}
+        if args.successful_seeds:
+            outcomes["successes"] = [
+                int(value) for value in args.successful_seeds.split(",") if value.strip()
+            ]
+        if args.improved:
+            outcomes["improved"] = True
+        value = build_instance(
+            instance_id=args.id,
+            vertical_capability=args.vertical,
+            task=args.task,
+            task_family=args.task_family,
+            source_path=args.code,
+            goal=args.goal,
+            trigger=args.trigger,
+            observed_effect=args.effect,
+            symbol=args.symbol,
+            line_range=args.lines,
+            development_outcomes=outcomes,
+            source_partition=args.source_partition,
+        )
+        path = repository.save_instance(value)
+        repository.append_evidence(
+            {"event": "skill-code-instance.ingested", "subject": value.id, "code_hash": value.code_hash}
+        )
+        return {"path": str(path), "instance": model_to_dict(value)}
+
+    if args.command == "checkpoint" and args.checkpoint_command == "freeze":
+        value = freeze_checkpoint(repository, args.id, _policy(args.policy))
+        return {"checkpoint": model_to_dict(value)}
+
+    if args.command == "manifest" and args.manifest_command == "save":
+        value = KnowledgeManifest.from_dict(load_structured(args.file))
+        repository.load_checkpoint(value.checkpoint_id)
+        path = repository.save_manifest(value)
+        return {"path": str(path), "manifest": model_to_dict(value)}
+
+    if args.command == "repetition" and args.repetition_command == "audit":
+        report, _ = _audit(repository, args.checkpoint, _policy(args.policy))
+        payload = asdict(report)
+        if args.output:
+            write_structured_atomic(args.output, payload)
+        return payload
+
+    if args.command == "skill" and args.skill_command == "canonicalize":
+        policy = _policy(args.policy)
+        report, instances = _audit(repository, args.checkpoint, policy)
+        cluster = next((value for value in report.clusters if value.id == args.cluster), None)
+        if cluster is None:
+            raise ValueError(f"repetition cluster not found: {args.cluster}")
+        value = canonicalize_cluster(cluster, instances, args.checkpoint)
+        path = repository.save_skill(value)
+        return {"path": str(path), "skill": model_to_dict(value)}
+
+    if args.command == "principle" and args.principle_command == "propose":
+        skills_by_id = {value.id: value for value in repository.list_skills()}
+        missing = sorted(set(args.skills) - set(skills_by_id))
+        if missing:
+            raise ValueError(f"canonical skills not found: {missing}")
+        value = propose_principle(
+            [skills_by_id[skill_id] for skill_id in args.skills],
+            args.checkpoint,
+            _policy(args.policy),
+        )
+        path = repository.save_principle(value)
+        return {"path": str(path), "principle": model_to_dict(value)}
+
+    if args.command == "principle" and args.principle_command == "save":
+        value = Principle.from_dict(load_structured(args.file))
+        path = repository.save_principle(value)
+        return {"path": str(path), "principle": model_to_dict(value)}
+
+    if args.command == "principle" and args.principle_command == "review":
+        proposal = _principle_revision(repository, args.id, args.from_version)
+        value = review_principle(
+            proposal, load_structured(args.review), version=args.version
+        )
+        path = repository.save_principle(value)
+        return {"path": str(path), "principle": model_to_dict(value)}
+
+    if args.command == "principle" and args.principle_command == "promote":
+        candidate = _principle_revision(repository, args.id, args.from_version)
+        value = promote_principle(candidate, version=args.version)
+        path = repository.save_principle(value)
+        repository.append_evidence(
+            {
+                "event": "knowledge.validated",
+                "subject": value.id,
+                "version": value.version,
+                "at": value.provenance.get("reviewed_at"),
+                "reviewer": value.provenance.get("reviewer"),
+            },
+            stream="lifecycle",
+        )
+        return {"path": str(path), "principle": model_to_dict(value)}
+
+    if args.command == "principle" and args.principle_command == "metrics":
+        principles = {value.id: value for value in repository.list_principles()}
+        if args.id not in principles:
+            raise ValueError(f"principle not found: {args.id}")
+        return {"metrics": model_to_dict(principle_metrics(repository, principles[args.id]))}
+
+    if args.command == "forest" and args.forest_command == "save-tree":
+        parents = load_structured(args.parents).get("parent_by_child", {})
+        value = VerticalTree(
+            id=args.id,
+            version=args.version,
+            vertical_capability=args.vertical,
+            structural_root=args.structural_root,
+            checkpoint_id=args.checkpoint,
+            parent_by_child=parents,
+        )
+        path = repository.save_tree(value)
+        return {"path": str(path), "tree": model_to_dict(value)}
+
+    if args.command == "forest" and args.forest_command == "save-edge":
+        value = OverlayEdge.from_dict(load_structured(args.file))
+        path = repository.save_edge(value)
+        return {"path": str(path), "edge": model_to_dict(value)}
+
+    if args.command == "forest" and args.forest_command == "validate":
+        report = validate_repository(repository)
+        if not report.ok:
+            report.require_ok()
+        return {"ok": True, "issues": []}
+
+    if args.command == "forest" and args.forest_command == "show":
+        manifest = (
+            repository.load_manifest(args.manifest, args.manifest_version)
+            if args.manifest
+            else None
+        )
+        result = vertical_forest(
+            repository,
+            manifest=manifest,
+            vertical=args.vertical,
+            task_family=args.task_family,
+        )
+        if args.output:
+            write_structured_atomic(args.output, result)
+        return result
+
+    if args.command == "overlay" and args.overlay_command == "show":
+        manifest = (
+            repository.load_manifest(args.manifest, args.manifest_version)
+            if args.manifest
+            else None
+        )
+        result = overlay_view(repository, manifest=manifest)
+        if args.output:
+            write_structured_atomic(args.output, result)
+        return result
+
+    if args.command == "lineage" and args.lineage_command == "show":
+        manifest = (
+            repository.load_manifest(args.manifest, args.manifest_version)
+            if args.manifest
+            else None
+        )
+        result = lineage_view(repository, args.ref, manifest=manifest)
+        if args.output:
+            write_structured_atomic(args.output, result)
+        return result
+
+    if args.command == "impact" and args.impact_command == "show":
+        return {"impact": model_to_dict(impact_report(repository, args.ref))}
+
+    if args.command == "impact" and args.impact_command == "invalidate":
+        return {
+            "impact": model_to_dict(
+                invalidate(
+                    repository,
+                    args.ref,
+                    args.reason,
+                    source_partition=args.source_partition,
+                )
+            )
+        }
+
+    if args.command == "maintenance" and args.maintenance_command == "audit":
+        result = audit_maintenance(
+            repository,
+            max_principle_fanout=args.max_principle_fanout,
+            max_exception_rate=args.max_exception_rate,
+        )
+        if args.output:
+            write_structured_atomic(args.output, result)
+        return result
+
+    if args.command == "index" and args.index_command == "build":
+        manifest = (
+            repository.load_manifest(args.manifest, args.manifest_version)
+            if args.manifest
+            else None
+        )
+        source_hash = rebuild_index(
+            repository,
+            args.output,
+            checkpoint_id=args.checkpoint,
+            manifest=manifest,
+        )
+        return {"path": str(args.output), "source_hash": source_hash}
+
+    if args.command == "index" and args.index_command == "verify":
+        return {"path": str(args.path), "metadata": index_metadata(args.path)}
+
+    if args.command == "retrieve":
+        context = TaskContext.from_dict(load_structured(args.context))
+        manifest = (
+            repository.load_manifest(args.manifest, args.manifest_version)
+            if args.manifest
+            else None
+        )
+        portfolio = compile_portfolio(
+            repository,
+            args.checkpoint,
+            context,
+            max_principles=args.max_principles,
+            max_skills=args.max_skills,
+            max_children_per_principle=args.max_children_per_principle,
+            manifest=manifest,
+        )
+        if args.markdown:
+            args.markdown.parent.mkdir(parents=True, exist_ok=True)
+            args.markdown.write_text(portfolio.markdown)
+        if args.output:
+            write_structured_atomic(args.output, model_to_dict(portfolio))
+        payload = model_to_dict(portfolio)
+        return {"portfolio": payload, "portfolio_hash": content_hash(payload)}
+
+    if args.command == "experiment" and args.experiment_command == "compile":
+        context = TaskContext.from_dict(load_structured(args.context))
+        manifest = (
+            repository.load_manifest(args.manifest, args.manifest_version)
+            if args.manifest
+            else None
+        )
+        started = time.perf_counter()
+        portfolio = compile_treatment(
+            repository,
+            args.checkpoint,
+            context,
+            args.treatment,
+            manifest=manifest,
+            max_principles=args.max_principles,
+            max_skills=args.max_skills,
+            max_children_per_principle=args.max_children_per_principle,
+        )
+        compile_latency_ms = (time.perf_counter() - started) * 1000
+        payload = model_to_dict(portfolio)
+        if args.markdown:
+            args.markdown.parent.mkdir(parents=True, exist_ok=True)
+            args.markdown.write_text(portfolio.markdown)
+        if args.output:
+            write_structured_atomic(args.output, payload)
+        return {
+            "portfolio": payload,
+            "portfolio_hash": content_hash(payload),
+            "compile_latency_ms": compile_latency_ms,
+        }
+
+    if args.command == "experiment" and args.experiment_command == "report":
+        report = report_from_files(args.observations, args.preregistration)
+        if args.output:
+            write_structured_atomic(args.output, report)
+        return report
+
+    if args.command == "experiment" and args.experiment_command == "build-corpus":
+        result = build_stress_corpus(
+            repository,
+            args.checkpoint,
+            [int(value) for value in args.scales.split(",") if value.strip()],
+            seed=args.seed,
+        )
+        write_structured_atomic(args.output, result)
+        return {
+            "path": str(args.output),
+            "corpus_hash": result["corpus_hash"],
+            "snapshots": [
+                {"scale": value["scale"], "record_count": value["record_count"]}
+                for value in result["snapshots"]
+            ],
+        }
+
+    if args.command == "experiment" and args.experiment_command == "golden-report":
+        result = evaluate_golden_file(
+            args.labels, faithfulness_gate=args.faithfulness_gate
+        )
+        if args.output:
+            write_structured_atomic(args.output, result)
+        return result
+    raise ValueError("unsupported command")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, default=Path("knowledge"))
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("init")
+
+    instance = commands.add_parser("instance").add_subparsers(dest="instance_command", required=True)
+    ingest = instance.add_parser("ingest")
+    ingest.add_argument("--id", required=True)
+    ingest.add_argument("--vertical", required=True)
+    ingest.add_argument("--task", required=True)
+    ingest.add_argument("--task-family", required=True)
+    ingest.add_argument("--code", required=True, type=Path)
+    ingest.add_argument("--symbol")
+    ingest.add_argument("--lines", help="1-based inclusive START:END from the executed file")
+    ingest.add_argument("--goal", required=True)
+    ingest.add_argument("--trigger", default="")
+    ingest.add_argument("--effect", default="")
+    ingest.add_argument("--outcomes", type=Path)
+    ingest.add_argument("--successful-seeds")
+    ingest.add_argument("--improved", action="store_true")
+    ingest.add_argument(
+        "--source-partition", choices=("development", "held-out"), default="development"
+    )
+
+    checkpoint = commands.add_parser("checkpoint").add_subparsers(
+        dest="checkpoint_command", required=True
+    )
+    freeze = checkpoint.add_parser("freeze")
+    freeze.add_argument("--id", required=True)
+    freeze.add_argument("--policy", type=Path)
+
+    manifest = commands.add_parser("manifest").add_subparsers(
+        dest="manifest_command", required=True
+    )
+    save_manifest = manifest.add_parser("save")
+    save_manifest.add_argument("--file", type=Path, required=True)
+
+    repetition = commands.add_parser("repetition").add_subparsers(
+        dest="repetition_command", required=True
+    )
+    audit = repetition.add_parser("audit")
+    audit.add_argument("--checkpoint", required=True)
+    audit.add_argument("--policy", type=Path)
+    audit.add_argument("--output", type=Path)
+
+    skill = commands.add_parser("skill").add_subparsers(dest="skill_command", required=True)
+    canonicalize = skill.add_parser("canonicalize")
+    canonicalize.add_argument("--checkpoint", required=True)
+    canonicalize.add_argument("--cluster", required=True)
+    canonicalize.add_argument("--policy", type=Path)
+
+    principle = commands.add_parser("principle").add_subparsers(
+        dest="principle_command", required=True
+    )
+    propose = principle.add_parser("propose")
+    propose.add_argument("--checkpoint", required=True)
+    propose.add_argument("--skills", nargs="+", required=True)
+    propose.add_argument("--policy", type=Path)
+    save_principle = principle.add_parser("save")
+    save_principle.add_argument("--file", type=Path, required=True)
+    review = principle.add_parser("review")
+    review.add_argument("--id", required=True)
+    review.add_argument("--from-version")
+    review.add_argument("--version", required=True)
+    review.add_argument("--review", type=Path, required=True)
+    promote = principle.add_parser("promote")
+    promote.add_argument("--id", required=True)
+    promote.add_argument("--from-version")
+    promote.add_argument("--version", required=True)
+    principle_metrics_parser = principle.add_parser("metrics")
+    principle_metrics_parser.add_argument("--id", required=True)
+
+    forest = commands.add_parser("forest").add_subparsers(dest="forest_command", required=True)
+    forest.add_parser("validate")
+    show_forest = forest.add_parser("show")
+    show_forest.add_argument("--vertical")
+    show_forest.add_argument("--task-family")
+    show_forest.add_argument("--manifest")
+    show_forest.add_argument("--manifest-version")
+    show_forest.add_argument("--output", type=Path)
+    save_tree = forest.add_parser("save-tree")
+    save_tree.add_argument("--id", required=True)
+    save_tree.add_argument("--version", default="1.0.0")
+    save_tree.add_argument("--vertical", required=True)
+    save_tree.add_argument("--structural-root", required=True)
+    save_tree.add_argument("--checkpoint", required=True)
+    save_tree.add_argument("--parents", type=Path, required=True)
+    save_edge = forest.add_parser("save-edge")
+    save_edge.add_argument("--file", type=Path, required=True)
+
+    overlay = commands.add_parser("overlay").add_subparsers(
+        dest="overlay_command", required=True
+    )
+    show_overlay = overlay.add_parser("show")
+    show_overlay.add_argument("--manifest")
+    show_overlay.add_argument("--manifest-version")
+    show_overlay.add_argument("--output", type=Path)
+
+    lineage_parser = commands.add_parser("lineage").add_subparsers(
+        dest="lineage_command", required=True
+    )
+    show_lineage = lineage_parser.add_parser("show")
+    show_lineage.add_argument("ref")
+    show_lineage.add_argument("--manifest")
+    show_lineage.add_argument("--manifest-version")
+    show_lineage.add_argument("--output", type=Path)
+
+    impact = commands.add_parser("impact").add_subparsers(
+        dest="impact_command", required=True
+    )
+    show_impact = impact.add_parser("show")
+    show_impact.add_argument("ref")
+    invalidate_ref = impact.add_parser("invalidate")
+    invalidate_ref.add_argument("ref")
+    invalidate_ref.add_argument("--reason", required=True)
+    invalidate_ref.add_argument(
+        "--source-partition", choices=("development", "held-out"), default="development"
+    )
+
+    maintenance = commands.add_parser("maintenance").add_subparsers(
+        dest="maintenance_command", required=True
+    )
+    maintenance_audit = maintenance.add_parser("audit")
+    maintenance_audit.add_argument("--max-principle-fanout", type=int, default=12)
+    maintenance_audit.add_argument("--max-exception-rate", type=float, default=0.2)
+    maintenance_audit.add_argument("--output", type=Path)
+
+    index = commands.add_parser("index").add_subparsers(dest="index_command", required=True)
+    build = index.add_parser("build")
+    build.add_argument("--checkpoint", required=True)
+    build.add_argument("--output", type=Path, required=True)
+    build.add_argument("--manifest")
+    build.add_argument("--manifest-version")
+    verify = index.add_parser("verify")
+    verify.add_argument("path", type=Path)
+
+    retrieve = commands.add_parser("retrieve")
+    retrieve.add_argument("--checkpoint", required=True)
+    retrieve.add_argument("--context", type=Path, required=True)
+    retrieve.add_argument("--max-principles", type=int, default=4)
+    retrieve.add_argument("--max-skills", type=int, default=8)
+    retrieve.add_argument("--max-children-per-principle", type=int, default=3)
+    retrieve.add_argument("--manifest")
+    retrieve.add_argument("--manifest-version")
+    retrieve.add_argument("--output", type=Path)
+    retrieve.add_argument("--markdown", type=Path)
+
+    experiment = commands.add_parser("experiment").add_subparsers(
+        dest="experiment_command", required=True
+    )
+    compile_experiment = experiment.add_parser("compile")
+    compile_experiment.add_argument("--treatment", choices=tuple("ABCDEF"), required=True)
+    compile_experiment.add_argument("--checkpoint", required=True)
+    compile_experiment.add_argument("--context", type=Path, required=True)
+    compile_experiment.add_argument("--manifest")
+    compile_experiment.add_argument("--manifest-version")
+    compile_experiment.add_argument("--max-principles", type=int, default=4)
+    compile_experiment.add_argument("--max-skills", type=int, default=8)
+    compile_experiment.add_argument("--max-children-per-principle", type=int, default=3)
+    compile_experiment.add_argument("--output", type=Path)
+    compile_experiment.add_argument("--markdown", type=Path)
+    report = experiment.add_parser("report")
+    report.add_argument("--observations", type=Path, required=True)
+    report.add_argument("--preregistration", type=Path, required=True)
+    report.add_argument("--output", type=Path)
+    corpus = experiment.add_parser("build-corpus")
+    corpus.add_argument("--checkpoint", required=True)
+    corpus.add_argument("--scales", default="1,4,16,64")
+    corpus.add_argument("--seed", type=int, required=True)
+    corpus.add_argument("--output", type=Path, required=True)
+    golden = experiment.add_parser("golden-report")
+    golden.add_argument("--labels", type=Path, required=True)
+    golden.add_argument("--faithfulness-gate", type=float, default=0.85)
+    golden.add_argument("--output", type=Path)
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
+    print(_json(run(args)))
