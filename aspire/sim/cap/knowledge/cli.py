@@ -61,7 +61,7 @@ from .review import promote_principle, review_principle
 from .runtime import build_runtime_config
 from .run_plan import execute_experiment_plan, materialize_experiment_plan
 from .serialization import content_hash, load_structured, write_structured_atomic
-from .stress import build_stress_corpus
+from .stress import audit_stress_snapshot, build_stress_corpus
 from .verification import verify_deterministic_rebuild
 
 
@@ -652,6 +652,21 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             ],
         }
 
+    if args.command == "experiment" and args.experiment_command == "audit-stress":
+        result = audit_stress_snapshot(
+            load_structured(args.corpus),
+            args.scale,
+            _policy(args.policy),
+        )
+        write_structured_atomic(args.output, result)
+        return {
+            "path": str(args.output),
+            "audit_hash": result["audit_hash"],
+            "checkpoint_id": result["checkpoint_id"],
+            "record_count": result["record_count"],
+            "evidence_eligible": result["evidence_eligible"],
+        }
+
     if args.command == "experiment" and args.experiment_command == "golden-report":
         validate_repository(repository).require_ok()
         manifest = repository.load_manifest(args.manifest, args.manifest_version)
@@ -959,6 +974,11 @@ def build_parser() -> argparse.ArgumentParser:
     corpus.add_argument("--scales", default="1,4,16,64")
     corpus.add_argument("--seed", type=int, required=True)
     corpus.add_argument("--output", type=Path, required=True)
+    stress_audit = experiment.add_parser("audit-stress")
+    stress_audit.add_argument("--corpus", type=Path, required=True)
+    stress_audit.add_argument("--scale", type=int, required=True)
+    stress_audit.add_argument("--policy", type=Path)
+    stress_audit.add_argument("--output", type=Path, required=True)
     golden = experiment.add_parser("golden-report")
     golden.add_argument("--labels", type=Path, required=True)
     golden.add_argument("--faithfulness-gate", type=float, default=0.85)

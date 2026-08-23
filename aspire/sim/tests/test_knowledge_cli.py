@@ -50,6 +50,38 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
         path.write_text(json.dumps(value, indent=2) + "\n")
         return path
 
+    def repetition_audit_payload(
+        self,
+        corpus_kind: str,
+        checkpoint_id: str,
+        corpus_hash: str,
+        scale: int,
+    ) -> dict:
+        report = {
+            "checkpoint_id": checkpoint_id,
+            "pairs": [],
+            "clusters": [],
+            "policy": {},
+        }
+        if corpus_kind == "organic":
+            return report
+        payload = {
+            "schema_version": 1,
+            "corpus_kind": "synthetic",
+            "corpus_hash": corpus_hash,
+            "snapshot_hash": f"snapshot-hash-{scale}",
+            "scale": scale,
+            "checkpoint_id": checkpoint_id,
+            "record_count": scale,
+            "evidence_eligible": False,
+            "promotion_eligible": False,
+            "policy": {},
+            "classification_counts": {},
+            "repetition_report": report,
+            "repetition_report_hash": content_hash(report),
+        }
+        return {**payload, "audit_hash": content_hash(payload)}
+
     def test_freeze_preregistration_locks_all_experimental_inputs(self):
         draft = self.write_json(
             "draft.yaml",
@@ -125,20 +157,29 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
                 "env_config_hash": content_hash(json.loads(env_config.read_text())),
             }
         job_catalog = self.write_json("job-catalog.yaml", {"tasks": catalog_tasks})
-        checkpoint_map = self.write_json(
-            "checkpoint-map.yaml",
-            {
-                corpus_kind: {
-                    str(scale): {
-                        "checkpoint_id": f"{corpus_kind}-n{scale}",
-                        "corpus_hash": f"{corpus_kind}-hash-{scale}",
-                        "n_code": scale,
-                        "evidence_eligible": corpus_kind == "organic",
-                    }
-                    for scale in (1, 4)
+        checkpoint_entries = {}
+        for corpus_kind in ("organic", "synthetic"):
+            checkpoint_entries[corpus_kind] = {}
+            for scale in (1, 4):
+                audit_payload = self.repetition_audit_payload(
+                    corpus_kind,
+                    f"{corpus_kind}-n{scale}",
+                    f"{corpus_kind}-hash-{scale}",
+                    scale,
+                )
+                audit_path = self.write_json(
+                    f"audit-{corpus_kind}-{scale}.yaml", audit_payload
+                )
+                checkpoint_entries[corpus_kind][str(scale)] = {
+                    "checkpoint_id": f"{corpus_kind}-n{scale}",
+                    "corpus_hash": f"{corpus_kind}-hash-{scale}",
+                    "n_code": scale,
+                    "evidence_eligible": corpus_kind == "organic",
+                    "repetition_audit_path": str(audit_path.resolve()),
+                    "repetition_audit_hash": content_hash(audit_payload),
                 }
-                for corpus_kind in ("organic", "synthetic")
-            },
+        checkpoint_map = self.write_json(
+            "checkpoint-map.yaml", checkpoint_entries
         )
         execution_config = self.write_json(
             "execution-config.yaml",
@@ -258,6 +299,35 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             "--policy",
             str(policy),
         )
+        stress_corpus_path = self.workspace / "stress-corpus.yaml"
+        stress_corpus = self.run_cli(
+            "experiment",
+            "build-corpus",
+            "--checkpoint",
+            "snapshot-n6",
+            "--scales",
+            "1,4",
+            "--seed",
+            "11",
+            "--output",
+            str(stress_corpus_path),
+        )
+        self.assertEqual(stress_corpus["snapshots"][1]["record_count"], 24)
+        stress_audit_path = self.workspace / "stress-audit-x4.yaml"
+        stress_audit = self.run_cli(
+            "experiment",
+            "audit-stress",
+            "--corpus",
+            str(stress_corpus_path),
+            "--scale",
+            "4",
+            "--policy",
+            str(policy),
+            "--output",
+            str(stress_audit_path),
+        )
+        self.assertEqual(stress_audit["record_count"], 24)
+        self.assertFalse(stress_audit["evidence_eligible"])
         audit = self.run_cli(
             "repetition",
             "audit",

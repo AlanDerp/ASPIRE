@@ -36,6 +36,39 @@ class PreregistrationTests(unittest.TestCase):
         path.write_text(json.dumps(value))
         return path
 
+    def repetition_audit_payload(
+        self,
+        corpus_kind: str,
+        checkpoint_id: str,
+        corpus_hash: str,
+        scale: int,
+        n_code: int,
+    ) -> dict:
+        report = {
+            "checkpoint_id": checkpoint_id,
+            "pairs": [],
+            "clusters": [],
+            "policy": {},
+        }
+        if corpus_kind == "organic":
+            return report
+        payload = {
+            "schema_version": 1,
+            "corpus_kind": "synthetic",
+            "corpus_hash": corpus_hash,
+            "snapshot_hash": f"snapshot-hash-{scale}",
+            "scale": scale,
+            "checkpoint_id": checkpoint_id,
+            "record_count": n_code,
+            "evidence_eligible": False,
+            "promotion_eligible": False,
+            "policy": {},
+            "classification_counts": {},
+            "repetition_report": report,
+            "repetition_report_hash": content_hash(report),
+        }
+        return {**payload, "audit_hash": content_hash(payload)}
+
     def valid_inputs(self) -> dict[str, Path]:
         draft = self.write(
             "draft.yaml",
@@ -112,20 +145,27 @@ class PreregistrationTests(unittest.TestCase):
                 "env_config_hash": content_hash(json.loads(env_config.read_text())),
             }
         catalog = self.write("catalog.yaml", {"tasks": catalog_tasks})
-        checkpoints = self.write(
-            "checkpoints.yaml",
-            {
-                kind: {
-                    "1": {
-                        "checkpoint_id": f"{kind}-1",
-                        "corpus_hash": f"{kind}-hash",
-                        "n_code": 1,
-                        "evidence_eligible": kind == "organic",
-                    }
+        checkpoint_payload = {}
+        for kind in ("organic", "synthetic"):
+            audit_payload = self.repetition_audit_payload(
+                kind,
+                f"{kind}-1",
+                f"{kind}-hash",
+                1,
+                1,
+            )
+            audit_path = self.write(f"audit-{kind}-1.yaml", audit_payload)
+            checkpoint_payload[kind] = {
+                "1": {
+                    "checkpoint_id": f"{kind}-1",
+                    "corpus_hash": f"{kind}-hash",
+                    "n_code": 1,
+                    "evidence_eligible": kind == "organic",
+                    "repetition_audit_path": str(audit_path.resolve()),
+                    "repetition_audit_hash": content_hash(audit_payload),
                 }
-                for kind in ("organic", "synthetic")
-            },
-        )
+            }
+        checkpoints = self.write("checkpoints.yaml", checkpoint_payload)
         execution = self.write(
             "execution.yaml",
             {
@@ -189,6 +229,33 @@ class PreregistrationTests(unittest.TestCase):
         paths["checkpoints"].write_text(json.dumps(checkpoints))
 
         with self.assertRaisesRegex(ValueError, "evidence_eligible=false"):
+            self.freeze(paths)
+
+    def test_rejects_tampered_scale_repetition_audit(self) -> None:
+        paths = self.valid_inputs()
+        checkpoints = json.loads(paths["checkpoints"].read_text())
+        audit_path = Path(
+            checkpoints["synthetic"]["1"]["repetition_audit_path"]
+        )
+        audit_payload = json.loads(audit_path.read_text())
+        audit_payload["record_count"] = 999
+        audit_path.write_text(json.dumps(audit_payload))
+
+        with self.assertRaisesRegex(ValueError, "repetition audit hash mismatch"):
+            self.freeze(paths)
+
+    def test_rejects_rehashed_but_internally_invalid_synthetic_audit(self) -> None:
+        paths = self.valid_inputs()
+        checkpoints = json.loads(paths["checkpoints"].read_text())
+        artifact = checkpoints["synthetic"]["1"]
+        audit_path = Path(artifact["repetition_audit_path"])
+        audit_payload = json.loads(audit_path.read_text())
+        audit_payload["audit_hash"] = "forged-self-hash"
+        audit_path.write_text(json.dumps(audit_payload))
+        artifact["repetition_audit_hash"] = content_hash(audit_payload)
+        paths["checkpoints"].write_text(json.dumps(checkpoints))
+
+        with self.assertRaisesRegex(ValueError, "self-hash mismatch"):
             self.freeze(paths)
 
     def test_materializes_complete_a_to_f_execution_plan(self) -> None:
@@ -436,18 +503,28 @@ class PreregistrationTests(unittest.TestCase):
         draft = json.loads(paths["draft"].read_text())
         draft["library_scales"] = [1, 4]
         paths["draft"].write_text(json.dumps(draft))
-        checkpoints = {
-            kind: {
-                str(scale): {
+        checkpoints = {}
+        for kind in ("organic", "synthetic"):
+            checkpoints[kind] = {}
+            for scale in (1, 4):
+                audit_payload = self.repetition_audit_payload(
+                    kind,
+                    f"{kind}-{scale}",
+                    f"{kind}-hash-{scale}",
+                    scale,
+                    scale * 10,
+                )
+                audit_path = self.write(
+                    f"claim-audit-{kind}-{scale}.yaml", audit_payload
+                )
+                checkpoints[kind][str(scale)] = {
                     "checkpoint_id": f"{kind}-{scale}",
                     "corpus_hash": f"{kind}-hash-{scale}",
                     "n_code": scale * 10,
                     "evidence_eligible": kind == "organic",
+                    "repetition_audit_path": str(audit_path.resolve()),
+                    "repetition_audit_hash": content_hash(audit_payload),
                 }
-                for scale in (1, 4)
-            }
-            for kind in ("organic", "synthetic")
-        }
         paths["checkpoints"].write_text(json.dumps(checkpoints))
         frozen = self.freeze(paths)
 

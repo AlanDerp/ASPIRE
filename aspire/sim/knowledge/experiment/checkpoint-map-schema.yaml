@@ -1,13 +1,17 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "required_corpus_kinds": ["organic", "synthetic"],
   "entry_required": [
-    "checkpoint_id", "corpus_hash", "n_code", "evidence_eligible"
+    "checkpoint_id", "corpus_hash", "n_code", "evidence_eligible",
+    "repetition_audit_path", "repetition_audit_hash"
   ],
   "execution_plan_entry_required": ["manifest_id", "manifest_version"],
   "constraints": [
     "Each corpus kind contains exactly the preregistered scale keys.",
     "Organic entries set evidence_eligible=true.",
-    "Synthetic entries set evidence_eligible=false."
+    "Synthetic entries set evidence_eligible=false.",
+    "Every scale locks an existing absolute repetition-audit artifact and its content hash.",
+    "Organic artifacts are canonical RepetitionReport documents.",
+    "Synthetic artifacts bind corpus/snapshot/record count, embed a canonical RepetitionReport, self-hash, and set evidence_eligible=false plus promotion_eligible=false."
   ]
 }

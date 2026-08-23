@@ -1,0 +1,19 @@
+schema_version: 1
+required:
+  - corpus_kind
+  - corpus_hash
+  - snapshot_hash
+  - scale
+  - checkpoint_id
+  - record_count
+  - evidence_eligible
+  - promotion_eligible
+  - policy
+  - classification_counts
+  - repetition_report
+  - repetition_report_hash
+  - audit_hash
+constraints:
+  - Exactly one frozen synthetic scale snapshot is audited.
+  - Record, snapshot, and corpus hashes must all verify before classification.
+  - The audit remains ineligible for organic evidence and promotion.

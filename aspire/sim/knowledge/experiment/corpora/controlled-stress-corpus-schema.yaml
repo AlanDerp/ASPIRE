@@ -1,0 +1,40 @@
+schema_version: 2
+required:
+  - corpus_kind
+  - checkpoint_id
+  - checkpoint_hash
+  - seed
+  - stress_kinds
+  - source_instance_count
+  - prefix_stable_across_scales
+  - snapshots
+  - partition_guard
+  - corpus_hash
+snapshot_required:
+  - scale
+  - checkpoint_id
+  - record_count
+  - record_ids
+  - kind_counts
+  - records
+  - snapshot_hash
+record_required:
+  - id
+  - source_instance_id
+  - source_instance_hash
+  - kind
+  - expected_relation
+  - code
+  - code_hash
+  - ast_fingerprint
+  - api_calls
+  - synthetic
+  - execution_status
+  - evidence_eligible
+  - success_outcome_eligible
+  - content_hash
+constraints:
+  - Shared records are byte-identical prefixes of every larger scale snapshot.
+  - The largest snapshot covers every preregistered stress kind.
+  - All source instances come from the frozen development checkpoint.
+  - Synthetic and success eligibility flags are immutable false gates.

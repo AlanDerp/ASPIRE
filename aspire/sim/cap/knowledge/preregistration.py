@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import TaskContext
+from .repetition import RepetitionReport
 from .serialization import content_hash, load_structured, sha256_file
 
 
@@ -139,10 +140,16 @@ def _validate_checkpoint_map(
         for scale, artifact in values.items():
             if not isinstance(artifact, dict):
                 raise ValueError(f"checkpoint map entry must be an object: {scale}")
-            required = ("checkpoint_id", "corpus_hash", "n_code")
+            required = (
+                "checkpoint_id",
+                "corpus_hash",
+                "n_code",
+                "repetition_audit_path",
+                "repetition_audit_hash",
+            )
             if any(artifact.get(key) in (None, "", 0) for key in required):
                 raise ValueError(
-                    f"checkpoint map entry lacks checkpoint_id/corpus_hash/n_code: {scale}"
+                    f"checkpoint map entry lacks corpus, checkpoint, or audit fields: {scale}"
                 )
             if not isinstance(artifact["n_code"], int) or artifact["n_code"] < 1:
                 raise ValueError(f"checkpoint n_code must be a positive integer: {scale}")
@@ -152,6 +159,61 @@ def _validate_checkpoint_map(
                     f"{corpus_kind} checkpoint entries must set "
                     f"evidence_eligible={str(expected_eligibility).lower()}"
                 )
+            audit_path = Path(str(artifact["repetition_audit_path"]))
+            if not audit_path.is_absolute() or not audit_path.is_file():
+                raise ValueError(
+                    f"repetition audit path must be an existing absolute file: {scale}"
+                )
+            audit_payload = load_structured(audit_path)
+            if content_hash(audit_payload) != artifact["repetition_audit_hash"]:
+                raise ValueError(f"repetition audit hash mismatch: {scale}")
+            if corpus_kind == "organic":
+                report = RepetitionReport.from_dict(audit_payload)
+                if report.checkpoint_id != artifact["checkpoint_id"]:
+                    raise ValueError(f"repetition audit checkpoint mismatch: {scale}")
+                if report.content_hash != artifact["repetition_audit_hash"]:
+                    raise ValueError(f"organic repetition report is not canonical: {scale}")
+            else:
+                required_audit = (
+                    "audit_hash",
+                    "corpus_hash",
+                    "snapshot_hash",
+                    "record_count",
+                    "repetition_report",
+                    "repetition_report_hash",
+                )
+                if any(audit_payload.get(field) in (None, "") for field in required_audit):
+                    raise ValueError(f"synthetic repetition audit is incomplete: {scale}")
+                unsigned_audit = {
+                    key: value for key, value in audit_payload.items() if key != "audit_hash"
+                }
+                if audit_payload["audit_hash"] != content_hash(unsigned_audit):
+                    raise ValueError(f"synthetic repetition audit self-hash mismatch: {scale}")
+                report = RepetitionReport.from_dict(audit_payload["repetition_report"])
+                if (
+                    audit_payload.get("checkpoint_id") != artifact["checkpoint_id"]
+                    or report.checkpoint_id != artifact["checkpoint_id"]
+                ):
+                    raise ValueError(f"repetition audit checkpoint mismatch: {scale}")
+                if audit_payload.get("corpus_kind") != "synthetic":
+                    raise ValueError(f"repetition audit corpus kind mismatch: {scale}")
+                if int(audit_payload.get("scale", -1)) != int(scale):
+                    raise ValueError(f"repetition audit scale mismatch: {scale}")
+                if (
+                    audit_payload.get("evidence_eligible") is not False
+                    or audit_payload.get("promotion_eligible") is not False
+                ):
+                    raise ValueError(
+                        f"synthetic repetition audit must be evidence/promotion ineligible: {scale}"
+                    )
+                if audit_payload.get("corpus_hash") != artifact["corpus_hash"]:
+                    raise ValueError(f"synthetic repetition audit corpus hash mismatch: {scale}")
+                if int(audit_payload["record_count"]) != artifact["n_code"]:
+                    raise ValueError(f"synthetic repetition audit n_code mismatch: {scale}")
+                if (
+                    report.content_hash != audit_payload["repetition_report_hash"]
+                ):
+                    raise ValueError(f"synthetic repetition report hash mismatch: {scale}")
         checkpoint_ids = [str(value["checkpoint_id"]) for value in values.values()]
         if len(set(checkpoint_ids)) != len(checkpoint_ids):
             raise ValueError(f"checkpoint map {corpus_kind} checkpoint ids must be unique")

@@ -28,7 +28,7 @@ vacuously, so that result is not evidence that the shadow-entry gate passed.
 
 | Milestone | Status | Remaining evidence |
 | --- | --- | --- |
-| M0 preregistration and baselines | Partial | H1--H6, metrics, A/B and margin exist; a hash-locked freeze command now validates the task split, checkpoint map and execution variables, but real artifacts are not yet available and the checked-in preregistration remains a draft |
+| M0 preregistration and baselines | Partial | H1--H6, metrics, A/B and margin exist; a hash-locked freeze command validates task split, checkpoint map, per-scale repetition-audit artifacts and execution variables, but real artifacts are not yet available and the checked-in preregistration remains a draft |
 | M1 corpus and vertical forest | Partial | schemas, repository, fingerprints and validators exist; real instances, two checkpoints and 10--20 expert golden principles do not |
 | M2 upward abstraction | Engineering implemented | two content-addressed repetition audits, explicit cluster acceptance, hash-checked counterexample search, placement report, principle promotion and content-addressed overlay proposal/review/promotion exist; real reviewer artifacts remain |
 | M3 top-down retrieval | Engineering implemented | three-layer index, tree selection, gates, bounded descent, overlay, fallback, portfolios and A--F compilers are tested |

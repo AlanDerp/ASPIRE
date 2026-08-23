@@ -12,6 +12,9 @@ configuration are known. The task split must contain nonempty `development`,
 `held-out`, `adversarial`, and `maintenance` lists. The checkpoint map must
 contain every preregistered scale under both `organic` and `synthetic`; organic
 entries set `evidence_eligible: true`, synthetic entries set it to `false`.
+Every entry also stores an absolute `repetition_audit_path` and its semantic
+hash. Freeze fails if the audit is missing, belongs to another checkpoint or
+scale, has the wrong corpus kind/eligibility, or changes later.
 `evaluation_partitions` fixes which disjoint task lists must be run for each
 corpus kind.
 The job catalog contains exactly those task IDs. Each entry points to an
@@ -263,6 +266,10 @@ Generate controlled stress data separately from organic snapshots:
 python -m aspire.sim.cap.knowledge --root knowledge experiment build-corpus \
   --checkpoint snapshot-n20 --scales 1,4,16,64 --seed 11 \
   --output knowledge/experiment/corpora/stress-seed-11.yaml
+python -m aspire.sim.cap.knowledge --root knowledge experiment audit-stress \
+  --corpus knowledge/experiment/corpora/stress-seed-11.yaml \
+  --scale 4 --policy knowledge/consolidation-policy.yaml \
+  --output knowledge/experiment/corpora/stress-seed-11-x4-audit.yaml
 python -m aspire.sim.cap.knowledge --root knowledge experiment report \
   --observations <observations.jsonl> \
   --preregistration knowledge/experiment/preregistration.yaml \
@@ -280,6 +287,12 @@ python -m aspire.sim.cap.knowledge --root knowledge experiment claim-audit \
   --negative-transfer-review knowledge/experiment/reports/negative-transfer-review.yaml \
   --output knowledge/experiment/reports/claim-audit.yaml
 ```
+
+Repeat `audit-stress` independently for 1x, 4x, 16x, and 64x before freezing
+the checkpoint map. The generator uses category-specific code/contract
+transformations and prefix-stable cumulative snapshots. Inherited source
+outcomes are control labels only; every generated record and audit remains
+explicitly ineligible for success evidence, principle support, or promotion.
 
 The reporter keeps organic and synthetic groups separate and returns
 `not-evaluable` until every preregistered treatment/scale/corpus cell exists.

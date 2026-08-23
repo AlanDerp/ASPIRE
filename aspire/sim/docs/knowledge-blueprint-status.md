@@ -38,7 +38,7 @@ This document separates engineering completion from empirical research claims.
 | Negative-transfer case review | exact adverse run-job coverage, two trace-backed reviewers, disagreement adjudication and mechanism attribution before H5 can pass |
 | Deterministic views | vertical forest, task-family, overlay incoming/outgoing, and lineage projections with content hashes |
 | A–F comparable interface | `experiment.py`; flat code, canonical, summary tree, principle tree, forest+graph, and no-exception treatments |
-| Controlled stress growth | `stress.py`; 1x/4x/16x/64x synthetic records marked ineligible for evidence and success claims |
+| Controlled stress growth | `stress.py`; seed-locked prefix-stable 1x/4x/16x/64x snapshots, real category-specific AST/contract perturbations, independently hash-checked repetition audits, and immutable evidence/promotion ineligibility |
 | Statistical report and claim audit | complete metric schema with missing-is-not-zero semantics, treatment/scale/seed coverage, artifact fairness locks, `log2(N_code)` slopes, task-clustered bootstrap CIs, non-inferiority, exposure, overlay, exception, cost and blast-radius decisions |
 | Preregistration freeze | `preregistration.py`; validates H1--H6/A--F, disjoint and corpus-specific evaluation partitions, organic/synthetic checkpoint eligibility and all fixed execution variables, then hash-locks every source artifact |
 | Golden evaluation | manifest/revision/child/evidence-locked exact items, two independent reviewers per item, retained disagreement, polarity coverage and faithfulness gate |

@@ -66,7 +66,11 @@ from aspire.sim.cap.knowledge.serialization import (
     sha256_file,
     write_structured_atomic,
 )
-from aspire.sim.cap.knowledge.stress import build_stress_corpus
+from aspire.sim.cap.knowledge.stress import (
+    STRESS_KINDS,
+    audit_stress_snapshot,
+    build_stress_corpus,
+)
 
 
 def make_instance(
@@ -1426,6 +1430,14 @@ class ForestAndRetrievalTests(unittest.TestCase):
         )
         self.assertEqual(first["corpus_hash"], second["corpus_hash"])
         self.assertEqual(first["snapshots"][1]["record_count"], 24)
+        first_scale_ids = first["snapshots"][0]["record_ids"]
+        self.assertEqual(
+            first_scale_ids,
+            first["snapshots"][1]["record_ids"][: len(first_scale_ids)],
+        )
+        self.assertEqual(
+            set(first["snapshots"][1]["kind_counts"]), set(STRESS_KINDS)
+        )
         self.assertTrue(
             all(
                 record["synthetic"] and not record["evidence_eligible"]
@@ -1433,6 +1445,41 @@ class ForestAndRetrievalTests(unittest.TestCase):
                 for record in snapshot["records"]
             )
         )
+        stale = next(
+            record
+            for record in first["snapshots"][1]["records"]
+            if record["kind"] == "stale-api-pattern"
+        )
+        self.assertTrue(any(value.startswith("legacy_") for value in stale["api_calls"]))
+        different = next(
+            record
+            for record in first["snapshots"][1]["records"]
+            if record["kind"] == "same-principle-different-implementation"
+        )
+        source = next(
+            value
+            for value in self.instances
+            if value.id == different["source_instance_id"]
+        )
+        self.assertNotEqual(different["ast_fingerprint"], source.ast_fingerprint)
+
+        audit = audit_stress_snapshot(first, 4, ConsolidationPolicy())
+        self.assertFalse(audit["evidence_eligible"])
+        self.assertFalse(audit["promotion_eligible"])
+        self.assertEqual(audit["record_count"], 24)
+        self.assertTrue(audit["classification_counts"])
+        tampered = {
+            **first,
+            "snapshots": [
+                first["snapshots"][0],
+                {
+                    **first["snapshots"][1],
+                    "record_count": 23,
+                },
+            ],
+        }
+        with self.assertRaisesRegex(ValueError, "corpus hash mismatch"):
+            audit_stress_snapshot(tampered, 4, ConsolidationPolicy())
 
 
 if __name__ == "__main__":
