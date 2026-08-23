@@ -24,12 +24,12 @@ This document separates engineering completion from empirical research claims.
 | Frozen consolidation checkpoints | `checkpoints.py`; immutable instance IDs and content hashes |
 | Repetition before canonicalization | `repetition.py`, `consolidation.py`; thresholds only nominate clusters, explicit pairwise review accepts them, and shared audit/policy artifacts are stored once by content hash |
 | No direct principle generation | Proposal recomputes a connected canonical-skill repetition audit over exact frozen child revisions; direct CLI save is absent and exact promotion events gate Actor visibility |
-| Explicit principle review | `review.py`, `review_artifacts.py`; proposal → candidate → validated with hash-checked counterexample dispositions, all-family LOFO evidence, exceptions and falsifiers |
-| Counterexample and placement review | `counterexample.py`, `placement.py`, `tree_review.py`; frozen-development candidate search plus content-addressed parent/depth/fan-out/coverage/cycle reports for every promoted tree placement |
+| Explicit principle review | `review.py`, `review_artifacts.py`; proposal → candidate → validated with hash-checked counterexample dispositions, all-family LOFO evidence, schema-v2 abstraction boundaries, compression proof, observable effects, executable exception responses and falsifiers |
+| Counterexample and placement review | `counterexample.py`, `placement.py`, `tree_review.py`; frozen-development candidate search plus content-addressed parent/depth/fan-out/coverage/cycle reports; oversized operational hubs are rejected before review (including a 1000-child stress test) |
 | Vertical forest + overlay | `forest.py`, `tree_review.py`, `overlay_review.py`; both primary tree structure and cross-tree relations pass exact base-manifest-bound proposal → review → promotion gates before activation |
 | Exact revision locks | `KnowledgeManifest`; checkpoint plus exact skill/principle/tree/edge versions and development partition; proposed trees/edges are rejected at manifest save |
 | Rebuildable three-layer index | `index.py`; checkpoint instances, active manifest nodes, FTS, tree/overlay and materialized principle metrics |
-| Tree-first retrieval | `retrieval.py`; applicability, scope, exception, support, API, per-principle fan-out, global skill and token gates |
+| Tree-first retrieval | `retrieval.py`; applicability, scope, exception, support, API, per-principle fan-out, global skill and strict fail-closed token gates; expected outcomes and reviewed negative guidance enter Actor context |
 | Overlay behavior | guarded `requires`, `exception-to`, `contradicts`, and `can-follow`; only exact promotion-event-bound revisions enter Actor context, projections, manifests, or SQLite indexes |
 | Explicit fallback | Canonical fallback and reasoned exclusions are persisted in every `Portfolio` |
 | Lifecycle | `lifecycle.py`; append-only invalidation, blast radius and sufficient/weak/broken support propagation |
@@ -37,15 +37,15 @@ This document separates engineering completion from empirical research claims.
 | Maintenance experiment and total cost | reviewer-labeled B/E invalidation-surface simulation plus trace-backed construction/maintenance resource ledger under preregistered weights |
 | Negative-transfer case review | exact adverse run-job coverage, two trace-backed reviewers, disagreement adjudication and mechanism attribution before H5 can pass |
 | Deterministic views | vertical forest, task-family, overlay incoming/outgoing, and lineage projections with content hashes |
-| A–F comparable interface | `experiment.py`; flat code, canonical, summary tree, principle tree, forest+graph, and no-exception treatments |
+| A–F comparable interface | `experiment.py`; flat code, canonical, summary tree, principle tree, forest+graph, and no-exception treatments share one fail-closed token-budget contract |
 | Controlled stress growth | `stress.py`; seed-locked prefix-stable 1x/4x/16x/64x snapshots, real category-specific AST/contract perturbations, independently hash-checked repetition audits, and immutable evidence/promotion ineligibility |
-| Statistical report and claim audit | complete metric schema with missing-is-not-zero semantics, treatment/scale/seed coverage, artifact fairness locks, `log2(N_code)` slopes, task-clustered bootstrap CIs, non-inferiority, exposure, overlay, exception, cost and blast-radius decisions |
+| Statistical report and claim audit | complete metric schema with missing-is-not-zero semantics, mandatory organic/synthetic separation, treatment/scale/seed coverage, artifact fairness locks, `log2(N_code)` slopes, task-clustered bootstrap CIs, non-inferiority, exposure, overlay, exception, cost and blast-radius decisions; reports and claims are content-authenticated |
 | Preregistration freeze | `preregistration.py`; validates H1--H6/A--F, disjoint and corpus-specific evaluation partitions, organic/synthetic checkpoint eligibility and all fixed execution variables, then hash-locks every source artifact |
 | Golden evaluation | manifest/revision/child/evidence-locked exact items, two independent reviewers per item, retained disagreement, polarity coverage and faithfulness gate |
 | ASPIRE fast path | fix-loop records exact executed code in `knowledge/` and legacy Markdown in one promotion; slow consolidation stays checkpoint-driven |
 | Actor runtime modes | `knowledge/runtime.py` and `CodeExecutionEnvBase`; hash-locked off/shadow/production B-D-E plus isolated A--F experiment loading, prompt injection, reset/step telemetry, and per-trial `knowledge_runtime.json` provenance |
 | A--F execution harness | `run_plan.py`; exact frozen task/treatment/scale/corpus/seed matrix, generated ASPIRE configs, no-shell commands, timeout/resume state, and observation-lock validation |
-| Completion and determinism gates | `completion.py`, `verification.py`; fail-closed Actor-mode audit and independent semantic rebuild comparison for forest/index/A--F portfolios |
+| Completion and determinism gates | `completion.py`, `verification.py`; fail-closed Actor-mode audit; report, preregistration, manifest and checkpoint bindings; independent semantic rebuild comparison for forest/index/A--F portfolios |
 
 The end-to-end test starts with six executed code files and reaches three
 canonical skills, a reviewed/validated principle, a vertical tree, a base

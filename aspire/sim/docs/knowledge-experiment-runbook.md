@@ -94,8 +94,9 @@ policies, exact child revisions, and content hashes stay with the principle.
 `forest validate` reloads and recomputes both layers.
 Review creates a newer candidate revision; promotion creates another newer
 validated revision. The review file must name the reviewer, exceptions (or an
-explicit empty-exception review), falsifiers, a counterexample report, and a
-leave-one-family-out report.
+explicit empty-exception review), at least one observable expected effect,
+falsifiers, a counterexample report, and a leave-one-family-out report. Every
+listed exception must contain a nonempty predicate and executable response.
 
 ```bash
 python -m aspire.sim.cap.knowledge --root knowledge principle propose \
@@ -177,8 +178,10 @@ python -m aspire.sim.cap.knowledge --root knowledge index build \
 ```
 
 Placement analysis is read-only and reports primary parent, depth, direct
-fan-out, active operational coverage, reparenting, and potential cycles before
-activation. `review-tree` requires one accepted placement report per principle,
+fan-out, full active operational descendant fan-out, policy limit, coverage,
+reparenting, and potential cycles before activation. A policy overflow is
+rejected and must be split before review. `review-tree` requires one accepted
+placement report per principle,
 copies those reports into content-addressed repository artifacts, and binds the
 tree hash, checkpoint, node revisions, and base manifest. A manifest containing
 only a proposed or reviewed-but-unpromoted tree fails closed.

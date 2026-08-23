@@ -11,4 +11,5 @@ constraints:
   - Every referenced node exists and the complete forest validates before proposal storage.
   - A development base manifest locks every exact skill and principle revision.
   - Every placed principle has a hash-valid placement report covering parent, depth, fan-out, coverage, and cycles.
+  - A placement whose active operational descendants exceed the principle quality policy is rejected for review and must be split.
   - A newer proposal cannot shadow the newest reviewed and promoted active revision.

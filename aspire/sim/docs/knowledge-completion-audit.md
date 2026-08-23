@@ -1,6 +1,6 @@
 # Upward-abstraction blueprint completion audit
 
-Status date: 2026-08-21
+Status date: 2026-08-23
 
 This audit treats missing evidence as failure, not as implicit success. Run the
 machine-readable audit from the repository root with:
@@ -54,11 +54,11 @@ vacuously, so that result is not evidence that the shadow-entry gate passed.
 | --- | --- |
 | No direct abstract-knowledge activation | Principles are gated by checkpoint membership, canonical-skill repetition, review revisions and exact promotion events; overlay edges additionally bind exact endpoint revisions, a content-addressed review and a base manifest before activation |
 | Canonical skills trace to repeated code | Enforced by shared content-addressed instance audit and explicit cluster review |
-| Principle rule/scope/exception/falsifier | Enforced for validated revisions |
+| Principle rule/scope/observable effect/exception response/falsifier | Enforced from reviewed candidate onward and rendered into the Actor Portfolio |
 | Diverse support and operational grounding | Enforced structurally; not demonstrated on real data |
 | Vertical tree and overlay invariants | Implemented and tested, including unreviewed tree/edge invisibility and non-shadowing by newer proposals |
 | Weak/broken invalidation propagation | Implemented and tested |
-| Hub/merge/split/conflict/prune audit | Implemented non-destructively |
+| Hub/merge/split/conflict/prune audit | Implemented non-destructively; placement rejects policy overflow before tree review and a 1000-child stress test exercises the gate |
 | Revision/evidence rollback | Immutable revisions plus Git and append-only evidence implemented |
 
 ### Retrieval
@@ -66,9 +66,9 @@ vacuously, so that result is not evidence that the shadow-entry gate passed.
 | Item | Status |
 | --- | --- |
 | Flat, canonical, summary, principle-tree and graph interfaces | A--F compiler implemented |
-| Strict fan-out, skill and token bounds | Implemented and tested |
+| Strict fan-out, skill and token bounds | Implemented and tested with the same fail-closed token contract across A–F |
 | Explicit fallback and exclusions | Persisted in every portfolio |
-| Version lock, determinism and contamination guard | Implemented; deterministic verifier exists, but no real verification report exists |
+| Version lock, determinism and contamination guard | Implemented; completion authenticates the report and binds its active manifest/checkpoint, but no real verification report exists |
 | Exceptions and rejected guidance in Actor context | Implemented and tested |
 
 ### Conclusion quality

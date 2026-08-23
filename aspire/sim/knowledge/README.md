@@ -36,8 +36,10 @@ PYTHONPATH=../.. python -m aspire.sim.cap.knowledge --root knowledge completion 
 ```
 
 Default thresholds are in `consolidation-policy.yaml`. `experiment/` holds the
-pre-registration and evaluation inputs. Generated indexes, portfolios, and
-reports should not be treated as evidence.
+pre-registration and evaluation inputs. Generated indexes and portfolios are
+not source evidence. Evaluation reports count only when their content hash,
+frozen preregistration, manifest, checkpoint, and source-artifact bindings pass
+the completion audit.
 
 Validated principles are created only through `principle review` followed by
 `principle promote`. The review command internalizes the counterexample, LOFO,
@@ -47,6 +49,10 @@ revision. At retrieval time the same chain and its exact promotion event are
 checked again, so deleting or changing any linked artifact fails closed. See
 `principle-schema.yaml` for the schema-v2 abstraction boundary and per-node
 quality policy, and `principle-review-schema.yaml` for the evidence bindings.
+Every reviewed Principle must state an observable expected effect. Every
+exception must have an explicit predicate and executable response; matched
+exceptions and reviewed overlay conflicts carry that negative guidance into
+the Actor-visible Portfolio.
 Actor-visible overlay edges likewise require `overlay propose`, `overlay
 review`, and `overlay promote`; a direct repository write or status edit is not
 an activation path. Vertical trees require `forest propose-tree`, placement
@@ -54,6 +60,7 @@ artifacts, `forest review-tree`, and `forest promote-tree`; saving a tree
 revision alone never activates it. Both repetition stages use
 content-addressed reports and their policies; shared instance-level reports are
 stored once rather than copied into every skill. `forest validate` recomputes
-them against the frozen code.
+them against the frozen code. Placement rejects operational hubs above the
+Principle's fan-out policy before tree review and records that split signal.
 Use a manifest for every frozen evaluation; a portfolio without a manifest is
 convenient for development inspection but is not a valid experimental artifact.
