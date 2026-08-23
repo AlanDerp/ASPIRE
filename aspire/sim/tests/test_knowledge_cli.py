@@ -437,12 +437,12 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
                 "reviewer": "reviewer-a",
                 "reviewed_at": "2026-01-02T00:00:00+00:00",
                 "title": "Safe transit",
-                "summary": "Keep grasp clearance.",
+                "summary": "Clearance.",
                 "when": {"fact": "state.object_grasped", "op": "eq", "value": True},
                 "decision_mode": "require",
-                "decision": "use a collision-safe path",
-                "invariant": "grasped objects require clearance",
-                "expected_effects": [],
+                "decision": "take a clear path",
+                "invariant": "clearance prevents collision",
+                "expected_effects": ["no collision"],
                 "exceptions": [
                     {
                         "id": "continuous-contact",

@@ -256,6 +256,7 @@ def render_portfolio(
                 f"When: {principle.when}",
                 f"Do: {principle.decision}",
                 f"Why: {principle.invariant}",
+                f"Expect: {'; '.join(principle.expected_effects)}",
                 f"Preserve: {'; '.join(principle.abstraction.preserved_variations)}",
             ]
         )

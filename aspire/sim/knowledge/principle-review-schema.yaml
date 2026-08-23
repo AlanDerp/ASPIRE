@@ -5,12 +5,14 @@ cli_input_required:
   - when
   - decision
   - invariant
+  - expected_effects
   - falsifiers
   - abstraction
   - quality_policy
   - counterexample_report
   - leave_one_family_out_report
 exception_rule: record at least one exception or an explicit empty-exception review
+expected_effect_rule: record at least one nonempty observable consequence
 stored_artifacts:
   proposal: immutable principle proposal revision and content hash
   counterexample: proposals/principle-counterexample/<content-hash>.yaml

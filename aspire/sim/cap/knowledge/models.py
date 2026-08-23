@@ -351,6 +351,13 @@ class Principle:
         if self.status in {"candidate", "validated", "stable"}:
             if self.review_required:
                 raise ModelError("reviewed principle cannot require review")
+            if not self.expected_effects or any(
+                not isinstance(effect, str) or not effect.strip()
+                for effect in self.expected_effects
+            ):
+                raise ModelError(
+                    "reviewed principle requires observable expected effects"
+                )
             if any(
                 not exception.get("id")
                 or "when" not in exception

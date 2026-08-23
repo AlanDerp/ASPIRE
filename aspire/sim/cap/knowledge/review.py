@@ -34,6 +34,18 @@ def _newer(candidate: str, previous: str) -> str:
 
 def validate_principle_review_content(review: dict[str, Any]) -> None:
     """Validate human-authored review fields before persisting derived evidence."""
+    expected_effects = review.get("expected_effects")
+    if (
+        not isinstance(expected_effects, list)
+        or not expected_effects
+        or any(
+            not isinstance(effect, str) or not effect.strip()
+            for effect in expected_effects
+        )
+    ):
+        raise ValueError(
+            "principle review requires observable expected effects"
+        )
     exceptions = review.get("exceptions", [])
     if not isinstance(exceptions, list):
         raise ValueError("principle review exceptions must be a list")
@@ -65,6 +77,7 @@ def review_principle(
         "when",
         "decision",
         "invariant",
+        "expected_effects",
         "falsifiers",
         "abstraction",
         "quality_policy",

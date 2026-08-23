@@ -183,7 +183,7 @@ class KnowledgeModelTests(unittest.TestCase):
                 decision_mode="prefer",
                 decision="move",
                 invariant="clearance",
-                expected_effects=(),
+                expected_effects=("no collision",),
                 exceptions=(),
                 falsifiers=("fails",),
                 child_ids=("skill.a", "skill.b", "skill.c"),
@@ -213,7 +213,7 @@ class KnowledgeModelTests(unittest.TestCase):
                 decision_mode="prefer",
                 decision="move",
                 invariant="clearance",
-                expected_effects=(),
+                expected_effects=("no collision",),
                 exceptions=(),
                 exception_review="no exception found in reviewed evidence",
                 falsifiers=("fails",),
@@ -410,6 +410,7 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
                 "when": {"fact": "state.object_grasped", "op": "eq", "value": True},
                 "decision": "preserve obstacle clearance",
                 "invariant": "a grasped object needs a collision-free swept volume",
+                "expected_effects": ["no collision"],
                 "falsifiers": ["clearance does not change collision rate"],
                 "abstraction": asdict(proposal.abstraction),
                 "quality_policy": asdict(proposal.quality_policy),
@@ -435,6 +436,11 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
         self.assertEqual(candidate.status, "candidate")
         with self.assertRaisesRegex(
             ModelError,
+            "requires observable expected effects",
+        ):
+            replace(candidate, expected_effects=())
+        with self.assertRaisesRegex(
+            ModelError,
             "exceptions require id, when, and response",
         ):
             replace(
@@ -456,6 +462,7 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
         ):
             validate_principle_review_content(
                 {
+                    "expected_effects": ["no collision"],
                     "exceptions": [
                         {
                             "id": "continuous-contact",
@@ -498,6 +505,7 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
             "when": {"fact": "state.object_grasped", "op": "eq", "value": True},
             "decision": "preserve obstacle clearance",
             "invariant": "a grasped object needs a collision-free swept volume",
+            "expected_effects": ["no collision"],
             "falsifiers": ["clearance does not change collision rate"],
             "exceptions": [
                 {
@@ -855,7 +863,7 @@ class ForestAndRetrievalTests(unittest.TestCase):
             "decision_mode": "require",
             "decision": "use a collision-safe path",
             "invariant": "grasped objects require clearance",
-            "expected_effects": [],
+            "expected_effects": ["no collision"],
             "exceptions": [
                 {
                     "id": "continuous-contact",
@@ -1776,6 +1784,7 @@ class ForestAndRetrievalTests(unittest.TestCase):
         self.assertEqual(portfolio.principle_ids, (self.principle.id,))
         self.assertTrue(portfolio.skill_ids)
         self.assertIn("Preserve clearance during transport", portfolio.markdown)
+        self.assertIn("Expect: no collision", portfolio.markdown)
 
     def test_portfolio_fails_closed_when_fixed_content_exceeds_budget(self):
         context = TaskContext(

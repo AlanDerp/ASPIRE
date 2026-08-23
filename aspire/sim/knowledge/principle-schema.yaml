@@ -41,3 +41,4 @@ invariants:
   - Materialized exception-rate and fan-out audits use the stricter of repository and per-principle limits.
   - Human review may tighten but cannot weaken the proposal quality policy.
   - Every reviewed exception carries an executable response into the Actor portfolio when its predicate matches.
+  - Every reviewed Principle has a nonempty observable expected effect rendered into the Actor portfolio.
