@@ -1,10 +1,11 @@
 {
-  "audit_hash": "af34a7eded372ce0fbec2e5eae03b40cd62c7418a7736614cb50191cdf88bba1",
+  "audit_hash": "97f49a47ed0786d1ada0318669cec0f63fb58c390c4cf65aa9bc5ee1d8230b65",
   "checks": {
     "conclusion_quality": [
       {
         "evidence": {
-          "artifact_bound": false
+          "artifact_bound": false,
+          "hash_valid": false
         },
         "id": "prespecified-conclusion",
         "passed": false,
@@ -13,7 +14,11 @@
     ],
     "principle_runtime_entry": [
       {
-        "evidence": null,
+        "evidence": {
+          "claim_status": null,
+          "hash_valid": false,
+          "preregistration_bound": false
+        },
         "id": "experiment-evaluable",
         "passed": false,
         "requirement": "All preregistered cells and fairness locks must be complete."
@@ -125,7 +130,11 @@
         "requirement": "Golden faithfulness must be at least 0.85."
       },
       {
-        "evidence": null,
+        "evidence": {
+          "hash_valid": false,
+          "manifest_valid": false,
+          "outputs_complete": false
+        },
         "id": "deterministic-rebuild",
         "passed": false,
         "requirement": "Tree, index, and portfolio rebuilds need recorded deterministic hashes."
