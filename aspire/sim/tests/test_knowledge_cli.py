@@ -879,6 +879,37 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
         self.assertIn("preregistration-frozen", completion["failed_check_ids"])
         self.assertNotIn("deterministic-rebuild", completion["failed_check_ids"])
 
+        fake_determinism_path = self.write_json(
+            "fake-determinism.yaml",
+            {"tree_index_portfolio_deterministic": True},
+        )
+        fake_completion = self.run_cli(
+            "completion",
+            "audit",
+            "--preregistration",
+            str(preregistration),
+            "--determinism-report",
+            str(fake_determinism_path),
+        )
+        self.assertIn("deterministic-rebuild", fake_completion["failed_check_ids"])
+
+        tampered_determinism_path = self.write_json(
+            "tampered-determinism.yaml",
+            {**determinism, "first": {}},
+        )
+        tampered_completion = self.run_cli(
+            "completion",
+            "audit",
+            "--preregistration",
+            str(preregistration),
+            "--determinism-report",
+            str(tampered_determinism_path),
+        )
+        self.assertIn(
+            "deterministic-rebuild",
+            tampered_completion["failed_check_ids"],
+        )
+
         database = self.workspace / "knowledge.sqlite3"
         index = self.run_cli(
             "index",

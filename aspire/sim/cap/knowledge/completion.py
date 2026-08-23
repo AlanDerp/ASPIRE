@@ -255,6 +255,43 @@ def audit_blueprint_completion(
         ),
     ]
 
+    determinism_payload = determinism or {}
+    determinism_unsigned = {
+        key: value
+        for key, value in determinism_payload.items()
+        if key != "verification_hash"
+    }
+    determinism_hash_valid = bool(
+        determinism
+        and determinism_payload.get("verification_hash")
+        == content_hash(determinism_unsigned)
+    )
+    determinism_manifest = bound_manifests.get(
+        str(determinism_payload.get("manifest_id", ""))
+    )
+    determinism_manifest_valid = bool(
+        determinism_manifest
+        and determinism_payload.get("checkpoint_id")
+        == determinism_manifest.checkpoint_id
+    )
+    first_rebuild = determinism_payload.get("first", {})
+    second_rebuild = determinism_payload.get("second", {})
+    required_rebuild_fields = {
+        "forest_hash",
+        "overlay_hash",
+        "index_source_hash",
+        "index_logical_hash",
+        "portfolio_hashes",
+    }
+    determinism_outputs_complete = bool(
+        isinstance(first_rebuild, dict)
+        and isinstance(second_rebuild, dict)
+        and required_rebuild_fields <= set(first_rebuild)
+        and required_rebuild_fields <= set(second_rebuild)
+        and isinstance(first_rebuild.get("portfolio_hashes"), dict)
+        and bool(first_rebuild["portfolio_hashes"])
+        and first_rebuild == second_rebuild
+    )
     shadow_checks = [
         _check(
             "golden-ready",
@@ -278,8 +315,15 @@ def audit_blueprint_completion(
         ),
         _check(
             "deterministic-rebuild",
-            (determinism or {}).get("tree_index_portfolio_deterministic") is True,
-            (determinism or {}).get("tree_index_portfolio_deterministic"),
+            determinism_hash_valid
+            and determinism_manifest_valid
+            and determinism_outputs_complete
+            and determinism_payload.get("tree_index_portfolio_deterministic") is True,
+            {
+                "hash_valid": determinism_hash_valid,
+                "manifest_valid": determinism_manifest_valid,
+                "outputs_complete": determinism_outputs_complete,
+            },
             "Tree, index, and portfolio rebuilds need recorded deterministic hashes.",
         ),
     ]
