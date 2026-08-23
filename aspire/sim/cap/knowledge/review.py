@@ -52,7 +52,8 @@ def validate_principle_review_content(review: dict[str, Any]) -> None:
     if any(
         not isinstance(exception, dict)
         or not exception.get("id")
-        or "when" not in exception
+        or not isinstance(exception.get("when"), dict)
+        or not exception["when"]
         or not isinstance(exception.get("response"), str)
         or not str(exception["response"]).strip()
         for exception in exceptions

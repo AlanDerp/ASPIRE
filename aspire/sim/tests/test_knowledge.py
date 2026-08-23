@@ -54,6 +54,7 @@ from aspire.sim.cap.knowledge.predicates import evaluate
 from aspire.sim.cap.knowledge.overlay_review import (
     promote_overlay_edge,
     review_overlay_edge,
+    validate_overlay_proposal,
 )
 from aspire.sim.cap.knowledge.placement import analyze_placement
 from aspire.sim.cap.knowledge.projection import lineage_view, overlay_view, vertical_forest
@@ -1640,6 +1641,20 @@ class ForestAndRetrievalTests(unittest.TestCase):
         self.assertFalse(overlay_view(self.repository)["edges"])
         issue_codes = {issue.code for issue in validate_repository(self.repository).issues}
         self.assertIn("unrecorded-overlay-promotion", issue_codes)
+
+    def test_overlay_exception_proposal_requires_an_explicit_guard(self):
+        proposal = OverlayEdge(
+            id="edge.transport.unguarded-exception",
+            version="1.0.0",
+            kind="exception-to",
+            source_id=self.skills[0].id,
+            source_version=self.skills[0].version,
+            target_id=self.principle.id,
+            target_version=self.principle.version,
+            provenance={"checkpoint_id": "snapshot-n3"},
+        )
+        with self.assertRaisesRegex(ValueError, "require an explicit guard"):
+            validate_overlay_proposal(self.repository, proposal)
 
     def test_counterexample_search_records_scope_conflicts_and_hash(self):
         edge = OverlayEdge(

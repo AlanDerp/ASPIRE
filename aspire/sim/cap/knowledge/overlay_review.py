@@ -35,6 +35,8 @@ def validate_overlay_proposal(
     """Require an unreviewed proposal grounded in exact existing revisions."""
     if edge.status != "proposal" or not edge.review_required:
         raise ValueError("overlay propose accepts only a review-required proposal")
+    if edge.kind == "exception-to" and not edge.guard:
+        raise ValueError("exception-to overlay proposals require an explicit guard")
     checkpoint_id = str(edge.provenance["checkpoint_id"])
     repository.load_checkpoint(checkpoint_id)
     revisions = _node_versions(repository)

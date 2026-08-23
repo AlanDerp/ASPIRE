@@ -360,7 +360,8 @@ class Principle:
                 )
             if any(
                 not exception.get("id")
-                or "when" not in exception
+                or not isinstance(exception.get("when"), dict)
+                or not exception["when"]
                 or not isinstance(exception.get("response"), str)
                 or not str(exception["response"]).strip()
                 for exception in self.exceptions
