@@ -61,11 +61,12 @@ def resolve_view(
 ]:
     """Resolve latest or manifest-locked revisions, optionally gating overlays."""
     all_edge_revisions = repository.list_edges()
+    all_principle_revisions = repository.list_principles()
     all_tree_revisions = repository.list_trees()
     if manifest is None:
         result = (
             cast(dict[str, CanonicalSkill], _latest(repository.list_skills())),
-            cast(dict[str, Principle], _latest(repository.list_principles())),
+            cast(dict[str, Principle], _latest(all_principle_revisions)),
             cast(dict[str, VerticalTree], _latest(all_tree_revisions)),
             cast(dict[str, OverlayEdge], _latest(all_edge_revisions)),
         )
@@ -77,7 +78,11 @@ def resolve_view(
             ),
             cast(
                 dict[str, Principle],
-                _locked(repository.list_principles(), manifest.principle_versions, "principle"),
+                _locked(
+                    all_principle_revisions,
+                    manifest.principle_versions,
+                    "principle",
+                ),
             ),
             cast(
                 dict[str, VerticalTree],
@@ -95,6 +100,43 @@ def resolve_view(
         (value.id, value.version): value for value in repository.list_manifests()
     }
     lifecycle_events = list(repository.iter_evidence("lifecycle"))
+    principles = result[1]
+    if active_tree_only:
+        from .lifecycle import validated_revisions
+
+        promoted = validated_revisions(repository)
+        candidate_principles = (
+            list(result[1].values())
+            if manifest is not None
+            else all_principle_revisions
+        )
+        latest_claims = cast(
+            dict[str, Principle],
+            _latest(candidate_principles),
+        )
+        blocked_ids = {
+            principle.id
+            for principle in latest_claims.values()
+            if principle.status in {"deprecated", "blocked"}
+            or (
+                principle.status in {"validated", "stable"}
+                and (principle.id, principle.version) not in promoted
+            )
+        }
+        active_principles = [
+            principle
+            for principle in candidate_principles
+            if principle.status in {"validated", "stable"}
+            and not principle.review_required
+            and (principle.id, principle.version) in promoted
+            and principle.id not in blocked_ids
+        ]
+        if manifest is not None and len(active_principles) != len(result[1]):
+            active_ids = {principle.id for principle in active_principles}
+            rejected = sorted(set(result[1]) - active_ids)
+            raise ValueError(f"manifest includes unpromoted principles: {rejected}")
+        principles = cast(dict[str, Principle], _latest(active_principles))
+
     trees = result[2]
     if active_tree_only:
         from .tree_review import tree_revision_promoted
@@ -111,6 +153,11 @@ def resolve_view(
                 manifests=manifests,
                 lifecycle_events=lifecycle_events,
             )
+            and (
+                (set(tree.parent_by_child) | set(tree.parent_by_child.values()))
+                - {tree.structural_root}
+            )
+            <= (set(result[0]) | set(principles))
         ]
         if manifest is not None and len(active_trees) != len(result[2]):
             active_ids = {tree.id for tree in active_trees}
@@ -137,13 +184,15 @@ def resolve_view(
                 manifests=manifests,
                 lifecycle_events=lifecycle_events,
             )
+            and {edge.source_id, edge.target_id}
+            <= (set(result[0]) | set(principles))
         ]
         if manifest is not None and len(active_edges) != len(result[3]):
             active_ids = {edge.id for edge in active_edges}
             rejected = sorted(set(result[3]) - active_ids)
             raise ValueError(f"manifest includes unpromoted overlay edges: {rejected}")
         edges = cast(dict[str, OverlayEdge], _latest(active_edges))
-    return result[0], result[1], trees, edges
+    return result[0], principles, trees, edges
 
 
 def _relevance(context: TaskContext, *values: str) -> float:
@@ -280,6 +329,20 @@ def compile_portfolio(
         selected_trees = trees
 
     exclusions: list[dict[str, str]] = []
+    latest_principle_claims = cast(
+        dict[str, Principle],
+        _latest(repository.list_principles()),
+    )
+    for value in latest_principle_claims.values():
+        if value.id in principles_by_id or (
+            requested_verticals
+            and value.vertical_capability not in requested_verticals
+        ):
+            continue
+        if value.status in {"validated", "stable"}:
+            exclusions.append({"id": value.id, "reason": "unrecorded-promotion"})
+        elif value.status in {"deprecated", "blocked"}:
+            exclusions.append({"id": value.id, "reason": f"status:{value.status}"})
     principle_candidates: list[tuple[float, Principle]] = []
     tree_node_ids = {node for tree in selected_trees for node in tree.parent_by_child}
     for value in principles_by_id.values():
@@ -338,6 +401,13 @@ def compile_portfolio(
             for tree in selected_trees
             for node_id in tree.parent_by_child
             if node_id in skills_by_id
+        }
+    if not candidate_skill_ids:
+        candidate_skill_ids = {
+            skill.id
+            for skill in skills_by_id.values()
+            if not requested_verticals
+            or skill.vertical_capability in requested_verticals
         }
 
     skill_candidates: list[tuple[float, CanonicalSkill]] = []

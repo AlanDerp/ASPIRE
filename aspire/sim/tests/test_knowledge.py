@@ -930,6 +930,8 @@ class ForestAndRetrievalTests(unittest.TestCase):
         )
         portfolio = compile_portfolio(self.repository, "snapshot-n3", context)
         self.assertFalse(portfolio.principle_ids)
+        self.assertTrue(portfolio.skill_ids)
+        self.assertTrue(portfolio.fallback_used)
         issue_codes = {issue.code for issue in validate_repository(self.repository).issues}
         self.assertIn("unrecorded-principle-promotion", issue_codes)
 
@@ -956,6 +958,8 @@ class ForestAndRetrievalTests(unittest.TestCase):
         )
         portfolio = compile_portfolio(self.repository, "snapshot-n3", context)
         self.assertFalse(portfolio.principle_ids)
+        self.assertTrue(portfolio.skill_ids)
+        self.assertTrue(portfolio.fallback_used)
         issue_codes = {issue.code for issue in validate_repository(self.repository).issues}
         self.assertIn("unrecorded-principle-promotion", issue_codes)
 
@@ -964,6 +968,24 @@ class ForestAndRetrievalTests(unittest.TestCase):
         self.repository.save_tree(proposed_revision)
         projection = vertical_forest(self.repository)
         self.assertEqual(projection["trees"][0]["tree_version"], self.tree.version)
+
+    def test_new_principle_proposal_does_not_shadow_active_revision(self):
+        proposal = self.make_principle_proposal(self.skills, version="2.0.0")
+        self.repository.save_principle(proposal)
+        context = TaskContext(
+            task_id="task-principle-proposal-gate",
+            suite="libero",
+            task_language="transport the grasped object",
+            task_family="pick-place",
+            vertical_capabilities=("transport",),
+            facts={"state": {"object_grasped": True}},
+        )
+        portfolio = compile_portfolio(self.repository, "snapshot-n3", context)
+        self.assertEqual(portfolio.principle_ids, (self.principle.id,))
+        self.assertEqual(
+            portfolio.node_versions[f"principle:{self.principle.id}"],
+            "1.0.0",
+        )
 
     def test_integrity_rejects_principle_support_outside_its_checkpoint(self):
         instance_ids = self.skills[0].instance_ids
@@ -1045,6 +1067,8 @@ class ForestAndRetrievalTests(unittest.TestCase):
         )
         portfolio = compile_portfolio(self.repository, "snapshot-n3", context)
         self.assertFalse(portfolio.principle_ids)
+        self.assertTrue(portfolio.skill_ids)
+        self.assertTrue(portfolio.fallback_used)
         self.assertIn(
             "unrecorded-promotion",
             {item["reason"] for item in portfolio.exclusions},

@@ -25,6 +25,9 @@ promotion_event_required:
 replay_rule: proposal plus review must reproduce the exact candidate, and that candidate must reproduce the exact promoted principle
 counterexample_rule: review accepts only the current deterministic development search result for the exact proposal
 failure_rule: missing, altered, non-canonical, or mismatched evidence makes the principle actor-invisible
+revision_selection:
+  - A newer proposal or candidate does not shadow the newest promoted revision.
+  - A newer unpromoted validated, deprecated, or blocked claim suppresses the logical id and triggers canonical fallback.
 workflow:
   - principle propose from a frozen canonical-skill repetition audit
   - principle counterexamples against development evidence
