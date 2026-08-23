@@ -44,6 +44,10 @@ from aspire.sim.cap.knowledge.models import (
     VerticalTree,
 )
 from aspire.sim.cap.knowledge.predicates import evaluate
+from aspire.sim.cap.knowledge.overlay_review import (
+    promote_overlay_edge,
+    review_overlay_edge,
+)
 from aspire.sim.cap.knowledge.projection import lineage_view, overlay_view, vertical_forest
 from aspire.sim.cap.knowledge.repository import KnowledgeRepository, RepositoryConflict
 from aspire.sim.cap.knowledge.review import promote_principle, review_principle
@@ -611,6 +615,73 @@ class ForestAndRetrievalTests(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
+    def promote_edge(
+        self, proposal: OverlayEdge, *, record_event: bool = True
+    ) -> OverlayEdge:
+        self.repository.save_edge(proposal)
+        manifest = KnowledgeManifest(
+            id="overlay-review-base",
+            version="1.0.0",
+            checkpoint_id="snapshot-n3",
+            skill_versions={value.id: value.version for value in self.skills},
+            principle_versions={self.principle.id: self.principle.version},
+            tree_versions={self.tree.id: self.tree.version},
+            edge_versions={},
+            created_at="2026-01-02T00:00:00+00:00",
+            source_partition="development",
+        )
+        self.repository.save_manifest(manifest)
+        review = {
+            "decision": "accept",
+            "reviewer": "overlay-reviewer-a",
+            "reviewed_at": "2026-01-03T00:00:00+00:00",
+            "rationale": "endpoint revisions and guarded relation were reviewed",
+            "proposal_hash": content_hash(asdict(proposal)),
+            "checkpoint_id": "snapshot-n3",
+            "manifest_id": manifest.id,
+            "manifest_version": manifest.version,
+            "manifest_hash": content_hash(asdict(manifest)),
+            "kind": proposal.kind,
+            "source_id": proposal.source_id,
+            "source_version": proposal.source_version,
+            "target_id": proposal.target_id,
+            "target_version": proposal.target_version,
+            "guard": proposal.guard,
+        }
+        candidate = review_overlay_edge(
+            proposal, review, manifest, version="1.1.0"
+        )
+        self.repository.save_audit(
+            "overlay-review",
+            str(candidate.provenance["review_artifact_hash"]),
+            review,
+        )
+        self.repository.save_edge(candidate)
+        edge = promote_overlay_edge(candidate, version="1.2.0")
+        self.repository.save_edge(edge)
+        if record_event:
+            self.repository.append_evidence(
+                {
+                    "event": "knowledge.edge-validated",
+                    "subject": edge.id,
+                    "version": edge.version,
+                    "candidate_version": edge.provenance["candidate_version"],
+                    "source_id": edge.source_id,
+                    "source_version": edge.source_version,
+                    "target_id": edge.target_id,
+                    "target_version": edge.target_version,
+                    "checkpoint_id": edge.provenance["checkpoint_id"],
+                    "manifest_id": edge.provenance["manifest_id"],
+                    "manifest_version": edge.provenance["manifest_version"],
+                    "manifest_hash": edge.provenance["manifest_hash"],
+                    "review_artifact_hash": edge.provenance[
+                        "review_artifact_hash"
+                    ],
+                },
+                stream="lifecycle",
+            )
+        return edge
+
     def test_forest_validation_and_descendants(self):
         report = validate_forest([self.tree], self.skills, [self.principle], [])
         self.assertTrue(report.ok, report.issues)
@@ -906,7 +977,10 @@ class ForestAndRetrievalTests(unittest.TestCase):
             version="1.0.0",
             kind="requires",
             source_id=self.skills[0].id,
+            source_version=self.skills[0].version,
             target_id="skill.localization.missing",
+            target_version="1.0.0",
+            provenance={"checkpoint_id": "snapshot-n3"},
         )
         report = validate_forest([self.tree], self.skills, [self.principle], [edge])
         self.assertFalse(report.ok)
@@ -918,9 +992,12 @@ class ForestAndRetrievalTests(unittest.TestCase):
             version="1.0.0",
             kind="can-follow",
             source_id=self.skills[0].id,
+            source_version=self.skills[0].version,
             target_id=self.skills[1].id,
+            target_version=self.skills[1].version,
+            provenance={"checkpoint_id": "snapshot-n3"},
         )
-        self.repository.save_edge(edge)
+        edge = self.promote_edge(edge)
         projection = overlay_view(self.repository)
         self.assertEqual(
             projection["outgoing_by_node"][self.skills[0].id], [edge.id]
@@ -929,13 +1006,117 @@ class ForestAndRetrievalTests(unittest.TestCase):
             projection["incoming_by_node"][self.skills[1].id], [edge.id]
         )
 
+    def test_new_overlay_proposal_does_not_shadow_active_revision(self):
+        proposal = OverlayEdge(
+            id="edge.transport.active-while-revising",
+            version="1.0.0",
+            kind="can-follow",
+            source_id=self.skills[0].id,
+            source_version=self.skills[0].version,
+            target_id=self.skills[1].id,
+            target_version=self.skills[1].version,
+            provenance={"checkpoint_id": "snapshot-n3"},
+        )
+        active_edge = self.promote_edge(proposal)
+        next_proposal = replace(
+            proposal,
+            version="2.0.0",
+            rationale="proposed change awaiting a fresh review",
+        )
+        self.repository.save_edge(next_proposal)
+        projection = overlay_view(self.repository)
+        self.assertEqual(
+            [(edge["id"], edge["version"]) for edge in projection["edges"]],
+            [(active_edge.id, active_edge.version)],
+        )
+
+    def test_overlay_proposal_is_not_actor_visible(self):
+        edge = OverlayEdge(
+            id="edge.transport.proposal-exception",
+            version="1.0.0",
+            kind="exception-to",
+            source_id=self.skills[0].id,
+            source_version=self.skills[0].version,
+            target_id=self.principle.id,
+            target_version=self.principle.version,
+            guard={"fact": "task.cross_tree_exception", "op": "eq", "value": True},
+            provenance={"checkpoint_id": "snapshot-n3"},
+        )
+        self.repository.save_edge(edge)
+        self.assertFalse(overlay_view(self.repository)["edges"])
+        context = TaskContext(
+            task_id="task-proposal-gate",
+            suite="libero",
+            task_language="transport with an unreviewed proposed exception",
+            task_family="pick-place",
+            vertical_capabilities=("transport",),
+            facts={
+                "state": {"object_grasped": True},
+                "task": {
+                    "continuous_contact": False,
+                    "cross_tree_exception": True,
+                },
+            },
+        )
+        portfolio = compile_portfolio(self.repository, "snapshot-n3", context)
+        self.assertEqual(portfolio.principle_ids, (self.principle.id,))
+        self.assertFalse(portfolio.overlay_edge_ids)
+        database = Path(self.temporary.name) / "proposal-gate.sqlite3"
+        rebuild_index(self.repository, database, checkpoint_id="snapshot-n3")
+        connection = sqlite3.connect(database)
+        try:
+            self.assertEqual(
+                connection.execute("SELECT COUNT(*) FROM overlay_edges").fetchone()[0],
+                0,
+            )
+        finally:
+            connection.close()
+
+    def test_overlay_promotion_requires_an_exact_lifecycle_event(self):
+        proposal = OverlayEdge(
+            id="edge.transport.unrecorded-exception",
+            version="1.0.0",
+            kind="exception-to",
+            source_id=self.skills[0].id,
+            source_version=self.skills[0].version,
+            target_id=self.principle.id,
+            target_version=self.principle.version,
+            guard={"fact": "task.cross_tree_exception", "op": "eq", "value": True},
+            provenance={"checkpoint_id": "snapshot-n3"},
+        )
+        edge = self.promote_edge(proposal, record_event=False)
+        self.repository.append_evidence(
+            {
+                "event": "knowledge.edge-validated",
+                "subject": edge.id,
+                "version": edge.version,
+                "candidate_version": edge.provenance["candidate_version"],
+                "source_id": edge.source_id,
+                "source_version": edge.source_version,
+                "target_id": edge.target_id,
+                "target_version": edge.target_version,
+                "checkpoint_id": edge.provenance["checkpoint_id"],
+                "manifest_id": edge.provenance["manifest_id"],
+                "manifest_version": edge.provenance["manifest_version"],
+                "manifest_hash": "wrong-manifest-hash",
+                "review_artifact_hash": edge.provenance["review_artifact_hash"],
+            },
+            stream="lifecycle",
+        )
+        self.assertFalse(overlay_view(self.repository)["edges"])
+        issue_codes = {issue.code for issue in validate_repository(self.repository).issues}
+        self.assertIn("unrecorded-overlay-promotion", issue_codes)
+
     def test_counterexample_search_records_scope_conflicts_and_hash(self):
         edge = OverlayEdge(
             id="edge.transport.contradiction",
             version="1.0.0",
             kind="contradicts",
             source_id=self.skills[0].id,
+            source_version=self.skills[0].version,
             target_id=self.skills[1].id,
+            target_version=self.skills[1].version,
+            provenance={"checkpoint_id": "snapshot-n3"},
         )
         self.repository.save_edge(edge)
         report = search_counterexamples(self.repository, self.principle)
@@ -974,10 +1155,13 @@ class ForestAndRetrievalTests(unittest.TestCase):
             version="1.0.0",
             kind="exception-to",
             source_id=self.skills[0].id,
+            source_version=self.skills[0].version,
             target_id=self.principle.id,
+            target_version=self.principle.version,
             guard={"fact": "task.cross_tree_exception", "op": "eq", "value": True},
+            provenance={"checkpoint_id": "snapshot-n3"},
         )
-        self.repository.save_edge(edge)
+        edge = self.promote_edge(edge)
         context = TaskContext(
             task_id="task-exception",
             suite="libero",

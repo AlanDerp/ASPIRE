@@ -1,0 +1,25 @@
+schema_version: 1
+required:
+  - decision
+  - reviewer
+  - reviewed_at
+  - rationale
+  - proposal_hash
+  - checkpoint_id
+  - manifest_id
+  - manifest_version
+  - manifest_hash
+  - kind
+  - source_id
+  - source_version
+  - target_id
+  - target_version
+  - guard
+accepted_decision: accept
+binding_rule: every identity, revision, guard, checkpoint, proposal hash, and base-manifest hash must match exactly
+storage_rule: review content is copied to proposals/overlay-review/<content-hash>.yaml
+workflow:
+  - create a review-required proposal
+  - review it against a development base manifest that locks both endpoints
+  - promote the reviewed candidate
+  - create a newer active manifest that locks the promoted edge revision

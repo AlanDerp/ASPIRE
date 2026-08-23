@@ -19,7 +19,9 @@ def vertical_forest(
     vertical: str | None = None,
     task_family: str | None = None,
 ) -> dict:
-    skills, principles, trees, edges = resolve_view(repository, manifest)
+    skills, principles, trees, edges = resolve_view(
+        repository, manifest, active_overlay_only=True
+    )
     validate_forest(
         list(trees.values()), list(skills.values()), list(principles.values()), list(edges.values())
     ).require_ok()
@@ -95,7 +97,7 @@ def vertical_forest(
 def overlay_view(
     repository: KnowledgeRepository, *, manifest: KnowledgeManifest | None = None
 ) -> dict:
-    _, _, _, edges = resolve_view(repository, manifest)
+    _, _, _, edges = resolve_view(repository, manifest, active_overlay_only=True)
     materialized_edges = [
         {
             "id": value.id,
@@ -103,6 +105,8 @@ def overlay_view(
             "kind": value.kind,
             "source_id": value.source_id,
             "target_id": value.target_id,
+            "source_version": value.source_version,
+            "target_version": value.target_version,
             "guard": value.guard,
             "rationale": value.rationale,
         }

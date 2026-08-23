@@ -124,8 +124,24 @@ def validate_forest(
     for edge in edges:
         if edge.source_id not in node_by_id:
             issues.append(ValidationIssue("dangling-edge-source", "overlay source missing", edge.id))
+        elif node_by_id[edge.source_id].version != edge.source_version:
+            issues.append(
+                ValidationIssue(
+                    "edge-source-version-mismatch",
+                    "overlay source revision does not match the materialized node",
+                    edge.id,
+                )
+            )
         if edge.target_id not in node_by_id:
             issues.append(ValidationIssue("dangling-edge-target", "overlay target missing", edge.id))
+        elif node_by_id[edge.target_id].version != edge.target_version:
+            issues.append(
+                ValidationIssue(
+                    "edge-target-version-mismatch",
+                    "overlay target revision does not match the materialized node",
+                    edge.id,
+                )
+            )
     return ValidationReport(tuple(issues))
 
 

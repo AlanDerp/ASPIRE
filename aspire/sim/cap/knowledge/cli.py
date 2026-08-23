@@ -41,6 +41,12 @@ from .models import (
     VerticalTree,
     model_to_dict,
 )
+from .overlay_review import (
+    promote_overlay_edge,
+    review_overlay_edge,
+    validate_overlay_manifest_binding,
+    validate_overlay_proposal,
+)
 from .placement import analyze_placement
 from .preregistration import freeze_preregistration
 from .projection import lineage_view, overlay_view, vertical_forest
@@ -128,6 +134,21 @@ def _tree_revision(
     )
 
 
+def _overlay_revision(
+    repository: KnowledgeRepository, edge_id: str, version: str | None = None
+) -> OverlayEdge:
+    matches = [value for value in repository.list_edges() if value.id == edge_id]
+    if version:
+        matches = [value for value in matches if value.version == version]
+    if not matches:
+        suffix = f"@{version}" if version else ""
+        raise ValueError(f"overlay edge not found: {edge_id}{suffix}")
+    return max(
+        matches,
+        key=lambda value: tuple(int(part) for part in value.version.split(".")),
+    )
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     repository = _repository(args)
     value: Any
@@ -169,6 +190,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if args.command == "manifest" and args.manifest_command == "save":
         value = KnowledgeManifest.from_dict(load_structured(args.file))
         repository.load_checkpoint(value.checkpoint_id)
+        resolve_view(repository, value, active_overlay_only=True)
         path = repository.save_manifest(value)
         return {"path": str(path), "manifest": model_to_dict(value)}
 
@@ -317,10 +339,61 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         write_structured_atomic(args.output, result)
         return {"path": str(args.output), **result}
 
-    if args.command == "forest" and args.forest_command == "save-edge":
+    if args.command == "overlay" and args.overlay_command == "propose":
         value = OverlayEdge.from_dict(load_structured(args.file))
+        validate_overlay_proposal(repository, value)
         path = repository.save_edge(value)
         return {"path": str(path), "edge": model_to_dict(value)}
+
+    if args.command == "overlay" and args.overlay_command == "review":
+        overlay_proposal = _overlay_revision(repository, args.id, args.from_version)
+        overlay_manifest = repository.load_manifest(
+            args.manifest, args.manifest_version
+        )
+        resolve_view(repository, overlay_manifest, active_overlay_only=True)
+        validate_overlay_manifest_binding(overlay_proposal, overlay_manifest)
+        review_payload = load_structured(args.review)
+        reviewed_edge = review_overlay_edge(
+            overlay_proposal,
+            review_payload,
+            overlay_manifest,
+            version=args.version,
+        )
+        repository.save_audit(
+            "overlay-review",
+            str(reviewed_edge.provenance["review_artifact_hash"]),
+            review_payload,
+        )
+        path = repository.save_edge(reviewed_edge)
+        return {"path": str(path), "edge": model_to_dict(reviewed_edge)}
+
+    if args.command == "overlay" and args.overlay_command == "promote":
+        overlay_candidate = _overlay_revision(repository, args.id, args.from_version)
+        promoted_edge = promote_overlay_edge(overlay_candidate, version=args.version)
+        path = repository.save_edge(promoted_edge)
+        repository.append_evidence(
+            {
+                "event": "knowledge.edge-validated",
+                "subject": promoted_edge.id,
+                "version": promoted_edge.version,
+                "candidate_version": promoted_edge.provenance["candidate_version"],
+                "source_id": promoted_edge.source_id,
+                "source_version": promoted_edge.source_version,
+                "target_id": promoted_edge.target_id,
+                "target_version": promoted_edge.target_version,
+                "checkpoint_id": promoted_edge.provenance["checkpoint_id"],
+                "manifest_id": promoted_edge.provenance["manifest_id"],
+                "manifest_version": promoted_edge.provenance["manifest_version"],
+                "manifest_hash": promoted_edge.provenance["manifest_hash"],
+                "review_artifact_hash": promoted_edge.provenance[
+                    "review_artifact_hash"
+                ],
+                "at": promoted_edge.provenance["reviewed_at"],
+                "reviewer": promoted_edge.provenance["reviewer"],
+            },
+            stream="lifecycle",
+        )
+        return {"path": str(path), "edge": model_to_dict(promoted_edge)}
 
     if args.command == "forest" and args.forest_command == "validate":
         report = validate_repository(repository)
@@ -361,7 +434,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             if args.manifest
             else None
         )
-        skills, principles, trees, edges = resolve_view(repository, manifest)
+        skills, principles, trees, edges = resolve_view(
+            repository, manifest, active_overlay_only=True
+        )
         report = validate_forest(
             list(trees.values()),
             list(skills.values()),
@@ -744,12 +819,22 @@ def build_parser() -> argparse.ArgumentParser:
     placement.add_argument("--tree-version")
     placement.add_argument("--parent", required=True)
     placement.add_argument("--output", type=Path, required=True)
-    save_edge = forest.add_parser("save-edge")
-    save_edge.add_argument("--file", type=Path, required=True)
-
     overlay = commands.add_parser("overlay").add_subparsers(
         dest="overlay_command", required=True
     )
+    propose_overlay = overlay.add_parser("propose")
+    propose_overlay.add_argument("--file", type=Path, required=True)
+    review_overlay = overlay.add_parser("review")
+    review_overlay.add_argument("--id", required=True)
+    review_overlay.add_argument("--from-version")
+    review_overlay.add_argument("--version", required=True)
+    review_overlay.add_argument("--manifest", required=True)
+    review_overlay.add_argument("--manifest-version", required=True)
+    review_overlay.add_argument("--review", type=Path, required=True)
+    promote_overlay = overlay.add_parser("promote")
+    promote_overlay.add_argument("--id", required=True)
+    promote_overlay.add_argument("--from-version")
+    promote_overlay.add_argument("--version", required=True)
     show_overlay = overlay.add_parser("show")
     show_overlay.add_argument("--manifest")
     show_overlay.add_argument("--manifest-version")

@@ -61,8 +61,12 @@ CREATE TABLE overlay_edges (
   version TEXT NOT NULL,
   kind TEXT NOT NULL,
   source_id TEXT NOT NULL,
+  source_version TEXT NOT NULL,
   target_id TEXT NOT NULL,
+  target_version TEXT NOT NULL,
   guard TEXT NOT NULL,
+  status TEXT NOT NULL,
+  review_artifact_hash TEXT NOT NULL,
   active INTEGER NOT NULL,
   PRIMARY KEY (id, version)
 );
@@ -131,7 +135,9 @@ def rebuild_index(
                 ),
             )
 
-        skills, principles, trees, edges = resolve_view(repository, manifest)
+        skills, principles, trees, edges = resolve_view(
+            repository, manifest, active_overlay_only=True
+        )
         for skill in sorted(skills.values(), key=lambda item: (item.id, item.version)):
             scope = _json(skill.scope.__dict__)
             digest = content_hash(skill)
@@ -231,8 +237,20 @@ def rebuild_index(
                 )
         for edge in sorted(edges.values(), key=lambda item: (item.id, item.version)):
             connection.execute(
-                "INSERT INTO overlay_edges VALUES (?,?,?,?,?,?,?)",
-                (edge.id, edge.version, edge.kind, edge.source_id, edge.target_id, _json(edge.guard), 1),
+                "INSERT INTO overlay_edges VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    edge.id,
+                    edge.version,
+                    edge.kind,
+                    edge.source_id,
+                    edge.source_version,
+                    edge.target_id,
+                    edge.target_version,
+                    _json(edge.guard),
+                    edge.status,
+                    edge.provenance["review_artifact_hash"],
+                    1,
+                ),
             )
 
         source_hash = content_hash(

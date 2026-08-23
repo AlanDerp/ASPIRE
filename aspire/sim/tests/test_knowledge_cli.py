@@ -463,7 +463,9 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
                 "source_partition": "development",
             },
         )
-        self.run_cli("manifest", "save", "--file", str(manifest))
+        saved_manifest = self.run_cli(
+            "manifest", "save", "--file", str(manifest)
+        )["manifest"]
         self.assertTrue(self.run_cli("forest", "validate")["ok"])
         overlay_validation = self.run_cli(
             "overlay",
@@ -474,6 +476,121 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             "1.0.0",
         )
         self.assertTrue(overlay_validation["ok"])
+
+        edge_proposal = self.write_json(
+            "overlay-proposal.yaml",
+            {
+                "id": "edge.transport.alpha-before-beta",
+                "version": "1.0.0",
+                "kind": "can-follow",
+                "source_id": skill_ids[1],
+                "source_version": "1.0.0",
+                "target_id": skill_ids[0],
+                "target_version": "1.0.0",
+                "guard": {},
+                "rationale": "",
+                "status": "proposal",
+                "review_required": True,
+                "provenance": {"checkpoint_id": "snapshot-n6"},
+            },
+        )
+        proposed_edge = self.run_cli(
+            "overlay", "propose", "--file", str(edge_proposal)
+        )["edge"]
+        self.assertFalse(self.run_cli("overlay", "show")["edges"])
+
+        overlay_review = self.write_json(
+            "overlay-review.yaml",
+            {
+                "decision": "accept",
+                "reviewer": "overlay-reviewer-a",
+                "reviewed_at": "2026-01-04T00:00:00+00:00",
+                "rationale": "the exact endpoint revisions and ordering were reviewed",
+                "proposal_hash": content_hash(proposed_edge),
+                "checkpoint_id": "snapshot-n6",
+                "manifest_id": saved_manifest["id"],
+                "manifest_version": saved_manifest["version"],
+                "manifest_hash": content_hash(saved_manifest),
+                "kind": proposed_edge["kind"],
+                "source_id": proposed_edge["source_id"],
+                "source_version": proposed_edge["source_version"],
+                "target_id": proposed_edge["target_id"],
+                "target_version": proposed_edge["target_version"],
+                "guard": proposed_edge["guard"],
+            },
+        )
+        reviewed_edge = self.run_cli(
+            "overlay",
+            "review",
+            "--id",
+            proposed_edge["id"],
+            "--from-version",
+            "1.0.0",
+            "--version",
+            "1.1.0",
+            "--manifest",
+            saved_manifest["id"],
+            "--manifest-version",
+            saved_manifest["version"],
+            "--review",
+            str(overlay_review),
+        )["edge"]
+        self.assertEqual(reviewed_edge["status"], "candidate")
+        candidate_manifest = self.write_json(
+            "candidate-overlay-manifest.yaml",
+            {
+                **saved_manifest,
+                "version": "1.0.1",
+                "edge_versions": {reviewed_edge["id"]: reviewed_edge["version"]},
+                "created_at": "2026-01-04T00:00:00+00:00",
+            },
+        )
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.run_cli("manifest", "save", "--file", str(candidate_manifest))
+        promoted_edge = self.run_cli(
+            "overlay",
+            "promote",
+            "--id",
+            proposed_edge["id"],
+            "--from-version",
+            "1.1.0",
+            "--version",
+            "1.2.0",
+        )["edge"]
+        self.assertEqual(promoted_edge["status"], "validated")
+
+        overlay_manifest = self.write_json(
+            "overlay-manifest.yaml",
+            {
+                **saved_manifest,
+                "version": "1.1.0",
+                "edge_versions": {promoted_edge["id"]: promoted_edge["version"]},
+                "created_at": "2026-01-04T00:00:00+00:00",
+            },
+        )
+        self.run_cli("manifest", "save", "--file", str(overlay_manifest))
+        overlay_projection = self.run_cli(
+            "overlay",
+            "show",
+            "--manifest",
+            saved_manifest["id"],
+            "--manifest-version",
+            "1.1.0",
+        )
+        self.assertEqual(
+            [edge["id"] for edge in overlay_projection["edges"]],
+            [promoted_edge["id"]],
+        )
+        self.assertTrue(
+            self.run_cli(
+                "overlay",
+                "validate",
+                "--manifest",
+                saved_manifest["id"],
+                "--manifest-version",
+                "1.1.0",
+            )["ok"]
+        )
 
         context = self.write_json(
             "context.yaml",

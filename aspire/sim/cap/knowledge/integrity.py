@@ -7,8 +7,12 @@ from __future__ import annotations
 
 from .checkpoints import instances_at_checkpoint
 from .forest import ValidationIssue, ValidationReport, descendants, validate_forest
-from .lifecycle import principle_metrics, validated_revisions
-from .models import Checkpoint, ConsolidationPolicy
+from .lifecycle import (
+    overlay_revision_promoted,
+    principle_metrics,
+    validated_revisions,
+)
+from .models import Checkpoint, ConsolidationPolicy, KnowledgeManifest
 from .repository import KnowledgeRepository
 from .repetition import (
     PrincipleRepetitionReport,
@@ -300,7 +304,29 @@ def validate_repository(repository: KnowledgeRepository, *, max_principle_fanout
                 )
             )
 
+    edge_revisions = repository.list_edges()
+    manifest_revisions: dict[tuple[str, str], KnowledgeManifest] = {
+        (value.id, value.version): value for value in repository.list_manifests()
+    }
+    lifecycle_events = list(repository.iter_evidence("lifecycle"))
     for edge in edges.values():
+        if (
+            edge.status in {"validated", "stable"}
+            and not overlay_revision_promoted(
+                repository,
+                edge,
+                edge_revisions=edge_revisions,
+                manifests=manifest_revisions,
+                lifecycle_events=lifecycle_events,
+            )
+        ):
+            issues.append(
+                ValidationIssue(
+                    "unrecorded-overlay-promotion",
+                    "actor-visible overlay edge lacks an exact revision promotion event",
+                    edge.id,
+                )
+            )
         if edge.kind == "exception-to" and not edge.guard:
             issues.append(
                 ValidationIssue(
@@ -321,7 +347,7 @@ def validate_repository(repository: KnowledgeRepository, *, max_principle_fanout
             )
         try:
             repository.load_checkpoint(manifest.checkpoint_id)
-            resolve_view(repository, manifest)
+            resolve_view(repository, manifest, active_overlay_only=True)
         except (OSError, ValueError) as error:
             issues.append(ValidationIssue("invalid-manifest", str(error), manifest.id))
     return ValidationReport(tuple(issues))

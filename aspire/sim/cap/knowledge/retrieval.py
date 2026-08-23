@@ -48,39 +48,75 @@ def _locked(values: list[Any], revisions: dict[str, str], label: str) -> dict[st
 
 
 def resolve_view(
-    repository: KnowledgeRepository, manifest: KnowledgeManifest | None
+    repository: KnowledgeRepository,
+    manifest: KnowledgeManifest | None,
+    *,
+    active_overlay_only: bool = False,
 ) -> tuple[
     dict[str, CanonicalSkill],
     dict[str, Principle],
     dict[str, VerticalTree],
     dict[str, OverlayEdge],
 ]:
-    """Resolve either the latest view or the exact revisions in a manifest."""
+    """Resolve latest or manifest-locked revisions, optionally gating overlays."""
+    all_edge_revisions = repository.list_edges()
     if manifest is None:
-        return (
+        result = (
             cast(dict[str, CanonicalSkill], _latest(repository.list_skills())),
             cast(dict[str, Principle], _latest(repository.list_principles())),
             cast(dict[str, VerticalTree], _latest(repository.list_trees())),
-            cast(dict[str, OverlayEdge], _latest(repository.list_edges())),
+            cast(dict[str, OverlayEdge], _latest(all_edge_revisions)),
         )
-    return (
-        cast(
-            dict[str, CanonicalSkill],
-            _locked(repository.list_skills(), manifest.skill_versions, "skill"),
-        ),
-        cast(
-            dict[str, Principle],
-            _locked(repository.list_principles(), manifest.principle_versions, "principle"),
-        ),
-        cast(
-            dict[str, VerticalTree],
-            _locked(repository.list_trees(), manifest.tree_versions, "tree"),
-        ),
-        cast(
-            dict[str, OverlayEdge],
-            _locked(repository.list_edges(), manifest.edge_versions, "edge"),
-        ),
+    else:
+        result = (
+            cast(
+                dict[str, CanonicalSkill],
+                _locked(repository.list_skills(), manifest.skill_versions, "skill"),
+            ),
+            cast(
+                dict[str, Principle],
+                _locked(repository.list_principles(), manifest.principle_versions, "principle"),
+            ),
+            cast(
+                dict[str, VerticalTree],
+                _locked(repository.list_trees(), manifest.tree_versions, "tree"),
+            ),
+            cast(
+                dict[str, OverlayEdge],
+                _locked(all_edge_revisions, manifest.edge_versions, "edge"),
+            ),
+        )
+    if not active_overlay_only:
+        return result
+
+    from .lifecycle import overlay_revision_promoted
+
+    candidate_revisions = (
+        list(result[3].values()) if manifest is not None else all_edge_revisions
     )
+    manifests = {
+        (value.id, value.version): value for value in repository.list_manifests()
+    }
+    lifecycle_events = list(repository.iter_evidence("lifecycle"))
+    active_edges = [
+        edge
+        for edge in candidate_revisions
+        if edge.status in {"validated", "stable"}
+        and not edge.review_required
+        and overlay_revision_promoted(
+            repository,
+            edge,
+            edge_revisions=all_edge_revisions,
+            manifests=manifests,
+            lifecycle_events=lifecycle_events,
+        )
+    ]
+    if manifest is not None and len(active_edges) != len(result[3]):
+        active_ids = {edge.id for edge in active_edges}
+        rejected = sorted(set(result[3]) - active_ids)
+        raise ValueError(f"manifest includes unpromoted overlay edges: {rejected}")
+    edges = cast(dict[str, OverlayEdge], _latest(active_edges))
+    return result[0], result[1], result[2], edges
 
 
 def _relevance(context: TaskContext, *values: str) -> float:
@@ -191,7 +227,9 @@ def compile_portfolio(
             )
     checkpoint = repository.load_checkpoint(checkpoint_id)
     instances_at_checkpoint(repository, checkpoint)
-    skills_by_id, principles_by_id, trees_by_id, edges_by_id = resolve_view(repository, manifest)
+    skills_by_id, principles_by_id, trees_by_id, edges_by_id = resolve_view(
+        repository, manifest, active_overlay_only=True
+    )
     trees = list(trees_by_id.values())
     edges = list(edges_by_id.values())
     validate_forest(trees, list(skills_by_id.values()), list(principles_by_id.values()), edges).require_ok()

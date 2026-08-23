@@ -9,7 +9,13 @@ from datetime import datetime, timezone
 from typing import Literal
 
 from .forest import descendants, lineage
-from .models import ImpactReport, Principle, PrincipleMetrics
+from .models import (
+    ImpactReport,
+    KnowledgeManifest,
+    OverlayEdge,
+    Principle,
+    PrincipleMetrics,
+)
 from .repository import KnowledgeRepository
 from .retrieval import resolve_view
 
@@ -31,6 +37,52 @@ def validated_revisions(repository: KnowledgeRepository) -> set[tuple[str, str]]
         and event.get("subject")
         and event.get("version")
     }
+
+
+def overlay_revision_promoted(
+    repository: KnowledgeRepository,
+    edge: OverlayEdge,
+    *,
+    edge_revisions: list[OverlayEdge] | None = None,
+    manifests: dict[tuple[str, str], KnowledgeManifest] | None = None,
+    lifecycle_events: list[dict[str, object]] | None = None,
+) -> bool:
+    """Verify that the promotion event exactly binds the edge and review."""
+    from .overlay_review import validate_overlay_evidence
+
+    try:
+        validate_overlay_evidence(
+            repository,
+            edge,
+            edge_revisions=edge_revisions,
+            manifests=manifests,
+        )
+    except (KeyError, OSError, TypeError, ValueError):
+        return False
+    expected = {
+        "subject": edge.id,
+        "version": edge.version,
+        "candidate_version": edge.provenance.get("candidate_version"),
+        "source_id": edge.source_id,
+        "source_version": edge.source_version,
+        "target_id": edge.target_id,
+        "target_version": edge.target_version,
+        "checkpoint_id": edge.provenance.get("checkpoint_id"),
+        "manifest_id": edge.provenance.get("manifest_id"),
+        "manifest_version": edge.provenance.get("manifest_version"),
+        "manifest_hash": edge.provenance.get("manifest_hash"),
+        "review_artifact_hash": edge.provenance.get("review_artifact_hash"),
+    }
+    events = (
+        lifecycle_events
+        if lifecycle_events is not None
+        else list(repository.iter_evidence("lifecycle"))
+    )
+    return any(
+        event.get("event") == "knowledge.edge-validated"
+        and all(event.get(key) == value for key, value in expected.items())
+        for event in events
+    )
 
 
 SupportState = Literal["sufficient", "weak", "broken"]

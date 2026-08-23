@@ -1,0 +1,32 @@
+schema_version: 1
+required:
+  - id
+  - version
+  - kind
+  - source_id
+  - source_version
+  - target_id
+  - target_version
+  - guard
+  - status
+  - review_required
+  - provenance.checkpoint_id
+allowed_kinds:
+  - requires
+  - can-follow
+  - exception-to
+  - contradicts
+states:
+  proposal:
+    review_required: true
+    actor_visible: false
+  candidate:
+    review_required: false
+    actor_visible: false
+  validated:
+    review_required: false
+    required_provenance: [candidate_version, review_artifact, review_artifact_hash]
+    actor_visible: true only with an exact knowledge.edge-validated event
+endpoint_rule: source_version and target_version must identify existing node revisions locked by the review manifest
+exception_rule: exception-to requires a non-empty explicit guard
+source_of_truth: immutable edge YAML plus append-only lifecycle evidence

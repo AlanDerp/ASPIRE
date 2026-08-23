@@ -1,6 +1,6 @@
 # Upward-abstraction blueprint implementation status
 
-Status date: 2026-08-21
+Status date: 2026-08-23
 
 The authoritative blueprint is
 [`../../../doc/aspire-upward-abstraction-knowledge-graph-blueprint.md`](../../../doc/aspire-upward-abstraction-knowledge-graph-blueprint.md).
@@ -26,11 +26,11 @@ This document separates engineering completion from empirical research claims.
 | No direct principle generation | Proposal recomputes a connected canonical-skill repetition audit over exact frozen child revisions; direct CLI save is absent and exact promotion events gate Actor visibility |
 | Explicit principle review | `review.py`, `review_artifacts.py`; proposal → candidate → validated with hash-checked counterexample dispositions, all-family LOFO evidence, exceptions and falsifiers |
 | Counterexample and placement review | `counterexample.py`, `placement.py`; frozen-development candidate search with hash validation and read-only parent/depth/fan-out/coverage/cycle report |
-| Vertical forest + overlay | `forest.py`; cycles, primary parents, vertical membership, declared children and dangling edges validated |
+| Vertical forest + overlay | `forest.py`, `overlay_review.py`; cycles, primary parents, vertical membership, declared children and dangling edges validated; exact endpoint revisions pass proposal → reviewed candidate → promoted revision before activation |
 | Exact revision locks | `KnowledgeManifest`; checkpoint plus exact skill/principle/tree/edge versions and development partition |
 | Rebuildable three-layer index | `index.py`; checkpoint instances, active manifest nodes, FTS, tree/overlay and materialized principle metrics |
 | Tree-first retrieval | `retrieval.py`; applicability, scope, exception, support, API, per-principle fan-out, global skill and token gates |
-| Overlay behavior | guarded `requires`, `exception-to`, `contradicts`, and `can-follow`; exclusions enter Actor-visible context |
+| Overlay behavior | guarded `requires`, `exception-to`, `contradicts`, and `can-follow`; only exact promotion-event-bound revisions enter Actor context, projections, manifests, or SQLite indexes |
 | Explicit fallback | Canonical fallback and reasoned exclusions are persisted in every `Portfolio` |
 | Lifecycle | `lifecycle.py`; append-only invalidation, blast radius and sufficient/weak/broken support propagation |
 | Explosion maintenance | `maintenance.py`; non-destructive merge/split/conflict/hub/prune audit |
@@ -48,8 +48,9 @@ This document separates engineering completion from empirical research claims.
 | Completion and determinism gates | `completion.py`, `verification.py`; fail-closed Actor-mode audit and independent semantic rebuild comparison for forest/index/A--F portfolios |
 
 The end-to-end test starts with six executed code files and reaches three
-canonical skills, a reviewed/validated principle, a vertical tree, a manifest,
-an SQLite index, and all A–F portfolios through the real CLI entry point.
+canonical skills, a reviewed/validated principle, a vertical tree, a base
+manifest, a reviewed/promoted overlay edge, an active manifest, an SQLite index,
+and all A–F portfolios through the real CLI entry point.
 
 ## Empirical gates not yet satisfied
 

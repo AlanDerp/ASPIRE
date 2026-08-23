@@ -120,10 +120,31 @@ name evaluated development tasks and grounding skills, pass every holdout, and
 match its content hash. Search candidates are leads for human disposition,
 never automatic counterevidence conclusions.
 
+Cross-tree edges have the same no-direct-activation rule. First save a
+development base manifest that locks both endpoint revisions. Then create a
+proposal from `knowledge/overlay-edge-schema.yaml`, review its exact proposal,
+guard, checkpoint and base-manifest hashes, and promote the reviewed candidate:
+
+```bash
+python -m aspire.sim.cap.knowledge --root knowledge overlay propose \
+  --file <overlay-proposal.yaml>
+python -m aspire.sim.cap.knowledge --root knowledge overlay review \
+  --id <edge-id> --from-version 1.0.0 --version 1.1.0 \
+  --manifest <base-manifest-id> --manifest-version <base-version> \
+  --review <overlay-review.yaml>
+python -m aspire.sim.cap.knowledge --root knowledge overlay promote \
+  --id <edge-id> --from-version 1.1.0 --version 1.2.0
+```
+
+The review artifact follows `knowledge/overlay-review-schema.yaml`. Promotion
+records an append-only event binding the endpoint revisions, checkpoint,
+manifest hash, and review hash. Only then may a newer manifest include the edge.
+
 ## 3. Freeze the active view
 
-Save a development-only manifest containing the checkpoint and exact versions,
-then run the integrity gate and build the derived index:
+Save a development-only active manifest containing the checkpoint and exact
+versions, including only promoted overlay revisions. Then run the integrity
+gate and build the derived index:
 
 ```bash
 python -m aspire.sim.cap.knowledge --root knowledge manifest save --file <manifest.yaml>

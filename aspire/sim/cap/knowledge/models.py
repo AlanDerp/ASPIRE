@@ -360,20 +360,53 @@ class OverlayEdge:
     version: str
     kind: str
     source_id: str
+    source_version: str
     target_id: str
+    target_version: str
     guard: dict[str, JsonValue] = field(default_factory=dict)
     rationale: str = ""
+    status: Status = "proposal"
+    review_required: bool = True
+    provenance: dict[str, JsonValue] = field(default_factory=dict)
     schema_version: int = 1
 
     def __post_init__(self) -> None:
         validate_id(self.id)
         validate_version(self.version)
         validate_id(self.source_id)
+        validate_version(self.source_version)
         validate_id(self.target_id)
+        validate_version(self.target_version)
         if self.kind not in OVERLAY_KINDS:
             raise ModelError(f"unsupported overlay edge kind: {self.kind}")
         if self.source_id == self.target_id:
             raise ModelError("overlay edge cannot reference itself")
+        if self.status not in STATUSES:
+            raise ModelError(f"invalid overlay edge status: {self.status}")
+        if not self.provenance.get("checkpoint_id"):
+            raise ModelError("overlay edge requires checkpoint provenance")
+        if self.status == "proposal" and not self.review_required:
+            raise ModelError("overlay proposal must require review")
+        if self.status in {"candidate", "validated", "stable"}:
+            if self.review_required:
+                raise ModelError("reviewed overlay edge cannot require review")
+            required_review = (
+                "reviewer",
+                "reviewed_at",
+                "review_artifact",
+                "review_artifact_hash",
+                "proposal_hash",
+                "manifest_id",
+                "manifest_version",
+                "manifest_hash",
+            )
+            missing = [key for key in required_review if not self.provenance.get(key)]
+            if missing:
+                raise ModelError(f"reviewed overlay edge lacks evidence: {missing}")
+            if self.status in {"validated", "stable"} and not self.provenance.get(
+                "candidate_version"
+            ):
+                raise ModelError("promoted overlay edge lacks candidate revision")
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "OverlayEdge":
@@ -382,9 +415,14 @@ class OverlayEdge:
             version=value["version"],
             kind=value["kind"],
             source_id=value["source_id"],
+            source_version=value["source_version"],
             target_id=value["target_id"],
+            target_version=value["target_version"],
             guard=value.get("guard", {}),
             rationale=value.get("rationale", ""),
+            status=value.get("status", "proposal"),
+            review_required=bool(value.get("review_required", True)),
+            provenance=value.get("provenance", {}),
             schema_version=int(value.get("schema_version", 1)),
         )
 
