@@ -436,11 +436,13 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             {
                 "reviewer": "reviewer-a",
                 "reviewed_at": "2026-01-02T00:00:00+00:00",
+                "title": "Safe transit",
+                "summary": "Keep grasp clearance.",
                 "when": {"fact": "state.object_grasped", "op": "eq", "value": True},
                 "decision_mode": "require",
-                "decision": "select a transport implementation that preserves clearance",
-                "invariant": "safe transport preserves clearance while retaining the grasp",
-                "expected_effects": ["fewer collisions"],
+                "decision": "use a collision-safe path",
+                "invariant": "grasped objects require clearance",
+                "expected_effects": [],
                 "exceptions": [
                     {
                         "id": "continuous-contact",
@@ -448,6 +450,18 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
                     }
                 ],
                 "falsifiers": ["clearance-preserving transport does not reduce collisions"],
+                "abstraction": {
+                    "common_core": "preserve grasp clearance",
+                    "preserved_variations": ["path geometry", "motion backend"],
+                    "excluded_details": ["target pose"],
+                },
+                "quality_policy": {
+                    "min_supporting_skills": 3,
+                    "min_task_families": 2,
+                    "max_exception_rate": 0.3,
+                    "max_operational_fanout": 12,
+                    "leave_one_family_out_required": True,
+                },
                 "counterexample_report": str(counterexample_path),
                 "leave_one_family_out_report": str(lofo_path),
             },
@@ -479,6 +493,7 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
         for category, field in (
             ("principle-counterexample", "counterexample_artifact_hash"),
             ("principle-lofo", "leave_one_family_out_artifact_hash"),
+            ("principle-compression", "compression_artifact_hash"),
             ("principle-review", "review_artifact_hash"),
         ):
             self.assertTrue(

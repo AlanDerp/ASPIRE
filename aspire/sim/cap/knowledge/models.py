@@ -79,6 +79,87 @@ class Scope:
 
 
 @dataclass(frozen=True)
+class PrincipleAbstraction:
+    common_core: str
+    preserved_variations: tuple[str, ...]
+    excluded_details: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        _require_text(self.common_core, "principle abstraction common_core")
+        if (
+            not self.preserved_variations
+            or any(
+                not isinstance(value, str) or not value.strip()
+                for value in self.preserved_variations
+            )
+        ):
+            raise ModelError(
+                "principle abstraction requires preserved variations"
+            )
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any] | None) -> "PrincipleAbstraction":
+        value = value or {}
+        return cls(
+            common_core=str(value.get("common_core", "")),
+            preserved_variations=_strings(value.get("preserved_variations")),
+            excluded_details=_strings(value.get("excluded_details")),
+        )
+
+
+@dataclass(frozen=True)
+class PrincipleQualityPolicy:
+    min_supporting_skills: int
+    min_task_families: int
+    max_exception_rate: float
+    max_operational_fanout: int
+    leave_one_family_out_required: bool = True
+
+    def __post_init__(self) -> None:
+        integers = (
+            self.min_supporting_skills,
+            self.min_task_families,
+            self.max_operational_fanout,
+        )
+        if any(
+            not isinstance(value, int) or isinstance(value, bool) or value < 1
+            for value in integers
+        ):
+            raise ModelError("principle quality thresholds must be positive")
+        if (
+            not isinstance(self.max_exception_rate, (int, float))
+            or isinstance(self.max_exception_rate, bool)
+            or not 0 <= self.max_exception_rate <= 1
+        ):
+            raise ModelError("principle max_exception_rate must be in [0, 1]")
+        if self.leave_one_family_out_required is not True:
+            raise ModelError("principle quality policy must require LOFO review")
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any] | None) -> "PrincipleQualityPolicy":
+        value = value or {}
+        required = (
+            "min_supporting_skills",
+            "min_task_families",
+            "max_exception_rate",
+            "max_operational_fanout",
+            "leave_one_family_out_required",
+        )
+        missing = [key for key in required if key not in value]
+        if missing:
+            raise ModelError(f"principle quality policy is incomplete: {missing}")
+        return cls(
+            min_supporting_skills=value["min_supporting_skills"],
+            min_task_families=value["min_task_families"],
+            max_exception_rate=value["max_exception_rate"],
+            max_operational_fanout=value["max_operational_fanout"],
+            leave_one_family_out_required=value[
+                "leave_one_family_out_required"
+            ],
+        )
+
+
+@dataclass(frozen=True)
 class SkillCodeInstance:
     KIND: ClassVar[str] = "skill-code-instance"
 
@@ -231,12 +312,14 @@ class Principle:
     exceptions: tuple[dict[str, JsonValue], ...]
     falsifiers: tuple[str, ...]
     child_ids: tuple[str, ...]
+    abstraction: PrincipleAbstraction
+    quality_policy: PrincipleQualityPolicy
     exception_review: str = ""
     scope: Scope = field(default_factory=Scope)
     status: Status = "proposal"
     review_required: bool = True
     provenance: dict[str, JsonValue] = field(default_factory=dict)
-    schema_version: int = 1
+    schema_version: int = 2
 
     def __post_init__(self) -> None:
         validate_id(self.id)
@@ -245,6 +328,8 @@ class Principle:
         _require_text(self.title, "title")
         _require_text(self.decision, "decision")
         _require_text(self.invariant, "invariant")
+        if self.schema_version != 2:
+            raise ModelError("principle schema_version must be 2")
         if self.status not in STATUSES:
             raise ModelError(f"invalid knowledge status: {self.status}")
         if self.decision_mode not in {"prefer", "avoid", "require"}:
@@ -267,10 +352,17 @@ class Principle:
             if self.review_required:
                 raise ModelError("reviewed principle cannot require review")
         if self.status in {"validated", "stable"}:
-            if len(set(self.child_ids)) < 3:
-                raise ModelError("validated principle requires at least three children")
-            if len(set(self.scope.task_families)) < 2:
-                raise ModelError("validated principle requires support from at least two task families")
+            child_minimum = max(3, self.quality_policy.min_supporting_skills)
+            if len(set(self.child_ids)) < child_minimum:
+                raise ModelError(
+                    f"validated principle requires at least {child_minimum} children"
+                )
+            family_minimum = max(2, self.quality_policy.min_task_families)
+            if len(set(self.scope.task_families)) < family_minimum:
+                raise ModelError(
+                    "validated principle requires support from at least "
+                    f"{family_minimum} task families"
+                )
             if not self.exceptions and not self.exception_review.strip():
                 raise ModelError(
                     "validated principle requires an exception or an explicit empty-exception review"
@@ -293,6 +385,9 @@ class Principle:
                 "leave_one_family_out_report",
                 "leave_one_family_out_report_hash",
                 "leave_one_family_out_artifact_hash",
+                "compression_report",
+                "compression_report_hash",
+                "compression_artifact_hash",
             )
             missing_review = [
                 key for key in required_review if not self.provenance.get(key)
@@ -313,6 +408,12 @@ class Principle:
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "Principle":
+        schema_version = int(value.get("schema_version", 1))
+        if schema_version != 2:
+            raise ModelError(
+                "principle schema v1 is historical evidence; migrate through "
+                "a new reviewed v2 revision"
+            )
         rule = value.get("rule", {})
         return cls(
             id=value["id"],
@@ -328,12 +429,16 @@ class Principle:
             exceptions=tuple(value.get("exceptions", [])),
             falsifiers=_strings(value.get("falsifiers")),
             child_ids=_strings(value.get("child_ids")),
+            abstraction=PrincipleAbstraction.from_dict(value.get("abstraction")),
+            quality_policy=PrincipleQualityPolicy.from_dict(
+                value.get("quality_policy")
+            ),
             exception_review=value.get("exception_review", ""),
             scope=Scope.from_dict(value.get("scope")),
             status=value.get("status", "proposal"),
             review_required=bool(value.get("review_required", True)),
             provenance=value.get("provenance", {}),
-            schema_version=int(value.get("schema_version", 1)),
+            schema_version=schema_version,
         )
 
 
@@ -457,6 +562,8 @@ class ConsolidationPolicy:
     max_single_task_share: float = 0.5
     min_canonical_skills_for_principle: int = 3
     min_task_families_for_principle: int = 2
+    max_principle_exception_rate: float = 0.3
+    max_principle_fanout: int = 12
     leave_one_family_out_required: bool = True
 
     def __post_init__(self) -> None:
@@ -468,11 +575,14 @@ class ConsolidationPolicy:
             self.min_successful_instances,
             self.min_canonical_skills_for_principle,
             self.min_task_families_for_principle,
+            self.max_principle_fanout,
         )
         if any(value < 1 for value in integers):
             raise ModelError("consolidation thresholds must be positive")
         if not 0 < self.max_single_task_share <= 1:
             raise ModelError("max_single_task_share must be in (0, 1]")
+        if not 0 <= self.max_principle_exception_rate <= 1:
+            raise ModelError("max_principle_exception_rate must be in [0, 1]")
 
     @classmethod
     def from_dict(cls, value: dict[str, Any] | None) -> "ConsolidationPolicy":

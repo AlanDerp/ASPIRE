@@ -8,8 +8,16 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
+from .compression import build_compression_report, supporting_skills
 from .counterexample import validate_counterexample_dispositions
-from .models import Principle, Scope, model_to_dict, validate_version
+from .models import (
+    Principle,
+    PrincipleAbstraction,
+    PrincipleQualityPolicy,
+    Scope,
+    model_to_dict,
+    validate_version,
+)
 from .repository import KnowledgeRepository
 from .review_artifacts import finalize_leave_family_out_report
 from .serialization import content_hash
@@ -39,12 +47,17 @@ def review_principle(
         "decision",
         "invariant",
         "falsifiers",
+        "abstraction",
+        "quality_policy",
         "counterexample_report",
         "counterexample_report_hash",
         "counterexample_artifact_hash",
         "leave_one_family_out_report",
         "leave_one_family_out_report_hash",
         "leave_one_family_out_artifact_hash",
+        "compression_report",
+        "compression_report_hash",
+        "compression_artifact_hash",
     )
     missing = [key for key in required if not review.get(key)]
     if missing:
@@ -54,6 +67,20 @@ def review_principle(
     if not exceptions and not exception_review:
         raise ValueError("review must record exceptions or an explicit empty-exception review")
     normalized_review = bind_principle_review(proposal, review)
+    quality_policy = PrincipleQualityPolicy.from_dict(
+        normalized_review.get("quality_policy")
+    )
+    if (
+        quality_policy.min_supporting_skills
+        < proposal.quality_policy.min_supporting_skills
+        or quality_policy.min_task_families
+        < proposal.quality_policy.min_task_families
+        or quality_policy.max_exception_rate
+        > proposal.quality_policy.max_exception_rate
+        or quality_policy.max_operational_fanout
+        > proposal.quality_policy.max_operational_fanout
+    ):
+        raise ValueError("principle review cannot weaken its quality policy")
     review_hash = content_hash(normalized_review)
     return replace(
         proposal,
@@ -70,6 +97,10 @@ def review_principle(
         exceptions=tuple(normalized_review.get("exceptions", [])),
         exception_review=exception_review,
         falsifiers=tuple(str(value) for value in normalized_review["falsifiers"]),
+        abstraction=PrincipleAbstraction.from_dict(
+            normalized_review.get("abstraction")
+        ),
+        quality_policy=quality_policy,
         scope=(
             Scope.from_dict(normalized_review.get("scope"))
             if normalized_review.get("scope")
@@ -104,6 +135,13 @@ def review_principle(
             "leave_one_family_out_artifact_hash": str(
                 normalized_review["leave_one_family_out_artifact_hash"]
             ),
+            "compression_report": str(normalized_review["compression_report"]),
+            "compression_report_hash": str(
+                normalized_review["compression_report_hash"]
+            ),
+            "compression_artifact_hash": str(
+                normalized_review["compression_artifact_hash"]
+            ),
         },
     )
 
@@ -111,6 +149,13 @@ def review_principle(
 def promote_principle(candidate: Principle, *, version: str) -> Principle:
     if candidate.status != "candidate" or candidate.review_required:
         raise ValueError("only a reviewed candidate can be promoted")
+    if len(set(candidate.child_ids)) < candidate.quality_policy.min_supporting_skills:
+        raise ValueError("principle candidate does not meet its support policy")
+    if (
+        len(set(candidate.scope.task_families))
+        < candidate.quality_policy.min_task_families
+    ):
+        raise ValueError("principle candidate does not meet its family policy")
     return replace(
         candidate,
         version=_newer(version, candidate.version),
@@ -233,6 +278,28 @@ def _rebuild_principle_candidate(
         raise ValueError("principle LOFO report hash mismatch")
     if finalize_leave_family_out_report(proposal, lofo) != lofo:
         raise ValueError("principle LOFO report is not canonical")
+
+    compression_hash = str(principle.provenance["compression_artifact_hash"])
+    if principle.provenance.get("compression_report") != (
+        f"proposals/principle-compression/{compression_hash}.yaml"
+    ):
+        raise ValueError("principle compression path is not content-addressed")
+    compression = repository.load_audit(
+        "principle-compression",
+        compression_hash,
+    )
+    expected_compression = build_compression_report(
+        proposal,
+        review,
+        supporting_skills(repository, proposal),
+    )
+    if (
+        compression != expected_compression
+        or compression.get("passed") is not True
+        or compression.get("report_hash")
+        != principle.provenance.get("compression_report_hash")
+    ):
+        raise ValueError("principle compression evidence mismatch")
 
     expected_candidate = review_principle(
         proposal,

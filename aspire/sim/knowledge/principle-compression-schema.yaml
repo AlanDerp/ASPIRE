@@ -1,0 +1,20 @@
+schema_version: 1
+required:
+  - principle_id
+  - principle_version
+  - proposal_hash
+  - checkpoint_id
+  - source_partition
+  - child_versions
+  - child_hashes
+  - direct_child_tokens
+  - principle_tokens
+  - compression_ratio
+  - passed
+  - report_hash
+comparison:
+  baseline: direct Actor-visible injection of every exact canonical-skill child revision
+  abstraction: reviewed Actor-visible Principle rule, exception, common core, and preserved variations
+  estimator: max(1, canonical character count divided by 4)
+gate: principle_tokens must be strictly less than direct_child_tokens
+replay: rebuild from the immutable proposal, review, and exact child revisions

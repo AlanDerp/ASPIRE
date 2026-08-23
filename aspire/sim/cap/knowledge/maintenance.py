@@ -25,6 +25,7 @@ def _principle_signature(value) -> str:
             "invariant": value.invariant,
             "scope": value.scope,
             "exceptions": value.exceptions,
+            "expected_effects": value.expected_effects,
         }
     )
 
@@ -60,10 +61,19 @@ def audit_maintenance(
     ]
     split_candidates = []
     for principle_id, metric in sorted(metrics.items()):
+        principle = principles[principle_id]
         signals = []
-        if metric.operational_fanout > max_principle_fanout:
+        fanout_limit = min(
+            max_principle_fanout,
+            principle.quality_policy.max_operational_fanout,
+        )
+        exception_limit = min(
+            max_exception_rate,
+            principle.quality_policy.max_exception_rate,
+        )
+        if metric.operational_fanout > fanout_limit:
             signals.append(f"operational-fanout:{metric.operational_fanout}")
-        if metric.exception_rate > max_exception_rate:
+        if metric.exception_rate > exception_limit:
             signals.append(f"exception-rate:{metric.exception_rate:.3f}")
         if signals:
             split_candidates.append({"principle_id": principle_id, "signals": signals})

@@ -16,6 +16,8 @@ from .models import (
     Checkpoint,
     ConsolidationPolicy,
     Principle,
+    PrincipleAbstraction,
+    PrincipleQualityPolicy,
     Scope,
     SkillCodeInstance,
 )
@@ -160,6 +162,32 @@ def propose_principle(
         exceptions=(),
         falsifiers=(),
         child_ids=tuple(sorted(value.id for value in skills)),
+        abstraction=PrincipleAbstraction(
+            common_core=(
+                " ".join(common[:12])
+                or f"shared {vertical} operational invariant"
+            ),
+            preserved_variations=tuple(
+                f"{value.id}: {value.goal}; {value.operation_template}"
+                for value in skills
+            ),
+            excluded_details=tuple(
+                sorted(
+                    {
+                        detail
+                        for value in skills
+                        for detail in value.contraindications
+                    }
+                )
+            ),
+        ),
+        quality_policy=PrincipleQualityPolicy(
+            min_supporting_skills=policy.min_canonical_skills_for_principle,
+            min_task_families=policy.min_task_families_for_principle,
+            max_exception_rate=policy.max_principle_exception_rate,
+            max_operational_fanout=policy.max_principle_fanout,
+            leave_one_family_out_required=policy.leave_one_family_out_required,
+        ),
         exception_review="",
         scope=Scope(task_families=tuple(sorted(families))),
         status="proposal",

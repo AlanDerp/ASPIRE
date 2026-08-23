@@ -303,11 +303,15 @@ def validate_repository(repository: KnowledgeRepository, *, max_principle_fanout
                     principle.id,
                 )
             )
-        if metrics.operational_fanout > max_principle_fanout:
+        fanout_limit = min(
+            max_principle_fanout,
+            principle.quality_policy.max_operational_fanout,
+        )
+        if metrics.operational_fanout > fanout_limit:
             issues.append(
                 ValidationIssue(
                     "principle-hub-overflow",
-                    f"fanout {metrics.operational_fanout} exceeds {max_principle_fanout}",
+                    f"fanout {metrics.operational_fanout} exceeds {fanout_limit}",
                     principle.id,
                 )
             )

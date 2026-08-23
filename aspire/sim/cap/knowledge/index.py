@@ -180,6 +180,12 @@ def rebuild_index(
         for principle in sorted(principles.values(), key=lambda item: (item.id, item.version)):
             scope = _json(principle.scope.__dict__)
             when = _json(principle.when)
+            abstraction = " ".join(
+                (
+                    principle.abstraction.common_core,
+                    *principle.abstraction.preserved_variations,
+                )
+            )
             digest = content_hash(principle)
             connection.execute(
                 "INSERT INTO nodes VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -190,14 +196,23 @@ def rebuild_index(
                     principle.status,
                     principle.vertical_capability,
                     principle.title,
-                    principle.summary,
+                    f"{principle.summary} {abstraction}",
                     when,
                     principle.decision,
                     principle.invariant,
                     scope,
                     digest,
                     1,
-                    max(1, len(principle.summary + principle.decision + principle.invariant) // 4),
+                    max(
+                        1,
+                        len(
+                            principle.summary
+                            + principle.decision
+                            + principle.invariant
+                            + abstraction
+                        )
+                        // 4,
+                    ),
                 ),
             )
             connection.execute(
@@ -206,7 +221,7 @@ def rebuild_index(
                     principle.id,
                     principle.version,
                     principle.title,
-                    principle.summary + " " + when,
+                    principle.summary + " " + abstraction + " " + when,
                     principle.decision,
                     principle.invariant,
                     scope,

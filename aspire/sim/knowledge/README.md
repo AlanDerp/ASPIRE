@@ -41,18 +41,19 @@ reports should not be treated as evidence.
 
 Validated principles are created only through `principle review` followed by
 `principle promote`. The review command internalizes the counterexample, LOFO,
-and review payloads under `proposals/`; promotion replays the proposal and
-review to reproduce the candidate before writing a validated revision. At
-retrieval time the same chain and its exact promotion event are checked again,
-so deleting or changing any linked artifact fails closed. See
-`principle-review-schema.yaml` for the bindings. Actor-visible overlay edges
-likewise require `overlay propose`, `overlay review`, and `overlay promote`; a
-direct repository write or
-status edit is not an activation path. Vertical trees require `forest
-propose-tree`, placement artifacts, `forest review-tree`, and `forest
-promote-tree`; saving a tree revision alone never activates it. Both repetition stages use
+compression, and review payloads under `proposals/`; promotion replays the
+proposal and review to reproduce the candidate before writing a validated
+revision. At retrieval time the same chain and its exact promotion event are
+checked again, so deleting or changing any linked artifact fails closed. See
+`principle-schema.yaml` for the schema-v2 abstraction boundary and per-node
+quality policy, and `principle-review-schema.yaml` for the evidence bindings.
+Actor-visible overlay edges likewise require `overlay propose`, `overlay
+review`, and `overlay promote`; a direct repository write or status edit is not
+an activation path. Vertical trees require `forest propose-tree`, placement
+artifacts, `forest review-tree`, and `forest promote-tree`; saving a tree
+revision alone never activates it. Both repetition stages use
 content-addressed reports and their policies; shared instance-level reports are
-stored once rather than copied
-into every skill. `forest validate` recomputes them against the frozen code.
+stored once rather than copied into every skill. `forest validate` recomputes
+them against the frozen code.
 Use a manifest for every frozen evaluation; a portfolio without a manifest is
 convenient for development inspection but is not a valid experimental artifact.

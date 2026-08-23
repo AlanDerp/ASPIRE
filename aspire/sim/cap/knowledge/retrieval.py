@@ -256,6 +256,7 @@ def render_portfolio(
                 f"When: {principle.when}",
                 f"Do: {principle.decision}",
                 f"Why: {principle.invariant}",
+                f"Preserve: {'; '.join(principle.abstraction.preserved_variations)}",
             ]
         )
         if principle.exceptions:
@@ -368,7 +369,14 @@ def compile_portfolio(
         if not allowed:
             exclusions.append({"id": value.id, "reason": reason})
             continue
-        score = _relevance(context, value.title, value.summary, value.decision, value.invariant)
+        score = _relevance(
+            context,
+            value.title,
+            value.summary,
+            value.decision,
+            value.invariant,
+            value.abstraction.common_core,
+        )
         principle_candidates.append((score, value))
     selected_principles = [
         value for _, value in sorted(principle_candidates, key=lambda item: (-item[0], item[1].id))[:max_principles]

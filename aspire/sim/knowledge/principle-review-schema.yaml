@@ -6,6 +6,8 @@ cli_input_required:
   - decision
   - invariant
   - falsifiers
+  - abstraction
+  - quality_policy
   - counterexample_report
   - leave_one_family_out_report
 exception_rule: record at least one exception or an explicit empty-exception review
@@ -13,6 +15,7 @@ stored_artifacts:
   proposal: immutable principle proposal revision and content hash
   counterexample: proposals/principle-counterexample/<content-hash>.yaml
   leave_one_family_out: proposals/principle-lofo/<content-hash>.yaml
+  compression: proposals/principle-compression/<content-hash>.yaml
   review: proposals/principle-review/<content-hash>.yaml
 promotion_event_required:
   - subject
@@ -24,6 +27,7 @@ promotion_event_required:
   - checkpoint_id
 replay_rule: proposal plus review must reproduce the exact candidate, and that candidate must reproduce the exact promoted principle
 counterexample_rule: review accepts only the current deterministic development search result for the exact proposal
+compression_rule: the reviewed Actor-visible Principle section must use fewer estimated tokens than direct injection of its exact child revisions
 failure_rule: missing, altered, non-canonical, or mismatched evidence makes the principle actor-invisible
 revision_selection:
   - A newer proposal or candidate does not shadow the newest promoted revision.
@@ -32,5 +36,5 @@ workflow:
   - principle propose from a frozen canonical-skill repetition audit
   - principle counterexamples against development evidence
   - principle finalize-lofo for every declared task family
-  - principle review, which internalizes all three content-addressed artifacts
+  - principle review, which internalizes all four content-addressed artifacts
   - principle promote, which replays candidate evidence before writing a validated revision

@@ -11,6 +11,10 @@ from dataclasses import asdict, replace
 from pathlib import Path
 
 from aspire.sim.cap.knowledge.checkpoints import freeze_checkpoint
+from aspire.sim.cap.knowledge.compression import (
+    build_compression_report,
+    supporting_skills,
+)
 from aspire.sim.cap.knowledge.consolidation import canonicalize_cluster, propose_principle
 from aspire.sim.cap.knowledge.counterexample import (
     search_counterexamples,
@@ -38,6 +42,8 @@ from aspire.sim.cap.knowledge.models import (
     ModelError,
     OverlayEdge,
     Principle,
+    PrincipleAbstraction,
+    PrincipleQualityPolicy,
     Scope,
     SkillCodeInstance,
     TaskContext,
@@ -153,6 +159,10 @@ def checkpoint_for_skills(*skills: CanonicalSkill) -> Checkpoint:
 
 
 class KnowledgeModelTests(unittest.TestCase):
+    def test_principle_v1_requires_reviewed_migration(self):
+        with self.assertRaisesRegex(ModelError, "historical evidence"):
+            Principle.from_dict({"schema_version": 1})
+
     def test_fingerprint_ignores_local_names_but_preserves_calls(self):
         left = fingerprint_code("def f(x):\n    y = x + 1\n    return solve_ik(y, x)\n")
         right = fingerprint_code("def g(a):\n    b = a + 9\n    return solve_ik(b, a)\n")
@@ -176,12 +186,22 @@ class KnowledgeModelTests(unittest.TestCase):
                 exceptions=(),
                 falsifiers=("fails",),
                 child_ids=("skill.a", "skill.b", "skill.c"),
+                abstraction=PrincipleAbstraction(
+                    common_core="preserve clearance",
+                    preserved_variations=("path shape varies",),
+                ),
+                quality_policy=PrincipleQualityPolicy(
+                    min_supporting_skills=3,
+                    min_task_families=2,
+                    max_exception_rate=0.3,
+                    max_operational_fanout=12,
+                ),
                 status="validated",
                 review_required=True,
             )
 
     def test_validated_principle_requires_diverse_support_and_exception_review(self):
-        with self.assertRaisesRegex(ModelError, "two task families"):
+        with self.assertRaisesRegex(ModelError, "2 task families"):
             Principle(
                 id="principle.transport.narrow-support",
                 version="1.0.0",
@@ -197,6 +217,16 @@ class KnowledgeModelTests(unittest.TestCase):
                 exception_review="no exception found in reviewed evidence",
                 falsifiers=("fails",),
                 child_ids=("skill.a", "skill.b", "skill.c"),
+                abstraction=PrincipleAbstraction(
+                    common_core="preserve clearance",
+                    preserved_variations=("path shape varies",),
+                ),
+                quality_policy=PrincipleQualityPolicy(
+                    min_supporting_skills=3,
+                    min_task_families=2,
+                    max_exception_rate=0.3,
+                    max_operational_fanout=12,
+                ),
                 scope=Scope(task_families=("pick-place",)),
                 status="validated",
                 review_required=False,
@@ -357,6 +387,12 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
         self.assertEqual(principle.status, "proposal")
         self.assertTrue(principle.review_required)
         self.assertFalse(principle.falsifiers)
+        self.assertTrue(principle.abstraction.common_core)
+        self.assertEqual(
+            len(principle.abstraction.preserved_variations),
+            len(skills),
+        )
+        self.assertEqual(principle.quality_policy.min_supporting_skills, 3)
 
     def test_principle_requires_review_revision_before_promotion(self):
         skills = [make_skill(index) for index in range(1, 4)]
@@ -374,6 +410,8 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
                 "decision": "preserve obstacle clearance",
                 "invariant": "a grasped object needs a collision-free swept volume",
                 "falsifiers": ["clearance does not change collision rate"],
+                "abstraction": asdict(proposal.abstraction),
+                "quality_policy": asdict(proposal.quality_policy),
                 "exceptions": [
                     {
                         "id": "continuous-contact",
@@ -386,13 +424,96 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
                 "leave_one_family_out_report": "reports/lofo.yaml",
                 "leave_one_family_out_report_hash": "lofo-report-hash",
                 "leave_one_family_out_artifact_hash": "lofo-artifact-hash",
+                "compression_report": "reports/compression.yaml",
+                "compression_report_hash": "compression-report-hash",
+                "compression_artifact_hash": "compression-artifact-hash",
             },
             version="1.1.0",
         )
         self.assertEqual(candidate.status, "candidate")
+        self.assertEqual(
+            candidate.abstraction.common_core,
+            proposal.abstraction.common_core,
+        )
+        strict_candidate = replace(
+            candidate,
+            quality_policy=replace(
+                candidate.quality_policy,
+                min_supporting_skills=4,
+            ),
+        )
+        with self.assertRaisesRegex(ValueError, "support policy"):
+            promote_principle(strict_candidate, version="1.2.0")
         validated = promote_principle(candidate, version="1.2.0")
         self.assertEqual(validated.status, "validated")
         self.assertFalse(validated.review_required)
+
+    def test_principle_review_cannot_weaken_quality_policy(self):
+        skills = [make_skill(index) for index in range(1, 4)]
+        proposal = propose_principle(
+            skills,
+            checkpoint_for_skills(*skills),
+            ConsolidationPolicy(),
+        )
+        review = {
+            "reviewer": "reviewer-a",
+            "reviewed_at": "2026-01-02T00:00:00+00:00",
+            "when": {"fact": "state.object_grasped", "op": "eq", "value": True},
+            "decision": "preserve obstacle clearance",
+            "invariant": "a grasped object needs a collision-free swept volume",
+            "falsifiers": ["clearance does not change collision rate"],
+            "exceptions": [
+                {
+                    "id": "continuous-contact",
+                    "when": {
+                        "fact": "task.continuous_contact",
+                        "op": "eq",
+                        "value": True,
+                    },
+                }
+            ],
+            "abstraction": asdict(proposal.abstraction),
+            "quality_policy": {
+                **asdict(proposal.quality_policy),
+                "max_operational_fanout": 100,
+            },
+            "counterexample_report": "reports/counterexamples.yaml",
+            "counterexample_report_hash": "counterexample-report-hash",
+            "counterexample_artifact_hash": "counterexample-artifact-hash",
+            "leave_one_family_out_report": "reports/lofo.yaml",
+            "leave_one_family_out_report_hash": "lofo-report-hash",
+            "leave_one_family_out_artifact_hash": "lofo-artifact-hash",
+            "compression_report": "reports/compression.yaml",
+            "compression_report_hash": "compression-report-hash",
+            "compression_artifact_hash": "compression-artifact-hash",
+        }
+        with self.assertRaisesRegex(ValueError, "cannot weaken"):
+            review_principle(proposal, review, version="1.1.0")
+
+    def test_principle_compression_report_rejects_verbose_abstraction(self):
+        skills = [make_skill(index) for index in range(1, 4)]
+        proposal = propose_principle(
+            skills,
+            checkpoint_for_skills(*skills),
+            ConsolidationPolicy(),
+        )
+        report = build_compression_report(
+            proposal,
+            {
+                "title": "Verbose abstraction",
+                "summary": "repeated filler " * 200,
+                "when": {},
+                "decision": "move safely",
+                "invariant": "preserve clearance",
+                "abstraction": {
+                    "common_core": "preserve clearance",
+                    "preserved_variations": ["path geometry"],
+                },
+            },
+            skills,
+        )
+        self.assertFalse(report["passed"])
+        self.assertGreater(report["principle_tokens"], report["direct_child_tokens"])
 
     def test_principle_proposal_requires_unique_skills_frozen_in_checkpoint(self):
         skills = [make_skill(index) for index in range(1, 4)]
@@ -610,6 +731,20 @@ class ForestAndRetrievalTests(unittest.TestCase):
             exceptions=(),
             falsifiers=(),
             child_ids=tuple(sorted(value.id for value in skills)),
+            abstraction=PrincipleAbstraction(
+                common_core="preserve safe transport state",
+                preserved_variations=tuple(
+                    f"{value.id} retains its operation-specific path"
+                    for value in skills
+                ),
+                excluded_details=("task-specific target poses",),
+            ),
+            quality_policy=PrincipleQualityPolicy(
+                min_supporting_skills=3,
+                min_task_families=2,
+                max_exception_rate=0.3,
+                max_operational_fanout=12,
+            ),
             scope=Scope(
                 task_families=tuple(
                     sorted(
@@ -669,55 +804,76 @@ class ForestAndRetrievalTests(unittest.TestCase):
         )
         lofo_hash = content_hash(lofo)
         self.repository.save_audit("principle-lofo", lofo_hash, lofo)
-        review = bind_principle_review(
-            proposal,
-            {
-                "reviewer": "reviewer-a",
-                "reviewed_at": "2026-01-02T00:00:00+00:00",
-                "title": "Preserve clearance during transport",
-                "summary": (
-                    "Choose transit patterns that preserve grasp and obstacle clearance."
-                ),
-                "when": {
-                    "fact": "state.object_grasped",
-                    "op": "eq",
-                    "value": True,
-                },
-                "decision_mode": "require",
-                "decision": "select a collision-safe transit pattern",
-                "invariant": (
-                    "a grasped object needs clearance throughout transport"
-                ),
-                "expected_effects": ["grasp remains secure"],
-                "exceptions": [
-                    {
-                        "id": "continuous-contact",
-                        "when": {
-                            "fact": "task.continuous_contact",
-                            "op": "eq",
-                            "value": True,
-                        },
-                    }
-                ],
-                "falsifiers": [
-                    "clearance-preserving patterns do not reduce collisions"
-                ],
-                "counterexample_report": (
-                    "proposals/principle-counterexample/"
-                    f"{counterexample_hash}.yaml"
-                ),
-                "counterexample_report_hash": counterexample["report_hash"],
-                "counterexample_artifact_hash": counterexample_hash,
-                "counterexample_dispositions": (
-                    validate_counterexample_dispositions(counterexample, {})
-                ),
-                "leave_one_family_out_report": (
-                    f"proposals/principle-lofo/{lofo_hash}.yaml"
-                ),
-                "leave_one_family_out_report_hash": lofo["report_hash"],
-                "leave_one_family_out_artifact_hash": lofo_hash,
+        review_payload = {
+            "reviewer": "reviewer-a",
+            "reviewed_at": "2026-01-02T00:00:00+00:00",
+            "title": "Preserve clearance during transport",
+            "summary": "Keep grasp and clearance.",
+            "when": {
+                "fact": "state.object_grasped",
+                "op": "eq",
+                "value": True,
             },
+            "decision_mode": "require",
+            "decision": "use a collision-safe path",
+            "invariant": "grasped objects require clearance",
+            "expected_effects": [],
+            "exceptions": [
+                {
+                    "id": "continuous-contact",
+                    "when": {
+                        "fact": "task.continuous_contact",
+                        "op": "eq",
+                        "value": True,
+                    },
+                }
+            ],
+            "falsifiers": [
+                "clearance-preserving patterns do not reduce collisions"
+            ],
+            "abstraction": {
+                "common_core": "preserve grasp clearance",
+                "preserved_variations": ["path geometry", "motion backend"],
+                "excluded_details": ["target pose"],
+            },
+            "quality_policy": asdict(proposal.quality_policy),
+            "counterexample_report": (
+                "proposals/principle-counterexample/"
+                f"{counterexample_hash}.yaml"
+            ),
+            "counterexample_report_hash": counterexample["report_hash"],
+            "counterexample_artifact_hash": counterexample_hash,
+            "counterexample_dispositions": validate_counterexample_dispositions(
+                counterexample, {}
+            ),
+            "leave_one_family_out_report": (
+                f"proposals/principle-lofo/{lofo_hash}.yaml"
+            ),
+            "leave_one_family_out_report_hash": lofo["report_hash"],
+            "leave_one_family_out_artifact_hash": lofo_hash,
+        }
+        compression = build_compression_report(
+            proposal,
+            review_payload,
+            supporting_skills(self.repository, proposal),
         )
+        self.assertTrue(compression["passed"], compression)
+        compression_hash = content_hash(compression)
+        self.repository.save_audit(
+            "principle-compression",
+            compression_hash,
+            compression,
+        )
+        review_payload.update(
+            {
+                "compression_report": (
+                    f"proposals/principle-compression/{compression_hash}.yaml"
+                ),
+                "compression_report_hash": compression["report_hash"],
+                "compression_artifact_hash": compression_hash,
+            }
+        )
+        review = bind_principle_review(proposal, review_payload)
         candidate = review_principle(
             proposal,
             review,
@@ -962,6 +1118,37 @@ class ForestAndRetrievalTests(unittest.TestCase):
         self.assertTrue(portfolio.fallback_used)
         issue_codes = {issue.code for issue in validate_repository(self.repository).issues}
         self.assertIn("unrecorded-principle-promotion", issue_codes)
+
+    def test_principle_promotion_rejects_tampered_compression_artifact(self):
+        compression_hash = str(
+            self.principle.provenance["compression_artifact_hash"]
+        )
+        compression = self.repository.load_audit(
+            "principle-compression",
+            compression_hash,
+        )
+        path = (
+            self.repository.root
+            / "proposals"
+            / "principle-compression"
+            / f"{compression_hash}.yaml"
+        )
+        write_structured_atomic(
+            path,
+            {**compression, "principle_tokens": 999999},
+        )
+        context = TaskContext(
+            task_id="task-compression-tamper-gate",
+            suite="libero",
+            task_language="transport the grasped object",
+            task_family="pick-place",
+            vertical_capabilities=("transport",),
+            facts={"state": {"object_grasped": True}},
+        )
+        portfolio = compile_portfolio(self.repository, "snapshot-n3", context)
+        self.assertFalse(portfolio.principle_ids)
+        self.assertTrue(portfolio.skill_ids)
+        self.assertTrue(portfolio.fallback_used)
 
     def test_new_tree_proposal_does_not_shadow_active_revision(self):
         proposed_revision = replace(self.tree, version="2.0.0")

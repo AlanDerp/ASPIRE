@@ -16,6 +16,7 @@ from .checkpoints import freeze_checkpoint, instances_at_checkpoint
 from .case_review import review_negative_transfer
 from .claim_audit import audit_claim_files
 from .completion import audit_blueprint_completion
+from .compression import build_compression_report, supporting_skills
 from .consolidation import canonicalize_cluster, propose_principle
 from .cost import build_cost_report
 from .counterexample import (
@@ -315,6 +316,29 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         review_payload["leave_one_family_out_artifact_hash"] = (
             lofo_artifact_hash
         )
+        compression_report = build_compression_report(
+            proposal,
+            review_payload,
+            supporting_skills(repository, proposal),
+        )
+        if compression_report["passed"] is not True:
+            raise ValueError(
+                "reviewed principle does not compress direct child injection"
+            )
+        compression_artifact_hash = content_hash(compression_report)
+        repository.save_audit(
+            "principle-compression",
+            compression_artifact_hash,
+            compression_report,
+        )
+        review_payload["compression_report"] = (
+            "proposals/principle-compression/"
+            f"{compression_artifact_hash}.yaml"
+        )
+        review_payload["compression_report_hash"] = compression_report[
+            "report_hash"
+        ]
+        review_payload["compression_artifact_hash"] = compression_artifact_hash
         review_payload = bind_principle_review(proposal, review_payload)
         value = review_principle(
             proposal,

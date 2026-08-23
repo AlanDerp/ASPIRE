@@ -2,6 +2,8 @@
   "checkpoint_every_instances": 20,
   "leave_one_family_out_required": true,
   "max_single_task_share": 0.5,
+  "max_principle_exception_rate": 0.3,
+  "max_principle_fanout": 12,
   "min_canonical_skills_for_principle": 3,
   "min_cluster_instances": 3,
   "min_cluster_tasks": 3,

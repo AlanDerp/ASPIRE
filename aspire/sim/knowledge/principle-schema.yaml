@@ -1,0 +1,38 @@
+schema_version: 2
+kind: principle
+migration: migrations/principle-v1-to-v2.md
+required:
+  - id
+  - version
+  - vertical_capability
+  - title
+  - summary
+  - when
+  - decision_mode
+  - decision
+  - invariant
+  - expected_effects
+  - scope
+  - exceptions
+  - falsifiers
+  - child_ids
+  - abstraction
+  - quality_policy
+  - provenance
+abstraction_required:
+  - common_core
+  - preserved_variations
+abstraction_optional:
+  - excluded_details
+quality_policy_required:
+  - min_supporting_skills
+  - min_task_families
+  - max_exception_rate
+  - max_operational_fanout
+  - leave_one_family_out_required
+invariants:
+  - A principle originates from repetition-audited canonical skills at a frozen checkpoint.
+  - common_core states the repeated invariant; preserved_variations records details the abstraction must not erase.
+  - A validated revision meets its own support and family thresholds and has review, counterexample, LOFO, and promotion evidence.
+  - Materialized exception-rate and fan-out audits use the stricter of repository and per-principle limits.
+  - Human review may tighten but cannot weaken the proposal quality policy.
