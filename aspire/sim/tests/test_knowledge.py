@@ -416,6 +416,7 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
                     {
                         "id": "continuous-contact",
                         "when": {"fact": "task.continuous_contact", "op": "eq", "value": True},
+                        "response": "hold contact",
                     }
                 ],
                 "counterexample_report": "reports/counterexamples.yaml",
@@ -431,6 +432,23 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
             version="1.1.0",
         )
         self.assertEqual(candidate.status, "candidate")
+        with self.assertRaisesRegex(
+            ModelError,
+            "exceptions require id, when, and response",
+        ):
+            replace(
+                candidate,
+                exceptions=(
+                    {
+                        "id": "continuous-contact",
+                        "when": {
+                            "fact": "task.continuous_contact",
+                            "op": "eq",
+                            "value": True,
+                        },
+                    },
+                ),
+            )
         self.assertEqual(
             candidate.abstraction.common_core,
             proposal.abstraction.common_core,
@@ -470,6 +488,7 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
                         "op": "eq",
                         "value": True,
                     },
+                    "response": "hold contact",
                 }
             ],
             "abstraction": asdict(proposal.abstraction),
@@ -826,6 +845,7 @@ class ForestAndRetrievalTests(unittest.TestCase):
                         "op": "eq",
                         "value": True,
                     },
+                    "response": "hold contact",
                 }
             ],
             "falsifiers": [
@@ -1668,6 +1688,56 @@ class ForestAndRetrievalTests(unittest.TestCase):
             f"overlay-exception:{edge.id}",
             {item["reason"] for item in portfolio.exclusions},
         )
+        exclusion = next(
+            item
+            for item in portfolio.exclusions
+            if item["reason"] == f"overlay-exception:{edge.id}"
+        )
+        self.assertEqual(exclusion["guidance"], edge.rationale)
+        self.assertIn(f"Guidance: {edge.rationale}", portfolio.markdown)
+
+    def test_guarded_overlay_contradiction_exposes_reviewed_guidance(self):
+        edge = self.promote_edge(
+            OverlayEdge(
+                id="edge.transport.active-contradiction",
+                version="1.0.0",
+                kind="contradicts",
+                source_id=self.skills[0].id,
+                source_version=self.skills[0].version,
+                target_id=self.skills[1].id,
+                target_version=self.skills[1].version,
+                guard={
+                    "fact": "task.use_guarded_alternative",
+                    "op": "eq",
+                    "value": True,
+                },
+                provenance={"checkpoint_id": "snapshot-n3"},
+            )
+        )
+        context = TaskContext(
+            task_id="task-conflict",
+            suite="libero",
+            task_language="transport with a guarded alternative",
+            task_family="pick-place",
+            vertical_capabilities=("transport",),
+            facts={
+                "state": {"object_grasped": True},
+                "task": {
+                    "continuous_contact": False,
+                    "use_guarded_alternative": True,
+                },
+            },
+        )
+        portfolio = compile_portfolio(self.repository, "snapshot-n3", context)
+        self.assertIn(self.skills[0].id, portfolio.skill_ids)
+        self.assertNotIn(self.skills[1].id, portfolio.skill_ids)
+        exclusion = next(
+            item
+            for item in portfolio.exclusions
+            if item["reason"] == f"overlay-conflict:{edge.id}"
+        )
+        self.assertEqual(exclusion["guidance"], edge.rationale)
+        self.assertIn(f"Guidance: {edge.rationale}", portfolio.markdown)
 
     def test_index_and_tree_first_portfolio(self):
         database = Path(self.temporary.name) / "akl.sqlite3"
@@ -1751,6 +1821,19 @@ class ForestAndRetrievalTests(unittest.TestCase):
         self.assertFalse(portfolio.principle_ids)
         self.assertTrue(portfolio.skill_ids)
         self.assertIn("exception:continuous-contact", {item["reason"] for item in portfolio.exclusions})
+        exclusion = next(
+            item
+            for item in portfolio.exclusions
+            if item["reason"] == "exception:continuous-contact"
+        )
+        self.assertEqual(
+            exclusion["guidance"],
+            "hold contact",
+        )
+        self.assertIn(
+            "Guidance: hold contact",
+            portfolio.markdown,
+        )
 
     def test_golden_items_bind_manifest_children_and_two_reviewers(self):
         manifest = KnowledgeManifest(

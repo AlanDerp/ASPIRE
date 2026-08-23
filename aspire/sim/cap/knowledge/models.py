@@ -351,6 +351,16 @@ class Principle:
         if self.status in {"candidate", "validated", "stable"}:
             if self.review_required:
                 raise ModelError("reviewed principle cannot require review")
+            if any(
+                not exception.get("id")
+                or "when" not in exception
+                or not isinstance(exception.get("response"), str)
+                or not str(exception["response"]).strip()
+                for exception in self.exceptions
+            ):
+                raise ModelError(
+                    "reviewed principle exceptions require id, when, and response"
+                )
         if self.status in {"validated", "stable"}:
             child_minimum = max(3, self.quality_policy.min_supporting_skills)
             if len(set(self.child_ids)) < child_minimum:
@@ -369,8 +379,6 @@ class Principle:
                 )
             if not self.falsifiers:
                 raise ModelError("validated principle requires a falsifier")
-            if any(not exception.get("id") or "when" not in exception for exception in self.exceptions):
-                raise ModelError("validated principle exceptions require id and when")
         if self.status in {"candidate", "validated", "stable"}:
             required_review = (
                 "reviewer",

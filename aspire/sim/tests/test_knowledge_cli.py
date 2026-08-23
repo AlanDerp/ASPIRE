@@ -447,6 +447,7 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
                     {
                         "id": "continuous-contact",
                         "when": {"fact": "task.continuous_contact", "op": "eq", "value": True},
+                        "response": "hold contact",
                     }
                 ],
                 "falsifiers": ["clearance-preserving transport does not reduce collisions"],

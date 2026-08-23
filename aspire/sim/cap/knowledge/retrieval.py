@@ -276,7 +276,11 @@ def render_portfolio(
         )
     if exclusions:
         lines.extend(["## Explicit exclusions", ""])
-        lines.extend(f"- `{item['id']}`: {item['reason']}" for item in exclusions)
+        for item in exclusions:
+            line = f"- `{item['id']}`: {item['reason']}"
+            if guidance := item.get("guidance"):
+                line += f". Guidance: {guidance}"
+            lines.append(line)
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -367,7 +371,22 @@ def compile_portfolio(
             if support.support_sufficiency != "sufficient":
                 allowed, reason = False, f"support:{support.support_sufficiency}"
         if not allowed:
-            exclusions.append({"id": value.id, "reason": reason})
+            exclusion = {"id": value.id, "reason": reason}
+            if reason.startswith("exception:"):
+                exception_id = reason.removeprefix("exception:")
+                matching_exception = next(
+                    (
+                        exception
+                        for exception in value.exceptions
+                        if exception.get("id") == exception_id
+                    ),
+                    None,
+                )
+                if matching_exception is not None:
+                    response = matching_exception.get("response")
+                    if isinstance(response, str) and response.strip():
+                        exclusion["guidance"] = response.strip()
+            exclusions.append(exclusion)
             continue
         score = _relevance(
             context,
@@ -460,7 +479,11 @@ def compile_portfolio(
                 elif not allowed:
                     exclusions.append({"id": source.id, "reason": f"exception-{reason}"})
             exclusions.append(
-                {"id": edge.target_id, "reason": f"overlay-exception:{edge.id}"}
+                {
+                    "id": edge.target_id,
+                    "reason": f"overlay-exception:{edge.id}",
+                    "guidance": edge.rationale,
+                }
             )
             selected_edges.append(edge)
             selected_ids = {value.id for value in selected_principles} | {
@@ -481,7 +504,11 @@ def compile_portfolio(
                 value for value in selected_skills if value.id not in blocked_ids
             ]
             exclusions.append(
-                {"id": edge.target_id, "reason": f"overlay-conflict:{edge.id}"}
+                {
+                    "id": edge.target_id,
+                    "reason": f"overlay-conflict:{edge.id}",
+                    "guidance": edge.rationale,
+                }
             )
             selected_edges.append(edge)
             selected_ids = {value.id for value in selected_principles} | {
