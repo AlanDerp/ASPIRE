@@ -62,6 +62,7 @@ from aspire.sim.cap.knowledge.review import (
     bind_principle_review,
     promote_principle,
     review_principle,
+    validate_principle_review_content,
 )
 from aspire.sim.cap.knowledge.review_artifacts import (
     finalize_leave_family_out_report,
@@ -448,6 +449,24 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
                         },
                     },
                 ),
+            )
+        with self.assertRaisesRegex(
+            ValueError,
+            "exceptions require id, when, and response",
+        ):
+            validate_principle_review_content(
+                {
+                    "exceptions": [
+                        {
+                            "id": "continuous-contact",
+                            "when": {
+                                "fact": "task.continuous_contact",
+                                "op": "eq",
+                                "value": True,
+                            },
+                        }
+                    ]
+                }
             )
         self.assertEqual(
             candidate.abstraction.common_core,
@@ -1757,6 +1776,25 @@ class ForestAndRetrievalTests(unittest.TestCase):
         self.assertEqual(portfolio.principle_ids, (self.principle.id,))
         self.assertTrue(portfolio.skill_ids)
         self.assertIn("Preserve clearance during transport", portfolio.markdown)
+
+    def test_portfolio_fails_closed_when_fixed_content_exceeds_budget(self):
+        context = TaskContext(
+            task_id="task-tiny-budget",
+            suite="libero",
+            task_language="transport the grasped object",
+            task_family="pick-place",
+            vertical_capabilities=("transport",),
+            facts={
+                "state": {"object_grasped": True},
+                "task": {"continuous_contact": False},
+            },
+            token_budget=1,
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "cannot fit governing principles and exclusions",
+        ):
+            compile_portfolio(self.repository, "snapshot-n3", context)
 
     def test_manifest_locks_revisions_and_rejects_held_out_source(self):
         manifest = KnowledgeManifest(

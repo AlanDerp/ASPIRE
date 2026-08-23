@@ -542,6 +542,10 @@ def compile_portfolio(
             exclusions.append({"id": removed.id, "reason": "token-budget"})
             markdown = render_portfolio(context, selected_principles, selected_skills, exclusions)
             estimated_tokens = max(1, len(markdown) // 4)
+        if estimated_tokens > context.token_budget:
+            raise ValueError(
+                "portfolio token budget cannot fit governing principles and exclusions"
+            )
 
     return Portfolio(
         context_hash=content_hash(model_to_dict(context)),

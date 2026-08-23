@@ -32,12 +32,31 @@ def _newer(candidate: str, previous: str) -> str:
     return candidate
 
 
+def validate_principle_review_content(review: dict[str, Any]) -> None:
+    """Validate human-authored review fields before persisting derived evidence."""
+    exceptions = review.get("exceptions", [])
+    if not isinstance(exceptions, list):
+        raise ValueError("principle review exceptions must be a list")
+    if any(
+        not isinstance(exception, dict)
+        or not exception.get("id")
+        or "when" not in exception
+        or not isinstance(exception.get("response"), str)
+        or not str(exception["response"]).strip()
+        for exception in exceptions
+    ):
+        raise ValueError(
+            "reviewed principle exceptions require id, when, and response"
+        )
+
+
 def review_principle(
     proposal: Principle,
     review: dict[str, Any],
     *,
     version: str,
 ) -> Principle:
+    validate_principle_review_content(review)
     if proposal.status != "proposal" or not proposal.review_required:
         raise ValueError("only a review-required proposal can enter principle review")
     required = (

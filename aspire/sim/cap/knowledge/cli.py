@@ -63,6 +63,7 @@ from .review import (
     promote_principle,
     review_principle,
     validate_principle_candidate_evidence,
+    validate_principle_review_content,
 )
 from .runtime import build_runtime_config
 from .run_plan import execute_experiment_plan, materialize_experiment_plan
@@ -267,6 +268,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if args.command == "principle" and args.principle_command == "review":
         proposal = _principle_revision(repository, args.id, args.from_version)
         review_payload = load_structured(args.review)
+        validate_principle_review_content(review_payload)
         counterexample_path = Path(str(review_payload["counterexample_report"]))
         counterexample_report = validate_counterexample_report(
             counterexample_path,
