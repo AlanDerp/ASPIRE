@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from .forest import lineage, validate_forest
+from .forest import descendants, lineage, validate_forest
 from .models import Principle, VerticalTree
 from .repository import KnowledgeRepository
 from .retrieval import resolve_view
@@ -57,12 +57,37 @@ def analyze_placement(
     placement_lineage: tuple[str, ...] = ()
     if not any(issue.code == "tree-cycle" for issue in report.issues):
         placement_lineage = lineage(simulated_tree, principle.id)
-    active_children = [
+    operational_skills = {
         child_id
-        for child_id in principle.child_ids
+        for child_id in descendants(simulated_tree, principle.id)
         if child_id in skills
-        and skills[child_id].status in {"candidate", "validated", "stable"}
+    }
+    operational_descendants = {
+        child_id
+        for child_id in operational_skills
+        if skills[child_id].status in {"candidate", "validated", "stable"}
+    }
+    fanout_limit = principle.quality_policy.max_operational_fanout
+    hub_overflow = len(operational_descendants) > fanout_limit
+    validation_issues = [
+        {
+            "code": issue.code,
+            "subject": issue.subject,
+            "message": issue.message,
+        }
+        for issue in report.issues
     ]
+    if hub_overflow:
+        validation_issues.append(
+            {
+                "code": "principle-hub-overflow",
+                "subject": principle.id,
+                "message": (
+                    f"operational fan-out {len(operational_descendants)} "
+                    f"exceeds {fanout_limit}; split before review"
+                ),
+            }
+        )
     payload = {
         "schema_version": 1,
         "principle_id": principle.id,
@@ -74,23 +99,18 @@ def analyze_placement(
         "previous_parent": previous_parent,
         "depth": max(0, len(placement_lineage) - 1) if placement_lineage else None,
         "direct_fanout": len(principle.child_ids),
-        "active_operational_children": len(active_children),
+        "active_operational_children": len(operational_descendants),
+        "operational_fanout_limit": fanout_limit,
+        "hub_overflow": hub_overflow,
         "operational_coverage": (
-            len(active_children) / len(principle.child_ids)
-            if principle.child_ids
+            len(operational_descendants) / len(operational_skills)
+            if operational_skills
             else 0.0
         ),
         "reparented_children": reparented_children,
         "potential_cycle": any(issue.code == "tree-cycle" for issue in report.issues),
-        "validation_issues": [
-            {
-                "code": issue.code,
-                "subject": issue.subject,
-                "message": issue.message,
-            }
-            for issue in report.issues
-        ],
-        "accepted_for_review": report.ok,
+        "validation_issues": validation_issues,
+        "accepted_for_review": report.ok and not hub_overflow,
         "mutation_performed": False,
     }
     return {**payload, "placement_hash": content_hash(payload)}

@@ -1656,6 +1656,39 @@ class ForestAndRetrievalTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "require an explicit guard"):
             validate_overlay_proposal(self.repository, proposal)
 
+    def test_thousand_child_hub_is_rejected_before_tree_review(self):
+        hub_skills = []
+        for index in range(1000):
+            skill = replace(
+                self.skills[0],
+                id=f"skill.transport.hub-{index:04d}",
+            )
+            self.repository.save_skill(skill)
+            hub_skills.append(skill)
+        principle = replace(
+            self.principle,
+            id="principle.transport.oversized-hub",
+            version="2.0.0",
+            child_ids=tuple(skill.id for skill in hub_skills),
+            status="proposal",
+            review_required=True,
+        )
+        self.repository.save_principle(principle)
+        report = analyze_placement(
+            self.repository,
+            principle,
+            replace(self.tree, version="2.0.0"),
+            self.tree.structural_root,
+        )
+        self.assertEqual(report["active_operational_children"], 1000)
+        self.assertEqual(report["operational_fanout_limit"], 12)
+        self.assertTrue(report["hub_overflow"])
+        self.assertFalse(report["accepted_for_review"])
+        self.assertIn(
+            "principle-hub-overflow",
+            {issue["code"] for issue in report["validation_issues"]},
+        )
+
     def test_counterexample_search_records_scope_conflicts_and_hash(self):
         edge = OverlayEdge(
             id="edge.transport.contradiction",
