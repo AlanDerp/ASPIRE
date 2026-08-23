@@ -73,6 +73,8 @@ def _flat_code(
             selected.append(value)
             lines.extend(addition)
     markdown = "\n".join(lines).rstrip() + "\n"
+    if not _fits(markdown, context.token_budget):
+        raise ValueError("flat-code portfolio cannot fit the token budget")
     return Portfolio(
         context_hash=content_hash(model_to_dict(context)),
         checkpoint_id=checkpoint_id,
@@ -138,6 +140,8 @@ def _canonical_only(
             selected.append(value)
             lines.extend(addition)
     markdown = "\n".join(lines).rstrip() + "\n"
+    if not _fits(markdown, context.token_budget):
+        raise ValueError("canonical-skill portfolio cannot fit the token budget")
     return Portfolio(
         context_hash=content_hash(model_to_dict(context)),
         checkpoint_id=checkpoint_id,
@@ -159,6 +163,7 @@ def _as_summary_tree(
     portfolio: Portfolio,
     repository: KnowledgeRepository,
     manifest: KnowledgeManifest | None,
+    token_budget: int,
 ) -> Portfolio:
     _, principles, _, _ = resolve_view(
         repository,
@@ -173,6 +178,8 @@ def _as_summary_tree(
     lines.extend(["## Selected canonical skills", ""])
     lines.extend(f"- {skill_id}" for skill_id in portfolio.skill_ids)
     markdown = "\n".join(lines).rstrip() + "\n"
+    if not _fits(markdown, token_budget):
+        raise ValueError("summary-tree portfolio cannot fit the token budget")
     return replace(
         portfolio,
         treatment="C",
@@ -217,7 +224,12 @@ def compile_treatment(
         treatment=treatment,
     )
     if treatment == "C":
-        return _as_summary_tree(portfolio, repository, manifest)
+        return _as_summary_tree(
+            portfolio,
+            repository,
+            manifest,
+            context.token_budget,
+        )
     return portfolio
 
 

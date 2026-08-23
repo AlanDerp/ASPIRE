@@ -1795,6 +1795,17 @@ class ForestAndRetrievalTests(unittest.TestCase):
             "cannot fit governing principles and exclusions",
         ):
             compile_portfolio(self.repository, "snapshot-n3", context)
+        for treatment in "AB":
+            with self.subTest(treatment=treatment), self.assertRaisesRegex(
+                ValueError,
+                "cannot fit the token budget",
+            ):
+                compile_treatment(
+                    self.repository,
+                    "snapshot-n3",
+                    context,
+                    treatment,
+                )
 
     def test_manifest_locks_revisions_and_rejects_held_out_source(self):
         manifest = KnowledgeManifest(
