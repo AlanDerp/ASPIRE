@@ -136,7 +136,10 @@ def rebuild_index(
             )
 
         skills, principles, trees, edges = resolve_view(
-            repository, manifest, active_overlay_only=True
+            repository,
+            manifest,
+            active_overlay_only=True,
+            active_tree_only=True,
         )
         for skill in sorted(skills.values(), key=lambda item: (item.id, item.version)):
             scope = _json(skill.scope.__dict__)

@@ -62,6 +62,11 @@ from .runtime import build_runtime_config
 from .run_plan import execute_experiment_plan, materialize_experiment_plan
 from .serialization import content_hash, load_structured, write_structured_atomic
 from .stress import audit_stress_snapshot, build_stress_corpus
+from .tree_review import (
+    prepare_tree_review,
+    validate_tree_proposal,
+    validate_tree_review,
+)
 from .verification import verify_deterministic_rebuild
 
 
@@ -190,7 +195,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if args.command == "manifest" and args.manifest_command == "save":
         value = KnowledgeManifest.from_dict(load_structured(args.file))
         repository.load_checkpoint(value.checkpoint_id)
-        resolve_view(repository, value, active_overlay_only=True)
+        resolve_view(
+            repository,
+            value,
+            active_overlay_only=True,
+            active_tree_only=True,
+        )
         path = repository.save_manifest(value)
         return {"path": str(path), "manifest": model_to_dict(value)}
 
@@ -315,7 +325,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             raise ValueError(f"principle not found: {args.id}")
         return {"metrics": model_to_dict(principle_metrics(repository, principles[args.id]))}
 
-    if args.command == "forest" and args.forest_command == "save-tree":
+    if args.command == "forest" and args.forest_command == "propose-tree":
         parents = load_structured(args.parents).get("parent_by_child", {})
         value = VerticalTree(
             id=args.id,
@@ -325,8 +335,76 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             checkpoint_id=args.checkpoint,
             parent_by_child=parents,
         )
+        validate_tree_proposal(repository, value)
         path = repository.save_tree(value)
         return {"path": str(path), "tree": model_to_dict(value)}
+
+    if args.command == "forest" and args.forest_command == "review-tree":
+        tree = _tree_revision(repository, args.id, args.tree_version)
+        tree_manifest = repository.load_manifest(
+            args.manifest, args.manifest_version
+        )
+        resolve_view(
+            repository,
+            tree_manifest,
+            active_overlay_only=True,
+            active_tree_only=True,
+        )
+        review_payload = prepare_tree_review(
+            repository,
+            tree,
+            tree_manifest,
+            load_structured(args.review),
+        )
+        review_hash = content_hash(review_payload)
+        path = repository.save_audit("tree-review", review_hash, review_payload)
+        repository.append_evidence(
+            {
+                "event": "knowledge.tree-reviewed",
+                "subject": tree.id,
+                "version": tree.version,
+                "tree_hash": content_hash(model_to_dict(tree)),
+                "checkpoint_id": tree.checkpoint_id,
+                "manifest_id": review_payload["manifest_id"],
+                "manifest_version": review_payload["manifest_version"],
+                "manifest_hash": review_payload["manifest_hash"],
+                "review_artifact_hash": review_hash,
+                "at": review_payload["reviewed_at"],
+                "reviewer": review_payload["reviewer"],
+            },
+            stream="lifecycle",
+        )
+        return {
+            "path": str(path),
+            "review_artifact_hash": review_hash,
+            "tree": model_to_dict(tree),
+        }
+
+    if args.command == "forest" and args.forest_command == "promote-tree":
+        tree = _tree_revision(repository, args.id, args.tree_version)
+        review_payload = validate_tree_review(
+            repository, tree, args.review_hash
+        )
+        repository.append_evidence(
+            {
+                "event": "knowledge.tree-validated",
+                "subject": tree.id,
+                "version": tree.version,
+                "tree_hash": content_hash(model_to_dict(tree)),
+                "checkpoint_id": tree.checkpoint_id,
+                "manifest_id": review_payload["manifest_id"],
+                "manifest_version": review_payload["manifest_version"],
+                "manifest_hash": review_payload["manifest_hash"],
+                "review_artifact_hash": args.review_hash,
+                "at": review_payload["reviewed_at"],
+                "reviewer": review_payload["reviewer"],
+            },
+            stream="lifecycle",
+        )
+        return {
+            "review_artifact_hash": args.review_hash,
+            "tree": model_to_dict(tree),
+        }
 
     if args.command == "forest" and args.forest_command == "placement":
         principle = _principle_revision(
@@ -350,7 +428,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         overlay_manifest = repository.load_manifest(
             args.manifest, args.manifest_version
         )
-        resolve_view(repository, overlay_manifest, active_overlay_only=True)
+        resolve_view(
+            repository,
+            overlay_manifest,
+            active_overlay_only=True,
+            active_tree_only=True,
+        )
         validate_overlay_manifest_binding(overlay_proposal, overlay_manifest)
         review_payload = load_structured(args.review)
         reviewed_edge = review_overlay_edge(
@@ -435,7 +518,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             else None
         )
         skills, principles, trees, edges = resolve_view(
-            repository, manifest, active_overlay_only=True
+            repository,
+            manifest,
+            active_overlay_only=True,
+            active_tree_only=True,
         )
         report = validate_forest(
             list(trees.values()),
@@ -820,13 +906,23 @@ def build_parser() -> argparse.ArgumentParser:
     show_forest.add_argument("--manifest")
     show_forest.add_argument("--manifest-version")
     show_forest.add_argument("--output", type=Path)
-    save_tree = forest.add_parser("save-tree")
-    save_tree.add_argument("--id", required=True)
-    save_tree.add_argument("--version", default="1.0.0")
-    save_tree.add_argument("--vertical", required=True)
-    save_tree.add_argument("--structural-root", required=True)
-    save_tree.add_argument("--checkpoint", required=True)
-    save_tree.add_argument("--parents", type=Path, required=True)
+    propose_tree = forest.add_parser("propose-tree")
+    propose_tree.add_argument("--id", required=True)
+    propose_tree.add_argument("--version", default="1.0.0")
+    propose_tree.add_argument("--vertical", required=True)
+    propose_tree.add_argument("--structural-root", required=True)
+    propose_tree.add_argument("--checkpoint", required=True)
+    propose_tree.add_argument("--parents", type=Path, required=True)
+    review_tree = forest.add_parser("review-tree")
+    review_tree.add_argument("--id", required=True)
+    review_tree.add_argument("--tree-version", required=True)
+    review_tree.add_argument("--manifest", required=True)
+    review_tree.add_argument("--manifest-version", required=True)
+    review_tree.add_argument("--review", type=Path, required=True)
+    promote_tree = forest.add_parser("promote-tree")
+    promote_tree.add_argument("--id", required=True)
+    promote_tree.add_argument("--tree-version", required=True)
+    promote_tree.add_argument("--review-hash", required=True)
     placement = forest.add_parser("placement")
     placement.add_argument("--principle", required=True)
     placement.add_argument("--principle-version")

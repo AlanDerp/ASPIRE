@@ -48,6 +48,7 @@ from aspire.sim.cap.knowledge.overlay_review import (
     promote_overlay_edge,
     review_overlay_edge,
 )
+from aspire.sim.cap.knowledge.placement import analyze_placement
 from aspire.sim.cap.knowledge.projection import lineage_view, overlay_view, vertical_forest
 from aspire.sim.cap.knowledge.repository import KnowledgeRepository, RepositoryConflict
 from aspire.sim.cap.knowledge.review import promote_principle, review_principle
@@ -70,6 +71,10 @@ from aspire.sim.cap.knowledge.stress import (
     STRESS_KINDS,
     audit_stress_snapshot,
     build_stress_corpus,
+)
+from aspire.sim.cap.knowledge.tree_review import (
+    prepare_tree_review,
+    validate_tree_review,
 )
 
 
@@ -615,9 +620,89 @@ class ForestAndRetrievalTests(unittest.TestCase):
             },
         )
         self.repository.save_tree(self.tree)
+        self.promote_tree(self.tree)
 
     def tearDown(self):
         self.temporary.cleanup()
+
+    def promote_tree(self, tree: VerticalTree) -> None:
+        nodes = set(tree.parent_by_child) | (
+            set(tree.parent_by_child.values()) - {tree.structural_root}
+        )
+        skills = {
+            value.id: value
+            for value in self.repository.list_skills()
+            if value.id in nodes
+        }
+        principles = {
+            value.id: value
+            for value in self.repository.list_principles()
+            if value.id in nodes
+        }
+        base_manifest = KnowledgeManifest(
+            id="tree-review-base",
+            version=tree.version,
+            checkpoint_id=tree.checkpoint_id,
+            skill_versions={value.id: value.version for value in skills.values()},
+            principle_versions={
+                value.id: value.version for value in principles.values()
+            },
+            tree_versions={},
+            edge_versions={},
+            created_at="2026-01-02T00:00:00+00:00",
+            source_partition="development",
+        )
+        self.repository.save_manifest(base_manifest)
+        placement_paths = {}
+        for principle in principles.values():
+            report = analyze_placement(
+                self.repository,
+                principle,
+                tree,
+                tree.parent_by_child[principle.id],
+            )
+            path = Path(self.temporary.name) / (
+                f"placement-{tree.version}-{principle.id}.yaml"
+            )
+            write_structured_atomic(path, report)
+            placement_paths[principle.id] = str(path)
+        raw_review = {
+            "decision": "accept",
+            "reviewer": "tree-reviewer-a",
+            "reviewed_at": "2026-01-03T00:00:00+00:00",
+            "rationale": "primary parents, coverage, and cycles were reviewed",
+            "tree_hash": content_hash(asdict(tree)),
+            "checkpoint_id": tree.checkpoint_id,
+            "manifest_id": base_manifest.id,
+            "manifest_version": base_manifest.version,
+            "manifest_hash": content_hash(asdict(base_manifest)),
+            "placement_reports": placement_paths,
+        }
+        review = prepare_tree_review(
+            self.repository, tree, base_manifest, raw_review
+        )
+        review_hash = content_hash(review)
+        self.repository.save_audit("tree-review", review_hash, review)
+        reviewed_event = {
+            "subject": tree.id,
+            "version": tree.version,
+            "tree_hash": content_hash(asdict(tree)),
+            "checkpoint_id": tree.checkpoint_id,
+            "manifest_id": base_manifest.id,
+            "manifest_version": base_manifest.version,
+            "manifest_hash": content_hash(asdict(base_manifest)),
+            "review_artifact_hash": review_hash,
+            "reviewer": review["reviewer"],
+        }
+        self.repository.append_evidence(
+            {"event": "knowledge.tree-reviewed", **reviewed_event},
+            stream="lifecycle",
+        )
+        validate_tree_review(self.repository, tree, review_hash)
+        self.repository.append_evidence(
+            {"event": "knowledge.tree-validated", **reviewed_event},
+            stream="lifecycle",
+        )
 
     def promote_edge(
         self, proposal: OverlayEdge, *, record_event: bool = True
@@ -694,6 +779,12 @@ class ForestAndRetrievalTests(unittest.TestCase):
     def test_repository_integrity_covers_lineage_and_support(self):
         report = validate_repository(self.repository)
         self.assertTrue(report.ok, report.issues)
+
+    def test_new_tree_proposal_does_not_shadow_active_revision(self):
+        proposed_revision = replace(self.tree, version="2.0.0")
+        self.repository.save_tree(proposed_revision)
+        projection = vertical_forest(self.repository)
+        self.assertEqual(projection["trees"][0]["tree_version"], self.tree.version)
 
     def test_integrity_rejects_principle_support_outside_its_checkpoint(self):
         instance_ids = self.skills[0].instance_ids
@@ -926,6 +1017,14 @@ class ForestAndRetrievalTests(unittest.TestCase):
         report = validate_forest([tree], [*self.skills, extra], [self.principle], [])
         self.assertIn("principle-child-mismatch", {issue.code for issue in report.issues})
 
+    def test_tree_rejects_parent_node_without_its_own_primary_parent(self):
+        tree = replace(
+            self.tree,
+            parent_by_child={self.skills[0].id: self.principle.id},
+        )
+        report = validate_forest([tree], self.skills, [self.principle], [])
+        self.assertIn("missing-primary-parent", {issue.code for issue in report.issues})
+
     def test_topdown_limits_children_per_principle(self):
         extra = replace(
             self.skills[0],
@@ -958,6 +1057,7 @@ class ForestAndRetrievalTests(unittest.TestCase):
             },
             stream="lifecycle",
         )
+        self.promote_tree(revised_tree)
         context = TaskContext(
             task_id="task-eval",
             suite="libero",

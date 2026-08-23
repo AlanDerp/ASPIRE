@@ -10,11 +10,13 @@ from typing import Literal
 
 from .forest import descendants, lineage
 from .models import (
+    CanonicalSkill,
     ImpactReport,
     KnowledgeManifest,
     OverlayEdge,
     Principle,
     PrincipleMetrics,
+    VerticalTree,
 )
 from .repository import KnowledgeRepository
 from .retrieval import resolve_view
@@ -101,9 +103,14 @@ def principle_metrics(
     principle: Principle,
     *,
     invalidated: set[str] | None = None,
+    skills: dict[str, CanonicalSkill] | None = None,
+    trees: dict[str, VerticalTree] | None = None,
 ) -> PrincipleMetrics:
     invalidated = invalidated if invalidated is not None else invalidated_refs(repository)
-    skills, _, trees, _ = resolve_view(repository, None)
+    if skills is None or trees is None:
+        skills, _, trees, _ = resolve_view(
+            repository, None, active_tree_only=True
+        )
     instances = {value.id: value for value in repository.list_instances()}
     supporting_skill_ids: set[str] = set()
     depths: list[int] = []
@@ -173,7 +180,9 @@ def principle_metrics(
 
 
 def impact_report(repository: KnowledgeRepository, ref: str) -> ImpactReport:
-    skills, principles, trees, _ = resolve_view(repository, None)
+    skills, principles, trees, _ = resolve_view(
+        repository, None, active_tree_only=True
+    )
     instances = {value.id: value for value in repository.list_instances()}
     if ref not in instances and ref not in skills and ref not in principles:
         raise ValueError(f"knowledge reference not found: {ref}")
@@ -199,7 +208,11 @@ def impact_report(repository: KnowledgeRepository, ref: str) -> ImpactReport:
     invalidated = invalidated_refs(repository) | {ref}
     support: dict[str, str] = {
         principle_id: principle_metrics(
-            repository, principles[principle_id], invalidated=invalidated
+            repository,
+            principles[principle_id],
+            invalidated=invalidated,
+            skills=skills,
+            trees=trees,
         ).support_sufficiency
         for principle_id in sorted(affected_principles)
     }

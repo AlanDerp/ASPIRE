@@ -25,9 +25,9 @@ This document separates engineering completion from empirical research claims.
 | Repetition before canonicalization | `repetition.py`, `consolidation.py`; thresholds only nominate clusters, explicit pairwise review accepts them, and shared audit/policy artifacts are stored once by content hash |
 | No direct principle generation | Proposal recomputes a connected canonical-skill repetition audit over exact frozen child revisions; direct CLI save is absent and exact promotion events gate Actor visibility |
 | Explicit principle review | `review.py`, `review_artifacts.py`; proposal → candidate → validated with hash-checked counterexample dispositions, all-family LOFO evidence, exceptions and falsifiers |
-| Counterexample and placement review | `counterexample.py`, `placement.py`; frozen-development candidate search with hash validation and read-only parent/depth/fan-out/coverage/cycle report |
-| Vertical forest + overlay | `forest.py`, `overlay_review.py`; cycles, primary parents, vertical membership, declared children and dangling edges validated; exact endpoint revisions pass proposal → reviewed candidate → promoted revision before activation |
-| Exact revision locks | `KnowledgeManifest`; checkpoint plus exact skill/principle/tree/edge versions and development partition |
+| Counterexample and placement review | `counterexample.py`, `placement.py`, `tree_review.py`; frozen-development candidate search plus content-addressed parent/depth/fan-out/coverage/cycle reports for every promoted tree placement |
+| Vertical forest + overlay | `forest.py`, `tree_review.py`, `overlay_review.py`; both primary tree structure and cross-tree relations pass exact base-manifest-bound proposal → review → promotion gates before activation |
+| Exact revision locks | `KnowledgeManifest`; checkpoint plus exact skill/principle/tree/edge versions and development partition; proposed trees/edges are rejected at manifest save |
 | Rebuildable three-layer index | `index.py`; checkpoint instances, active manifest nodes, FTS, tree/overlay and materialized principle metrics |
 | Tree-first retrieval | `retrieval.py`; applicability, scope, exception, support, API, per-principle fan-out, global skill and token gates |
 | Overlay behavior | guarded `requires`, `exception-to`, `contradicts`, and `can-follow`; only exact promotion-event-bound revisions enter Actor context, projections, manifests, or SQLite indexes |

@@ -35,7 +35,12 @@ def audit_maintenance(
     max_principle_fanout: int = 12,
     max_exception_rate: float = 0.2,
 ) -> dict:
-    skills, principles, _, edges = resolve_view(repository, None)
+    skills, principles, _, edges = resolve_view(
+        repository,
+        None,
+        active_overlay_only=True,
+        active_tree_only=True,
+    )
     invalidated = invalidated_refs(repository)
     signatures: dict[str, list[str]] = {}
     metrics = {}

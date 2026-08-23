@@ -150,12 +150,25 @@ versions, including only promoted overlay revisions. Then run the integrity
 gate and build the derived index:
 
 ```bash
-python -m aspire.sim.cap.knowledge --root knowledge manifest save --file <manifest.yaml>
-python -m aspire.sim.cap.knowledge --root knowledge forest validate
+python -m aspire.sim.cap.knowledge --root knowledge forest propose-tree \
+  --id <tree-id> --version 1.0.0 --vertical <vertical> \
+  --structural-root <root-id> --checkpoint <checkpoint-id> \
+  --parents <parent-map.yaml>
 python -m aspire.sim.cap.knowledge --root knowledge forest placement \
   --principle <principle-id> --principle-version <version> \
   --tree <tree-id> --tree-version <version> --parent <root-or-principle-id> \
   --output knowledge/proposals/<principle-id>/placement.yaml
+python -m aspire.sim.cap.knowledge --root knowledge manifest save \
+  --file <base-manifest-with-exact-nodes-and-no-new-tree.yaml>
+python -m aspire.sim.cap.knowledge --root knowledge forest review-tree \
+  --id <tree-id> --tree-version 1.0.0 \
+  --manifest <base-manifest-id> --manifest-version <base-version> \
+  --review <tree-review.yaml>
+python -m aspire.sim.cap.knowledge --root knowledge forest promote-tree \
+  --id <tree-id> --tree-version 1.0.0 --review-hash <review-artifact-hash>
+python -m aspire.sim.cap.knowledge --root knowledge manifest save \
+  --file <new-active-manifest-with-promoted-tree.yaml>
+python -m aspire.sim.cap.knowledge --root knowledge forest validate
 python -m aspire.sim.cap.knowledge --root knowledge overlay validate \
   --manifest libero-active --manifest-version 1.0.0
 python -m aspire.sim.cap.knowledge --root knowledge index build \
@@ -165,7 +178,10 @@ python -m aspire.sim.cap.knowledge --root knowledge index build \
 
 Placement analysis is read-only and reports primary parent, depth, direct
 fan-out, active operational coverage, reparenting, and potential cycles before
-the tree revision is saved.
+activation. `review-tree` requires one accepted placement report per principle,
+copies those reports into content-addressed repository artifacts, and binds the
+tree hash, checkpoint, node revisions, and base manifest. A manifest containing
+only a proposed or reviewed-but-unpromoted tree fails closed.
 
 ## 4. Compile A–F under fixed inputs
 

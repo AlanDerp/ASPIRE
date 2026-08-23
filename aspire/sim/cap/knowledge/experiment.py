@@ -99,7 +99,12 @@ def _canonical_only(
 ) -> Portfolio:
     checkpoint = repository.load_checkpoint(checkpoint_id)
     instances_at_checkpoint(repository, checkpoint)
-    skills, _, _, _ = resolve_view(repository, manifest)
+    skills, _, _, _ = resolve_view(
+        repository,
+        manifest,
+        active_overlay_only=True,
+        active_tree_only=True,
+    )
     verticals = set(context.vertical_capabilities)
     candidates = [
         value
@@ -155,7 +160,12 @@ def _as_summary_tree(
     repository: KnowledgeRepository,
     manifest: KnowledgeManifest | None,
 ) -> Portfolio:
-    _, principles, _, _ = resolve_view(repository, manifest)
+    _, principles, _, _ = resolve_view(
+        repository,
+        manifest,
+        active_overlay_only=True,
+        active_tree_only=True,
+    )
     lines = ["# Summary tree", ""]
     for principle_id in portfolio.principle_ids:
         value = principles[principle_id]

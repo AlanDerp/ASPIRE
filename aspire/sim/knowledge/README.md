@@ -13,7 +13,8 @@ The required evidence order is strict:
 5. audit repeated invariants across several canonical skills and create a
    review-required principle proposal only for a connected candidate cluster;
 6. add counterexamples, exceptions and falsifiers before human promotion;
-7. place reviewed nodes in a vertical tree;
+7. propose a vertical tree, review every principle placement, and promote the
+   exact tree revision against a base manifest;
 8. propose, review, and promote optional cross-tree overlay edges against an
    exact base manifest before adding them to a newer active manifest.
 
@@ -40,7 +41,9 @@ reports should not be treated as evidence.
 Validated principles are created only through `principle review` followed by
 `principle promote`. Actor-visible overlay edges likewise require `overlay
 propose`, `overlay review`, and `overlay promote`; a direct repository write or
-status edit is not an activation path. Both repetition stages use
+status edit is not an activation path. Vertical trees require `forest
+propose-tree`, placement artifacts, `forest review-tree`, and `forest
+promote-tree`; saving a tree revision alone never activates it. Both repetition stages use
 content-addressed reports and their policies; shared instance-level reports are
 stored once rather than copied
 into every skill. `forest validate` recomputes them against the frozen code.

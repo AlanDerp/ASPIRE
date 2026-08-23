@@ -9,8 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from .integrity import validate_repository
+from .lifecycle import validated_revisions
 from .preregistration import validate_frozen_preregistration
 from .repository import KnowledgeRepository
+from .retrieval import resolve_view
 from .serialization import content_hash, load_structured
 
 
@@ -66,6 +68,25 @@ def audit_blueprint_completion(
     principles = repository.list_principles()
     trees = repository.list_trees()
     manifests = repository.list_manifests()
+    _, _, active_tree_view, _ = resolve_view(
+        repository,
+        None,
+        active_overlay_only=True,
+        active_tree_only=True,
+    )
+    promoted_principles = validated_revisions(repository)
+    active_manifests = []
+    for manifest in manifests:
+        try:
+            resolve_view(
+                repository,
+                manifest,
+                active_overlay_only=True,
+                active_tree_only=True,
+            )
+        except (OSError, ValueError):
+            continue
+        active_manifests.append(manifest)
     checkpoints = sorted((repository.root / "checkpoints").glob("*.yaml"))
     contexts = sorted(
         path
@@ -149,10 +170,13 @@ def audit_blueprint_completion(
                 value.id
                 for value in principles
                 if value.status in {"validated", "stable"}
+                and (value.id, value.version) in promoted_principles
             }
         ),
-        "trees": len({value.id for value in trees}),
-        "manifests": len({value.id for value in manifests}),
+        "tree_revisions": len(trees),
+        "active_trees": len(active_tree_view),
+        "manifest_revisions": len(manifests),
+        "active_manifests": len(active_manifests),
         "checkpoints": len(checkpoints),
         "task_contexts": len(catalog_contexts),
     }
@@ -167,7 +191,7 @@ def audit_blueprint_completion(
     if not isinstance(golden_binding, dict):
         golden_binding = {}
     bound_manifests = {
-        f"{value.id}@{value.version}": value for value in manifests
+        f"{value.id}@{value.version}": value for value in active_manifests
     }
     bound_manifest = bound_manifests.get(str(golden_binding.get("manifest_id", "")))
     golden_manifest_valid = bool(
@@ -202,7 +226,12 @@ def audit_blueprint_completion(
         ),
         _check(
             "nonempty-abstraction-forest",
-            bool(skills and principles and trees and manifests),
+            bool(
+                skills
+                and corpus_counts["validated_principles"]
+                and active_tree_view
+                and active_manifests
+            ),
             corpus_counts,
             "Canonical skills, principles, trees, and a manifest must be nonempty.",
         ),

@@ -52,6 +52,7 @@ def resolve_view(
     manifest: KnowledgeManifest | None,
     *,
     active_overlay_only: bool = False,
+    active_tree_only: bool = False,
 ) -> tuple[
     dict[str, CanonicalSkill],
     dict[str, Principle],
@@ -60,11 +61,12 @@ def resolve_view(
 ]:
     """Resolve latest or manifest-locked revisions, optionally gating overlays."""
     all_edge_revisions = repository.list_edges()
+    all_tree_revisions = repository.list_trees()
     if manifest is None:
         result = (
             cast(dict[str, CanonicalSkill], _latest(repository.list_skills())),
             cast(dict[str, Principle], _latest(repository.list_principles())),
-            cast(dict[str, VerticalTree], _latest(repository.list_trees())),
+            cast(dict[str, VerticalTree], _latest(all_tree_revisions)),
             cast(dict[str, OverlayEdge], _latest(all_edge_revisions)),
         )
     else:
@@ -79,44 +81,69 @@ def resolve_view(
             ),
             cast(
                 dict[str, VerticalTree],
-                _locked(repository.list_trees(), manifest.tree_versions, "tree"),
+                _locked(all_tree_revisions, manifest.tree_versions, "tree"),
             ),
             cast(
                 dict[str, OverlayEdge],
                 _locked(all_edge_revisions, manifest.edge_versions, "edge"),
             ),
         )
-    if not active_overlay_only:
+    if not active_overlay_only and not active_tree_only:
         return result
 
-    from .lifecycle import overlay_revision_promoted
-
-    candidate_revisions = (
-        list(result[3].values()) if manifest is not None else all_edge_revisions
-    )
     manifests = {
         (value.id, value.version): value for value in repository.list_manifests()
     }
     lifecycle_events = list(repository.iter_evidence("lifecycle"))
-    active_edges = [
-        edge
-        for edge in candidate_revisions
-        if edge.status in {"validated", "stable"}
-        and not edge.review_required
-        and overlay_revision_promoted(
-            repository,
-            edge,
-            edge_revisions=all_edge_revisions,
-            manifests=manifests,
-            lifecycle_events=lifecycle_events,
+    trees = result[2]
+    if active_tree_only:
+        from .tree_review import tree_revision_promoted
+
+        candidate_trees = (
+            list(result[2].values()) if manifest is not None else all_tree_revisions
         )
-    ]
-    if manifest is not None and len(active_edges) != len(result[3]):
-        active_ids = {edge.id for edge in active_edges}
-        rejected = sorted(set(result[3]) - active_ids)
-        raise ValueError(f"manifest includes unpromoted overlay edges: {rejected}")
-    edges = cast(dict[str, OverlayEdge], _latest(active_edges))
-    return result[0], result[1], result[2], edges
+        active_trees = [
+            tree
+            for tree in candidate_trees
+            if tree_revision_promoted(
+                repository,
+                tree,
+                manifests=manifests,
+                lifecycle_events=lifecycle_events,
+            )
+        ]
+        if manifest is not None and len(active_trees) != len(result[2]):
+            active_ids = {tree.id for tree in active_trees}
+            rejected = sorted(set(result[2]) - active_ids)
+            raise ValueError(f"manifest includes unpromoted vertical trees: {rejected}")
+        trees = cast(dict[str, VerticalTree], _latest(active_trees))
+
+    edges = result[3]
+    if active_overlay_only:
+        from .lifecycle import overlay_revision_promoted
+
+        candidate_edges = (
+            list(result[3].values()) if manifest is not None else all_edge_revisions
+        )
+        active_edges = [
+            edge
+            for edge in candidate_edges
+            if edge.status in {"validated", "stable"}
+            and not edge.review_required
+            and overlay_revision_promoted(
+                repository,
+                edge,
+                edge_revisions=all_edge_revisions,
+                manifests=manifests,
+                lifecycle_events=lifecycle_events,
+            )
+        ]
+        if manifest is not None and len(active_edges) != len(result[3]):
+            active_ids = {edge.id for edge in active_edges}
+            rejected = sorted(set(result[3]) - active_ids)
+            raise ValueError(f"manifest includes unpromoted overlay edges: {rejected}")
+        edges = cast(dict[str, OverlayEdge], _latest(active_edges))
+    return result[0], result[1], trees, edges
 
 
 def _relevance(context: TaskContext, *values: str) -> float:
@@ -228,7 +255,10 @@ def compile_portfolio(
     checkpoint = repository.load_checkpoint(checkpoint_id)
     instances_at_checkpoint(repository, checkpoint)
     skills_by_id, principles_by_id, trees_by_id, edges_by_id = resolve_view(
-        repository, manifest, active_overlay_only=True
+        repository,
+        manifest,
+        active_overlay_only=True,
+        active_tree_only=True,
     )
     trees = list(trees_by_id.values())
     edges = list(edges_by_id.values())
@@ -263,7 +293,13 @@ def compile_portfolio(
         elif (value.id, value.version) not in promoted:
             allowed, reason = False, "unrecorded-promotion"
         elif allowed:
-            support = principle_metrics(repository, value, invalidated=invalidated)
+            support = principle_metrics(
+                repository,
+                value,
+                invalidated=invalidated,
+                skills=skills_by_id,
+                trees=trees_by_id,
+            )
             if support.support_sufficiency != "sufficient":
                 allowed, reason = False, f"support:{support.support_sufficiency}"
         if not allowed:

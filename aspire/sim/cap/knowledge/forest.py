@@ -68,6 +68,15 @@ def validate_forest(
         referenced_nodes = set(tree.parent_by_child) | (
             set(tree.parent_by_child.values()) - {tree.structural_root}
         )
+        missing_primary_parents = referenced_nodes - set(tree.parent_by_child)
+        for node_id in sorted(missing_primary_parents):
+            issues.append(
+                ValidationIssue(
+                    "missing-primary-parent",
+                    "every non-structural tree node must have one primary parent",
+                    node_id,
+                )
+            )
         if any(
             node_id in node_by_id
             and node_by_id[node_id].vertical_capability != tree.vertical_capability

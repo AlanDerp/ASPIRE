@@ -485,9 +485,9 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
                 }
             },
         )
-        self.run_cli(
+        proposed_tree = self.run_cli(
             "forest",
-            "save-tree",
+            "propose-tree",
             "--id",
             "tree.transport",
             "--vertical",
@@ -498,7 +498,7 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             "snapshot-n6",
             "--parents",
             str(parents),
-        )
+        )["tree"]
         placement_path = self.workspace / "placement.yaml"
         placement = self.run_cli(
             "forest",
@@ -519,22 +519,84 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
         self.assertTrue(placement["accepted_for_review"])
         self.assertFalse(placement["mutation_performed"])
         self.assertEqual(placement["direct_fanout"], 3)
-        manifest = self.write_json(
-            "manifest.yaml",
+        tree_base_manifest_path = self.write_json(
+            "tree-base-manifest.yaml",
             {
                 "id": "libero-active",
                 "version": "1.0.0",
                 "checkpoint_id": "snapshot-n6",
                 "skill_versions": {skill_id: "1.0.0" for skill_id in skill_ids},
                 "principle_versions": {proposal["id"]: "1.2.0"},
-                "tree_versions": {"tree.transport": "1.0.0"},
+                "tree_versions": {},
                 "edge_versions": {},
                 "created_at": "2026-01-03T00:00:00+00:00",
                 "source_partition": "development",
             },
         )
+        tree_base_manifest = self.run_cli(
+            "manifest", "save", "--file", str(tree_base_manifest_path)
+        )["manifest"]
+        unreviewed_tree_manifest = self.write_json(
+            "unreviewed-tree-manifest.yaml",
+            {
+                **tree_base_manifest,
+                "version": "1.0.1",
+                "tree_versions": {proposed_tree["id"]: proposed_tree["version"]},
+            },
+        )
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.run_cli(
+                "manifest", "save", "--file", str(unreviewed_tree_manifest)
+            )
+        tree_review_path = self.write_json(
+            "tree-review.yaml",
+            {
+                "decision": "accept",
+                "reviewer": "tree-reviewer-a",
+                "reviewed_at": "2026-01-03T00:00:00+00:00",
+                "rationale": "primary parent, fan-out, coverage, and cycles were reviewed",
+                "tree_hash": content_hash(proposed_tree),
+                "checkpoint_id": "snapshot-n6",
+                "manifest_id": tree_base_manifest["id"],
+                "manifest_version": tree_base_manifest["version"],
+                "manifest_hash": content_hash(tree_base_manifest),
+                "placement_reports": {proposal["id"]: str(placement_path)},
+            },
+        )
+        tree_review = self.run_cli(
+            "forest",
+            "review-tree",
+            "--id",
+            proposed_tree["id"],
+            "--tree-version",
+            proposed_tree["version"],
+            "--manifest",
+            tree_base_manifest["id"],
+            "--manifest-version",
+            tree_base_manifest["version"],
+            "--review",
+            str(tree_review_path),
+        )
+        self.run_cli(
+            "forest",
+            "promote-tree",
+            "--id",
+            proposed_tree["id"],
+            "--tree-version",
+            proposed_tree["version"],
+            "--review-hash",
+            tree_review["review_artifact_hash"],
+        )
+        tree_manifest_path = self.write_json(
+            "tree-manifest.yaml",
+            {
+                **tree_base_manifest,
+                "version": "1.1.0",
+                "tree_versions": {proposed_tree["id"]: proposed_tree["version"]},
+            },
+        )
         saved_manifest = self.run_cli(
-            "manifest", "save", "--file", str(manifest)
+            "manifest", "save", "--file", str(tree_manifest_path)
         )["manifest"]
         self.assertTrue(self.run_cli("forest", "validate")["ok"])
         overlay_validation = self.run_cli(
@@ -543,7 +605,7 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             "--manifest",
             "libero-active",
             "--manifest-version",
-            "1.0.0",
+            "1.1.0",
         )
         self.assertTrue(overlay_validation["ok"])
 
@@ -610,7 +672,7 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             "candidate-overlay-manifest.yaml",
             {
                 **saved_manifest,
-                "version": "1.0.1",
+                "version": "1.1.1",
                 "edge_versions": {reviewed_edge["id"]: reviewed_edge["version"]},
                 "created_at": "2026-01-04T00:00:00+00:00",
             },
@@ -633,7 +695,7 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             "overlay-manifest.yaml",
             {
                 **saved_manifest,
-                "version": "1.1.0",
+                "version": "1.2.0",
                 "edge_versions": {promoted_edge["id"]: promoted_edge["version"]},
                 "created_at": "2026-01-04T00:00:00+00:00",
             },
@@ -645,7 +707,7 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             "--manifest",
             saved_manifest["id"],
             "--manifest-version",
-            "1.1.0",
+            "1.2.0",
         )
         self.assertEqual(
             [edge["id"] for edge in overlay_projection["edges"]],
@@ -658,7 +720,7 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
                 "--manifest",
                 saved_manifest["id"],
                 "--manifest-version",
-                "1.1.0",
+                "1.2.0",
             )["ok"]
         )
 
@@ -697,7 +759,7 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
                 "--manifest",
                 "libero-active",
                 "--manifest-version",
-                "1.0.0",
+                "1.2.0",
                 "--context",
                 str(context),
                 "--output",
@@ -734,7 +796,7 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             "--manifest",
             "libero-active",
             "--manifest-version",
-            "1.0.0",
+            "1.2.0",
             "--context",
             str(context),
             "--output",
@@ -776,7 +838,7 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             "--manifest",
             "libero-active",
             "--manifest-version",
-            "1.0.0",
+            "1.2.0",
             "--output",
             str(database),
         )

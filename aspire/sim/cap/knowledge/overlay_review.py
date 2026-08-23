@@ -103,6 +103,8 @@ def review_overlay_edge(
     missing = [key for key in required if key not in review or review[key] in (None, "")]
     if missing:
         raise ValueError(f"overlay review is incomplete: {missing}")
+    if not str(review["reviewer"]).strip() or not str(review["rationale"]).strip():
+        raise ValueError("overlay review requires a reviewer and rationale")
     if review["decision"] != "accept":
         raise ValueError("only an accepted overlay review can create a candidate")
 

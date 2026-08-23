@@ -135,9 +135,12 @@ def validate_repository(repository: KnowledgeRepository, *, max_principle_fanout
                 )
             membership[instance_id] = skill.id
 
+    _, _, active_trees, _ = resolve_view(
+        repository, None, active_tree_only=True
+    )
     placed_nodes = {
         node_id
-        for tree in trees.values()
+        for tree in active_trees.values()
         for node_id in set(tree.parent_by_child) | set(tree.parent_by_child.values())
         if node_id != tree.structural_root
     }
@@ -286,7 +289,12 @@ def validate_repository(repository: KnowledgeRepository, *, max_principle_fanout
                     principle.id,
                 )
             )
-        metrics = principle_metrics(repository, principle)
+        metrics = principle_metrics(
+            repository,
+            principle,
+            skills=skills,
+            trees=active_trees,
+        )
         if principle.status in {"validated", "stable"} and metrics.support_sufficiency != "sufficient":
             issues.append(
                 ValidationIssue(
@@ -347,7 +355,12 @@ def validate_repository(repository: KnowledgeRepository, *, max_principle_fanout
             )
         try:
             repository.load_checkpoint(manifest.checkpoint_id)
-            resolve_view(repository, manifest, active_overlay_only=True)
+            resolve_view(
+                repository,
+                manifest,
+                active_overlay_only=True,
+                active_tree_only=True,
+            )
         except (OSError, ValueError) as error:
             issues.append(ValidationIssue("invalid-manifest", str(error), manifest.id))
     return ValidationReport(tuple(issues))

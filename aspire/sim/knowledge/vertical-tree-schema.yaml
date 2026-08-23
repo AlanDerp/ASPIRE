@@ -1,0 +1,14 @@
+schema_version: 1
+required:
+  - id
+  - version
+  - vertical_capability
+  - structural_root
+  - checkpoint_id
+  - parent_by_child
+activation_rule: an immutable tree revision is a proposal until exact knowledge.tree-reviewed and knowledge.tree-validated events bind it
+constraints:
+  - Every referenced node exists and the complete forest validates before proposal storage.
+  - A development base manifest locks every exact skill and principle revision.
+  - Every placed principle has a hash-valid placement report covering parent, depth, fan-out, coverage, and cycles.
+  - A newer proposal cannot shadow the newest reviewed and promoted active revision.

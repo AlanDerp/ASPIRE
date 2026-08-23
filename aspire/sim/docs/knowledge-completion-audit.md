@@ -30,7 +30,7 @@ vacuously, so that result is not evidence that the shadow-entry gate passed.
 | --- | --- | --- |
 | M0 preregistration and baselines | Partial | H1--H6, metrics, A/B and margin exist; a hash-locked freeze command validates task split, checkpoint map, per-scale repetition-audit artifacts and execution variables, but real artifacts are not yet available and the checked-in preregistration remains a draft |
 | M1 corpus and vertical forest | Partial | schemas, repository, fingerprints and validators exist; real instances, two checkpoints and 10--20 expert golden principles do not |
-| M2 upward abstraction | Engineering implemented | two content-addressed repetition audits, explicit cluster acceptance, hash-checked counterexample search, placement report, principle promotion and content-addressed overlay proposal/review/promotion exist; real reviewer artifacts remain |
+| M2 upward abstraction | Engineering implemented | two content-addressed repetition audits, explicit cluster acceptance, hash-checked counterexample search, content-addressed tree-placement review/promotion, principle promotion and overlay proposal/review/promotion exist; real reviewer artifacts remain |
 | M3 top-down retrieval | Engineering implemented | three-layer index, tree selection, gates, bounded descent, overlay, fallback, portfolios and A--F compilers are tested |
 | M4 shadow and experiment | Partial | fix-loop recorder, contamination guards, isolated A--F injection, immutable matrix planner/runner, deterministic rebuild, missing-safe aggregation and two-reviewer negative-transfer attribution exist; real scale runs, labels and GPU execution do not |
 | M5 lifecycle and conclusion | Partial | invalidation, reviewer-labeled maintenance simulation, trace-backed total-cost accounting and a task-clustered claim auditor exist; real workload/cost observations, case review and final go/no-go evidence do not |
@@ -56,7 +56,7 @@ vacuously, so that result is not evidence that the shadow-entry gate passed.
 | Canonical skills trace to repeated code | Enforced by shared content-addressed instance audit and explicit cluster review |
 | Principle rule/scope/exception/falsifier | Enforced for validated revisions |
 | Diverse support and operational grounding | Enforced structurally; not demonstrated on real data |
-| Vertical tree and overlay invariants | Implemented and tested, including unreviewed-edge invisibility and non-shadowing by newer proposals |
+| Vertical tree and overlay invariants | Implemented and tested, including unreviewed tree/edge invisibility and non-shadowing by newer proposals |
 | Weak/broken invalidation propagation | Implemented and tested |
 | Hub/merge/split/conflict/prune audit | Implemented non-destructively |
 | Revision/evidence rollback | Immutable revisions plus Git and append-only evidence implemented |

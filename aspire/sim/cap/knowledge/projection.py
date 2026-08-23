@@ -20,7 +20,10 @@ def vertical_forest(
     task_family: str | None = None,
 ) -> dict:
     skills, principles, trees, edges = resolve_view(
-        repository, manifest, active_overlay_only=True
+        repository,
+        manifest,
+        active_overlay_only=True,
+        active_tree_only=True,
     )
     validate_forest(
         list(trees.values()), list(skills.values()), list(principles.values()), list(edges.values())
@@ -97,7 +100,12 @@ def vertical_forest(
 def overlay_view(
     repository: KnowledgeRepository, *, manifest: KnowledgeManifest | None = None
 ) -> dict:
-    _, _, _, edges = resolve_view(repository, manifest, active_overlay_only=True)
+    _, _, _, edges = resolve_view(
+        repository,
+        manifest,
+        active_overlay_only=True,
+        active_tree_only=True,
+    )
     materialized_edges = [
         {
             "id": value.id,
@@ -133,7 +141,9 @@ def lineage_view(
     *,
     manifest: KnowledgeManifest | None = None,
 ) -> dict:
-    skills, principles, trees, _ = resolve_view(repository, manifest)
+    skills, principles, trees, _ = resolve_view(
+        repository, manifest, active_tree_only=True
+    )
     instances = {value.id: value for value in repository.list_instances()}
     if ref not in skills and ref not in principles and ref not in instances:
         raise ValueError(f"knowledge reference not found: {ref}")

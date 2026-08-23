@@ -1,5 +1,5 @@
 {
-  "audit_hash": "e62e3b541cb7b3bac1432fb13a27ce3155bf8a665c00a6f49503996b79f45344",
+  "audit_hash": "af34a7eded372ce0fbec2e5eae03b40cd62c7418a7736614cb50191cdf88bba1",
   "checks": {
     "conclusion_quality": [
       {
@@ -158,13 +158,15 @@
       },
       {
         "evidence": {
+          "active_manifests": 0,
+          "active_trees": 0,
           "canonical_skills": 0,
           "checkpoints": 0,
           "instances": 0,
-          "manifests": 0,
+          "manifest_revisions": 0,
           "principles": 0,
           "task_contexts": 0,
-          "trees": 0,
+          "tree_revisions": 0,
           "validated_principles": 0
         },
         "id": "nonempty-abstraction-forest",
@@ -190,13 +192,15 @@
     ]
   },
   "corpus_counts": {
+    "active_manifests": 0,
+    "active_trees": 0,
     "canonical_skills": 0,
     "checkpoints": 0,
     "instances": 0,
-    "manifests": 0,
+    "manifest_revisions": 0,
     "principles": 0,
     "task_contexts": 0,
-    "trees": 0,
+    "tree_revisions": 0,
     "validated_principles": 0
   },
   "failed_check_ids": [

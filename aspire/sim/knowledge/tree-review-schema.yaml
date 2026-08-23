@@ -1,0 +1,23 @@
+schema_version: 1
+cli_input_required:
+  - decision
+  - reviewer
+  - reviewed_at
+  - rationale
+  - tree_hash
+  - checkpoint_id
+  - manifest_id
+  - manifest_version
+  - manifest_hash
+  - placement_reports
+accepted_decision: accept
+placement_reports_input: map every placed principle id to its placement-report path
+stored_artifact:
+  node_versions: exact endpoint revisions derived from the base manifest
+  placement_reports: content-addressed tree-placement artifacts and hashes
+workflow:
+  - forest propose-tree
+  - forest placement for every principle
+  - forest review-tree against a development base manifest
+  - forest promote-tree with the exact review artifact hash
+  - save a newer active manifest that locks the promoted tree revision
