@@ -810,7 +810,7 @@ def build_report(observations: list[Observation], preregistration: dict[str, Any
         and coverage["all_treatment_scale_corpus_cells_present"]
         and coverage["artifact_locks_complete_and_fair"]
     )
-    return {
+    payload = {
         "schema_version": 1,
         "preregistration_hash": content_hash(preregistration),
         "observation_count": len(observations),
@@ -836,6 +836,7 @@ def build_report(observations: list[Observation], preregistration: dict[str, Any
             )
         ),
     }
+    return {**payload, "report_hash": content_hash(payload)}
 
 
 def report_from_files(observations_path: Path, preregistration_path: Path) -> dict:

@@ -910,6 +910,30 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             tampered_completion["failed_check_ids"],
         )
 
+        fake_experiment_path = self.write_json(
+            "fake-experiment.yaml",
+            {
+                "claim_status": "ready-for-prespecified-statistical-analysis",
+                "runtime_gates": {"passed": True, "checks": {"fake": True}},
+            },
+        )
+        fake_experiment_completion = self.run_cli(
+            "completion",
+            "audit",
+            "--preregistration",
+            str(preregistration),
+            "--experiment-report",
+            str(fake_experiment_path),
+        )
+        self.assertIn(
+            "experiment-evaluable",
+            fake_experiment_completion["failed_check_ids"],
+        )
+        self.assertIn(
+            "principle-runtime-thresholds",
+            fake_experiment_completion["failed_check_ids"],
+        )
+
         database = self.workspace / "knowledge.sqlite3"
         index = self.run_cli(
             "index",

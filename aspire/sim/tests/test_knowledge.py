@@ -1973,6 +1973,12 @@ class ForestAndRetrievalTests(unittest.TestCase):
         ]
         report = build_report(observations, {"library_scales": [1, 4, 16, 64]})
         self.assertEqual(report["claim_status"], "not-evaluable")
+        self.assertEqual(
+            report["report_hash"],
+            content_hash(
+                {key: value for key, value in report.items() if key != "report_hash"}
+            ),
+        )
         self.assertGreater(report["results"]["organic:A"]["scale_slopes"]["context_tokens"], 0)
 
     def test_experiment_report_rejects_unbound_frozen_status(self):

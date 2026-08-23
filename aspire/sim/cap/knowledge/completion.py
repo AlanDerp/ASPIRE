@@ -29,6 +29,14 @@ REQUIRED_FIXED_FIELDS = {
     "library_scales",
     "seeds",
 }
+REQUIRED_RUNTIME_CHECKS = {
+    "principle_recall_at_8",
+    "operational_skill_recall",
+    "unsupported_principle_escape",
+    "exception_hard_violation_escape",
+    "fallback_rate",
+    "compile_latency_p95",
+}
 
 
 def _load_optional(path: Path | None) -> dict[str, Any] | None:
@@ -329,31 +337,88 @@ def audit_blueprint_completion(
     ]
     shadow_checks.extend(forest_checks[:1])
 
-    runtime_gate_payload = (experiment or {}).get("runtime_gates", {})
+    experiment_payload = experiment or {}
+    experiment_unsigned = {
+        key: value
+        for key, value in experiment_payload.items()
+        if key != "report_hash"
+    }
+    experiment_hash_valid = bool(
+        experiment
+        and experiment_payload.get("report_hash")
+        == content_hash(experiment_unsigned)
+    )
+    experiment_preregistration_bound = bool(
+        experiment
+        and experiment_payload.get("preregistration_hash")
+        == content_hash(preregistration)
+    )
+    experiment_coverage = experiment_payload.get("coverage", {})
+    experiment_evaluable = bool(
+        experiment_hash_valid
+        and experiment_preregistration_bound
+        and isinstance(experiment_coverage, dict)
+        and experiment_coverage.get("preregistration_frozen") is True
+        and experiment_coverage.get("all_treatment_scale_corpus_cells_present")
+        is True
+        and experiment_coverage.get("artifact_locks_complete_and_fair") is True
+        and experiment_payload.get("claim_status")
+        == "ready-for-prespecified-statistical-analysis"
+    )
+    runtime_gate_payload = experiment_payload.get("runtime_gates", {})
+    runtime_gate_checks = (
+        runtime_gate_payload.get("checks", {})
+        if isinstance(runtime_gate_payload, dict)
+        else {}
+    )
+    runtime_gate_passed = bool(
+        experiment_evaluable
+        and isinstance(runtime_gate_payload, dict)
+        and runtime_gate_payload.get("passed") is True
+        and isinstance(runtime_gate_checks, dict)
+        and REQUIRED_RUNTIME_CHECKS <= set(runtime_gate_checks)
+        and all(runtime_gate_checks[check] is True for check in REQUIRED_RUNTIME_CHECKS)
+    )
     runtime_checks = [
         _check(
             "experiment-evaluable",
-            (experiment or {}).get("claim_status")
-            == "ready-for-prespecified-statistical-analysis",
-            (experiment or {}).get("claim_status"),
+            experiment_evaluable,
+            {
+                "hash_valid": experiment_hash_valid,
+                "preregistration_bound": experiment_preregistration_bound,
+                "claim_status": experiment_payload.get("claim_status"),
+            },
             "All preregistered cells and fairness locks must be complete.",
         ),
         _check(
             "principle-runtime-thresholds",
-            runtime_gate_payload.get("passed") is True,
+            runtime_gate_passed,
             runtime_gate_payload,
             "Recall, escape, fallback, and p95 latency gates must all pass.",
         ),
     ]
 
     conclusion_payload = claim or {}
+    conclusion_unsigned = {
+        key: value
+        for key, value in conclusion_payload.items()
+        if key != "claim_audit_hash"
+    }
+    conclusion_hash_valid = bool(
+        claim
+        and conclusion_payload.get("claim_audit_hash")
+        == content_hash(conclusion_unsigned)
+    )
     conclusion_status = conclusion_payload.get("status")
     conclusion_bound = bool(
-        claim
+        conclusion_hash_valid
         and experiment
-        and claim.get("preregistration_hash") == content_hash(preregistration)
-        and claim.get("engineering_report_hash") == content_hash(experiment)
-        and claim.get("observation_count") == experiment.get("observation_count")
+        and conclusion_payload.get("preregistration_hash")
+        == content_hash(preregistration)
+        and conclusion_payload.get("engineering_report_hash")
+        == content_hash(experiment)
+        and conclusion_payload.get("observation_count")
+        == experiment.get("observation_count")
     )
     conclusion_checks = [
         _check(
@@ -361,7 +426,11 @@ def audit_blueprint_completion(
             conclusion_bound
             and conclusion_status
             in {"supported", "partially-supported", "not-supported"},
-            {"artifact_bound": conclusion_bound, **conclusion_payload},
+            {
+                "artifact_bound": conclusion_bound,
+                "hash_valid": conclusion_hash_valid,
+                **conclusion_payload,
+            },
             "The final claim must resolve to a prespecified supported/partial/not-supported outcome.",
         )
     ]
