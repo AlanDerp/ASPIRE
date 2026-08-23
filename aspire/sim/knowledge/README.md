@@ -12,7 +12,8 @@ The required evidence order is strict:
    into canonical skills;
 5. audit repeated invariants across several canonical skills and create a
    review-required principle proposal only for a connected candidate cluster;
-6. add counterexamples, exceptions and falsifiers before human promotion;
+6. add counterexamples, leave-one-family-out evidence, exceptions and
+   falsifiers, then store the complete review as content-addressed evidence;
 7. propose a vertical tree, review every principle placement, and promote the
    exact tree revision against a base manifest;
 8. propose, review, and promote optional cross-tree overlay edges against an
@@ -39,8 +40,14 @@ pre-registration and evaluation inputs. Generated indexes, portfolios, and
 reports should not be treated as evidence.
 
 Validated principles are created only through `principle review` followed by
-`principle promote`. Actor-visible overlay edges likewise require `overlay
-propose`, `overlay review`, and `overlay promote`; a direct repository write or
+`principle promote`. The review command internalizes the counterexample, LOFO,
+and review payloads under `proposals/`; promotion replays the proposal and
+review to reproduce the candidate before writing a validated revision. At
+retrieval time the same chain and its exact promotion event are checked again,
+so deleting or changing any linked artifact fails closed. See
+`principle-review-schema.yaml` for the bindings. Actor-visible overlay edges
+likewise require `overlay propose`, `overlay review`, and `overlay promote`; a
+direct repository write or
 status edit is not an activation path. Vertical trees require `forest
 propose-tree`, placement artifacts, `forest review-tree`, and `forest
 promote-tree`; saving a tree revision alone never activates it. Both repetition stages use

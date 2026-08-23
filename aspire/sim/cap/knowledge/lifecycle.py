@@ -17,9 +17,11 @@ from .models import (
     Principle,
     PrincipleMetrics,
     VerticalTree,
+    model_to_dict,
 )
 from .repository import KnowledgeRepository
 from .retrieval import resolve_view
+from .serialization import content_hash
 
 
 def invalidated_refs(repository: KnowledgeRepository) -> set[str]:
@@ -31,14 +33,37 @@ def invalidated_refs(repository: KnowledgeRepository) -> set[str]:
 
 
 def validated_revisions(repository: KnowledgeRepository) -> set[tuple[str, str]]:
-    """Return principle revisions that passed the recorded promotion workflow."""
-    return {
-        (str(event["subject"]), str(event["version"]))
-        for event in repository.iter_evidence("lifecycle")
-        if event.get("event") == "knowledge.validated"
-        and event.get("subject")
-        and event.get("version")
-    }
+    """Return revisions backed by a replayable review and exact promotion event."""
+    from .review import validate_principle_evidence
+
+    values = repository.list_principles()
+    revisions = {(value.id, value.version): value for value in values}
+    promoted: set[tuple[str, str]] = set()
+    for event in repository.iter_evidence("lifecycle"):
+        if event.get("event") != "knowledge.validated":
+            continue
+        key = (str(event.get("subject", "")), str(event.get("version", "")))
+        principle = revisions.get(key)
+        if principle is None:
+            continue
+        try:
+            validate_principle_evidence(repository, principle, revisions=values)
+        except (KeyError, OSError, TypeError, ValueError):
+            continue
+        expected = {
+            "subject": principle.id,
+            "version": principle.version,
+            "principle_hash": content_hash(model_to_dict(principle)),
+            "candidate_version": principle.provenance.get("candidate_version"),
+            "candidate_hash": principle.provenance.get("candidate_hash"),
+            "review_artifact_hash": principle.provenance.get(
+                "review_artifact_hash"
+            ),
+            "checkpoint_id": principle.provenance.get("checkpoint_id"),
+        }
+        if all(event.get(field) == value for field, value in expected.items()):
+            promoted.add(key)
+    return promoted
 
 
 def overlay_revision_promoted(

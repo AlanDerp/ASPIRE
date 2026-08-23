@@ -57,7 +57,12 @@ from .review_artifacts import (
 )
 from .repetition import audit_repetition
 from .retrieval import compile_portfolio, resolve_view
-from .review import promote_principle, review_principle
+from .review import (
+    bind_principle_review,
+    promote_principle,
+    review_principle,
+    validate_principle_candidate_evidence,
+)
 from .runtime import build_runtime_config
 from .run_plan import execute_experiment_plan, materialize_experiment_plan
 from .serialization import content_hash, load_structured, write_structured_atomic
@@ -266,6 +271,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             counterexample_path,
             proposal,
         )
+        current_counterexample_report = search_counterexamples(repository, proposal)
+        if counterexample_report != current_counterexample_report:
+            raise ValueError(
+                "counterexample report does not match a current deterministic search"
+            )
         review_payload["counterexample_dispositions"] = (
             validate_counterexample_dispositions(
                 counterexample_report,
@@ -275,15 +285,46 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         review_payload["counterexample_report_hash"] = counterexample_report[
             "report_hash"
         ]
+        counterexample_artifact_hash = content_hash(counterexample_report)
+        repository.save_audit(
+            "principle-counterexample",
+            counterexample_artifact_hash,
+            counterexample_report,
+        )
+        review_payload["counterexample_report"] = (
+            "proposals/principle-counterexample/"
+            f"{counterexample_artifact_hash}.yaml"
+        )
+        review_payload["counterexample_artifact_hash"] = (
+            counterexample_artifact_hash
+        )
         lofo_path = Path(str(review_payload["leave_one_family_out_report"]))
         lofo_report = validate_leave_family_out_report(lofo_path, proposal)
         review_payload["leave_one_family_out_report_hash"] = lofo_report[
             "report_hash"
         ]
+        lofo_artifact_hash = content_hash(lofo_report)
+        repository.save_audit(
+            "principle-lofo",
+            lofo_artifact_hash,
+            lofo_report,
+        )
+        review_payload["leave_one_family_out_report"] = (
+            f"proposals/principle-lofo/{lofo_artifact_hash}.yaml"
+        )
+        review_payload["leave_one_family_out_artifact_hash"] = (
+            lofo_artifact_hash
+        )
+        review_payload = bind_principle_review(proposal, review_payload)
         value = review_principle(
             proposal,
             review_payload,
             version=args.version,
+        )
+        repository.save_audit(
+            "principle-review",
+            str(value.provenance["review_artifact_hash"]),
+            review_payload,
         )
         path = repository.save_principle(value)
         return {"path": str(path), "principle": model_to_dict(value)}
@@ -305,6 +346,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
     if args.command == "principle" and args.principle_command == "promote":
         candidate = _principle_revision(repository, args.id, args.from_version)
+        validate_principle_candidate_evidence(repository, candidate)
         value = promote_principle(candidate, version=args.version)
         path = repository.save_principle(value)
         repository.append_evidence(
@@ -312,6 +354,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 "event": "knowledge.validated",
                 "subject": value.id,
                 "version": value.version,
+                "principle_hash": content_hash(model_to_dict(value)),
+                "candidate_version": value.provenance["candidate_version"],
+                "candidate_hash": value.provenance["candidate_hash"],
+                "review_artifact_hash": value.provenance[
+                    "review_artifact_hash"
+                ],
+                "checkpoint_id": value.provenance["checkpoint_id"],
                 "at": value.provenance.get("reviewed_at"),
                 "reviewer": value.provenance.get("reviewer"),
             },

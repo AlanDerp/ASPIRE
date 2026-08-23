@@ -475,6 +475,40 @@ class KnowledgeCliEndToEndTests(unittest.TestCase):
             "1.2.0",
         )["principle"]
         self.assertEqual(validated["status"], "validated")
+        provenance = validated["provenance"]
+        for category, field in (
+            ("principle-counterexample", "counterexample_artifact_hash"),
+            ("principle-lofo", "leave_one_family_out_artifact_hash"),
+            ("principle-review", "review_artifact_hash"),
+        ):
+            self.assertTrue(
+                (
+                    self.knowledge
+                    / "proposals"
+                    / category
+                    / f"{provenance[field]}.yaml"
+                ).is_file()
+            )
+        lifecycle_events = [
+            json.loads(line)
+            for line in (self.knowledge / "evidence" / "lifecycle.jsonl")
+            .read_text()
+            .splitlines()
+        ]
+        promotion = next(
+            event
+            for event in lifecycle_events
+            if event.get("event") == "knowledge.validated"
+        )
+        self.assertEqual(
+            promotion["principle_hash"],
+            content_hash(validated),
+        )
+        self.assertEqual(promotion["candidate_hash"], provenance["candidate_hash"])
+        self.assertEqual(
+            promotion["review_artifact_hash"],
+            provenance["review_artifact_hash"],
+        )
 
         parents = self.write_json(
             "parents.yaml",

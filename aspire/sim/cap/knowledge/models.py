@@ -263,9 +263,10 @@ class Principle:
             raise ModelError("principle requires a canonical-skill repetition audit hash")
         if not isinstance(self.provenance.get("canonical_skill_versions"), dict):
             raise ModelError("principle requires exact canonical-skill revisions")
-        if self.status in {"validated", "stable"}:
+        if self.status in {"candidate", "validated", "stable"}:
             if self.review_required:
-                raise ModelError("validated principle cannot require review")
+                raise ModelError("reviewed principle cannot require review")
+        if self.status in {"validated", "stable"}:
             if len(set(self.child_ids)) < 3:
                 raise ModelError("validated principle requires at least three children")
             if len(set(self.scope.task_families)) < 2:
@@ -278,17 +279,36 @@ class Principle:
                 raise ModelError("validated principle requires a falsifier")
             if any(not exception.get("id") or "when" not in exception for exception in self.exceptions):
                 raise ModelError("validated principle exceptions require id and when")
+        if self.status in {"candidate", "validated", "stable"}:
             required_review = (
                 "reviewer",
+                "reviewed_at",
+                "proposal_version",
+                "proposal_hash",
+                "review_artifact",
+                "review_artifact_hash",
                 "counterexample_report",
                 "counterexample_report_hash",
+                "counterexample_artifact_hash",
                 "leave_one_family_out_report",
                 "leave_one_family_out_report_hash",
+                "leave_one_family_out_artifact_hash",
             )
-            missing_review = [key for key in required_review if not self.provenance.get(key)]
+            missing_review = [
+                key for key in required_review if not self.provenance.get(key)
+            ]
             if missing_review:
                 raise ModelError(
-                    f"validated principle lacks promotion evidence: {missing_review}"
+                    f"reviewed principle lacks review evidence: {missing_review}"
+                )
+        if self.status in {"validated", "stable"}:
+            required_promotion = ("candidate_version", "candidate_hash")
+            missing_promotion = [
+                key for key in required_promotion if not self.provenance.get(key)
+            ]
+            if missing_promotion:
+                raise ModelError(
+                    f"validated principle lacks promotion evidence: {missing_promotion}"
                 )
 
     @classmethod

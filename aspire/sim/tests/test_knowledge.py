@@ -42,6 +42,7 @@ from aspire.sim.cap.knowledge.models import (
     SkillCodeInstance,
     TaskContext,
     VerticalTree,
+    model_to_dict,
 )
 from aspire.sim.cap.knowledge.predicates import evaluate
 from aspire.sim.cap.knowledge.overlay_review import (
@@ -51,7 +52,11 @@ from aspire.sim.cap.knowledge.overlay_review import (
 from aspire.sim.cap.knowledge.placement import analyze_placement
 from aspire.sim.cap.knowledge.projection import lineage_view, overlay_view, vertical_forest
 from aspire.sim.cap.knowledge.repository import KnowledgeRepository, RepositoryConflict
-from aspire.sim.cap.knowledge.review import promote_principle, review_principle
+from aspire.sim.cap.knowledge.review import (
+    bind_principle_review,
+    promote_principle,
+    review_principle,
+)
 from aspire.sim.cap.knowledge.review_artifacts import (
     finalize_leave_family_out_report,
     validate_leave_family_out_report,
@@ -377,8 +382,10 @@ class RepositoryAndConsolidationTests(unittest.TestCase):
                 ],
                 "counterexample_report": "reports/counterexamples.yaml",
                 "counterexample_report_hash": "counterexample-report-hash",
+                "counterexample_artifact_hash": "counterexample-artifact-hash",
                 "leave_one_family_out_report": "reports/lofo.yaml",
                 "leave_one_family_out_report_hash": "lofo-report-hash",
+                "leave_one_family_out_artifact_hash": "lofo-artifact-hash",
             },
             version="1.1.0",
         )
@@ -556,57 +563,11 @@ class ForestAndRetrievalTests(unittest.TestCase):
         ]
         for value in self.skills:
             self.repository.save_skill(value)
-        principle_audit = audit_principle_repetition(
-            self.skills,
-            checkpoint,
-            ConsolidationPolicy(),
-        )
-        self.assertTrue(principle_audit.accepted, principle_audit.rejection_reasons)
-        self.principle = Principle(
-            id="principle.transport.preserve-clearance",
-            version="1.0.0",
-            vertical_capability="transport",
-            title="Preserve clearance during transport",
-            summary="Choose transit patterns that preserve grasp and obstacle clearance.",
-            when={"fact": "state.object_grasped", "op": "eq", "value": True},
-            decision_mode="require",
-            decision="select a collision-safe transit pattern",
-            invariant="a grasped object needs clearance throughout transport",
-            expected_effects=("grasp remains secure",),
-            exceptions=(
-                {
-                    "id": "continuous-contact",
-                    "when": {"fact": "task.continuous_contact", "op": "eq", "value": True},
-                },
-            ),
-            falsifiers=("clearance-preserving patterns do not reduce collisions",),
-            child_ids=tuple(value.id for value in self.skills),
-            scope=Scope(task_families=("pick-place", "long-horizon")),
-            status="validated",
-            review_required=False,
-            provenance={
-                "checkpoint_id": "snapshot-n3",
-                "proposal_method": "canonical-skill-repetition-audit",
-                "canonical_repetition_audit": asdict(principle_audit),
-                "canonical_repetition_audit_hash": principle_audit.content_hash,
-                "canonical_skill_versions": principle_audit.skill_versions,
-                "reviewer": "reviewer-a",
-                "counterexample_report": "reports/counterexample-1.yaml",
-                "counterexample_report_hash": "counterexample-report-hash",
-                "leave_one_family_out_report": "reports/lofo-1.yaml",
-                "leave_one_family_out_report_hash": "lofo-report-hash",
-            },
-        )
-        self.repository.save_principle(self.principle)
-        self.repository.append_evidence(
-            {
-                "event": "knowledge.validated",
-                "subject": self.principle.id,
-                "version": self.principle.version,
-                "at": "2026-01-02T00:00:00+00:00",
-                "reviewer": "reviewer-a",
-            },
-            stream="lifecycle",
+        proposal = self.make_principle_proposal(self.skills, version="0.8.0")
+        self.principle = self.review_and_promote_principle(
+            proposal,
+            candidate_version="0.9.0",
+            final_version="1.0.0",
         )
         self.tree = VerticalTree(
             id="tree.transport",
@@ -621,6 +582,173 @@ class ForestAndRetrievalTests(unittest.TestCase):
         )
         self.repository.save_tree(self.tree)
         self.promote_tree(self.tree)
+
+    def make_principle_proposal(
+        self,
+        skills: list[CanonicalSkill],
+        *,
+        version: str,
+    ) -> Principle:
+        checkpoint = self.repository.load_checkpoint("snapshot-n3")
+        audit = audit_principle_repetition(
+            skills,
+            checkpoint,
+            ConsolidationPolicy(),
+        )
+        self.assertTrue(audit.accepted, audit.rejection_reasons)
+        return Principle(
+            id="principle.transport.preserve-clearance",
+            version=version,
+            vertical_capability="transport",
+            title="Draft transport invariant",
+            summary="Repeated transport skills require contrastive review.",
+            when={"review_required": True},
+            decision_mode="prefer",
+            decision="[review required]",
+            invariant="[review required]",
+            expected_effects=(),
+            exceptions=(),
+            falsifiers=(),
+            child_ids=tuple(sorted(value.id for value in skills)),
+            scope=Scope(
+                task_families=tuple(
+                    sorted(
+                        {
+                            family
+                            for skill in skills
+                            for family in skill.scope.task_families
+                        }
+                    )
+                )
+            ),
+            status="proposal",
+            review_required=True,
+            provenance={
+                "checkpoint_id": "snapshot-n3",
+                "proposal_method": "canonical-skill-repetition-audit",
+                "canonical_repetition_audit": asdict(audit),
+                "canonical_repetition_audit_hash": audit.content_hash,
+                "canonical_skill_versions": audit.skill_versions,
+            },
+        )
+
+    def review_and_promote_principle(
+        self,
+        proposal: Principle,
+        *,
+        candidate_version: str,
+        final_version: str,
+    ) -> Principle:
+        self.repository.save_principle(proposal)
+        counterexample = search_counterexamples(self.repository, proposal)
+        counterexample_hash = content_hash(counterexample)
+        self.repository.save_audit(
+            "principle-counterexample",
+            counterexample_hash,
+            counterexample,
+        )
+        lofo = finalize_leave_family_out_report(
+            proposal,
+            {
+                "reviewer": "reviewer-a",
+                "reviewed_at": "2026-01-02T00:00:00+00:00",
+                "family_results": {
+                    family: {
+                        "passed": True,
+                        "evaluated_task_ids": [
+                            value.task
+                            for value in self.instances
+                            if value.task_family == family
+                        ],
+                        "supporting_skill_ids": list(proposal.child_ids),
+                        "notes": "held-family behavior remained grounded",
+                    }
+                    for family in proposal.scope.task_families
+                },
+            },
+        )
+        lofo_hash = content_hash(lofo)
+        self.repository.save_audit("principle-lofo", lofo_hash, lofo)
+        review = bind_principle_review(
+            proposal,
+            {
+                "reviewer": "reviewer-a",
+                "reviewed_at": "2026-01-02T00:00:00+00:00",
+                "title": "Preserve clearance during transport",
+                "summary": (
+                    "Choose transit patterns that preserve grasp and obstacle clearance."
+                ),
+                "when": {
+                    "fact": "state.object_grasped",
+                    "op": "eq",
+                    "value": True,
+                },
+                "decision_mode": "require",
+                "decision": "select a collision-safe transit pattern",
+                "invariant": (
+                    "a grasped object needs clearance throughout transport"
+                ),
+                "expected_effects": ["grasp remains secure"],
+                "exceptions": [
+                    {
+                        "id": "continuous-contact",
+                        "when": {
+                            "fact": "task.continuous_contact",
+                            "op": "eq",
+                            "value": True,
+                        },
+                    }
+                ],
+                "falsifiers": [
+                    "clearance-preserving patterns do not reduce collisions"
+                ],
+                "counterexample_report": (
+                    "proposals/principle-counterexample/"
+                    f"{counterexample_hash}.yaml"
+                ),
+                "counterexample_report_hash": counterexample["report_hash"],
+                "counterexample_artifact_hash": counterexample_hash,
+                "counterexample_dispositions": (
+                    validate_counterexample_dispositions(counterexample, {})
+                ),
+                "leave_one_family_out_report": (
+                    f"proposals/principle-lofo/{lofo_hash}.yaml"
+                ),
+                "leave_one_family_out_report_hash": lofo["report_hash"],
+                "leave_one_family_out_artifact_hash": lofo_hash,
+            },
+        )
+        candidate = review_principle(
+            proposal,
+            review,
+            version=candidate_version,
+        )
+        self.repository.save_audit(
+            "principle-review",
+            str(candidate.provenance["review_artifact_hash"]),
+            review,
+        )
+        self.repository.save_principle(candidate)
+        principle = promote_principle(candidate, version=final_version)
+        self.repository.save_principle(principle)
+        self.repository.append_evidence(
+            {
+                "event": "knowledge.validated",
+                "subject": principle.id,
+                "version": principle.version,
+                "principle_hash": content_hash(model_to_dict(principle)),
+                "candidate_version": principle.provenance["candidate_version"],
+                "candidate_hash": principle.provenance["candidate_hash"],
+                "review_artifact_hash": principle.provenance[
+                    "review_artifact_hash"
+                ],
+                "checkpoint_id": principle.provenance["checkpoint_id"],
+                "at": "2026-01-02T00:00:00+00:00",
+                "reviewer": "reviewer-a",
+            },
+            stream="lifecycle",
+        )
+        return principle
 
     def tearDown(self):
         self.temporary.cleanup()
@@ -779,6 +907,57 @@ class ForestAndRetrievalTests(unittest.TestCase):
     def test_repository_integrity_covers_lineage_and_support(self):
         report = validate_repository(self.repository)
         self.assertTrue(report.ok, report.issues)
+
+    def test_principle_promotion_event_rejects_same_version_content_tampering(self):
+        tampered = replace(
+            self.principle,
+            title="Tampered principle content at the same semantic version",
+        )
+        path = (
+            self.repository.root
+            / "principles"
+            / self.principle.id
+            / f"{self.principle.version}.yaml"
+        )
+        write_structured_atomic(path, asdict(tampered))
+        context = TaskContext(
+            task_id="task-tamper-gate",
+            suite="libero",
+            task_language="transport the grasped object",
+            task_family="pick-place",
+            vertical_capabilities=("transport",),
+            facts={"state": {"object_grasped": True}},
+        )
+        portfolio = compile_portfolio(self.repository, "snapshot-n3", context)
+        self.assertFalse(portfolio.principle_ids)
+        issue_codes = {issue.code for issue in validate_repository(self.repository).issues}
+        self.assertIn("unrecorded-principle-promotion", issue_codes)
+
+    def test_principle_promotion_rejects_tampered_review_artifact(self):
+        review_hash = str(self.principle.provenance["review_artifact_hash"])
+        review = self.repository.load_audit("principle-review", review_hash)
+        path = (
+            self.repository.root
+            / "proposals"
+            / "principle-review"
+            / f"{review_hash}.yaml"
+        )
+        write_structured_atomic(
+            path,
+            {**review, "decision": "tampered after review"},
+        )
+        context = TaskContext(
+            task_id="task-review-tamper-gate",
+            suite="libero",
+            task_language="transport the grasped object",
+            task_family="pick-place",
+            vertical_capabilities=("transport",),
+            facts={"state": {"object_grasped": True}},
+        )
+        portfolio = compile_portfolio(self.repository, "snapshot-n3", context)
+        self.assertFalse(portfolio.principle_ids)
+        issue_codes = {issue.code for issue in validate_repository(self.repository).issues}
+        self.assertIn("unrecorded-principle-promotion", issue_codes)
 
     def test_new_tree_proposal_does_not_shadow_active_revision(self):
         proposed_revision = replace(self.tree, version="2.0.0")
@@ -1031,10 +1210,15 @@ class ForestAndRetrievalTests(unittest.TestCase):
             id="skill.transport.extra",
             title="Extra transport pattern",
         )
-        revised_principle = replace(
-            self.principle,
-            version="1.1.0",
-            child_ids=(*self.principle.child_ids, extra.id),
+        self.repository.save_skill(extra)
+        proposal = self.make_principle_proposal(
+            [*self.skills, extra],
+            version="1.0.1",
+        )
+        revised_principle = self.review_and_promote_principle(
+            proposal,
+            candidate_version="1.0.2",
+            final_version="1.1.0",
         )
         revised_tree = replace(
             self.tree,
@@ -1044,19 +1228,7 @@ class ForestAndRetrievalTests(unittest.TestCase):
                 extra.id: revised_principle.id,
             },
         )
-        self.repository.save_skill(extra)
-        self.repository.save_principle(revised_principle)
         self.repository.save_tree(revised_tree)
-        self.repository.append_evidence(
-            {
-                "event": "knowledge.validated",
-                "subject": revised_principle.id,
-                "version": revised_principle.version,
-                "at": "2026-01-03T00:00:00+00:00",
-                "reviewer": "reviewer-a",
-            },
-            stream="lifecycle",
-        )
         self.promote_tree(revised_tree)
         context = TaskContext(
             task_id="task-eval",

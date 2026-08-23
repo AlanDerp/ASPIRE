@@ -8,7 +8,11 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from .models import Principle, Scope, validate_version
+from .counterexample import validate_counterexample_dispositions
+from .models import Principle, Scope, model_to_dict, validate_version
+from .repository import KnowledgeRepository
+from .review_artifacts import finalize_leave_family_out_report
+from .serialization import content_hash
 
 
 def _newer(candidate: str, previous: str) -> str:
@@ -37,8 +41,10 @@ def review_principle(
         "falsifiers",
         "counterexample_report",
         "counterexample_report_hash",
+        "counterexample_artifact_hash",
         "leave_one_family_out_report",
         "leave_one_family_out_report_hash",
+        "leave_one_family_out_artifact_hash",
     )
     missing = [key for key in required if not review.get(key)]
     if missing:
@@ -47,34 +53,56 @@ def review_principle(
     exception_review = str(review.get("exception_review", "")).strip()
     if not exceptions and not exception_review:
         raise ValueError("review must record exceptions or an explicit empty-exception review")
+    normalized_review = bind_principle_review(proposal, review)
+    review_hash = content_hash(normalized_review)
     return replace(
         proposal,
         version=_newer(version, proposal.version),
-        title=str(review.get("title", proposal.title)),
-        summary=str(review.get("summary", proposal.summary)),
-        when=dict(review["when"]),
-        decision_mode=review.get("decision_mode", proposal.decision_mode),
-        decision=str(review["decision"]),
-        invariant=str(review["invariant"]),
-        expected_effects=tuple(str(value) for value in review.get("expected_effects", [])),
-        exceptions=exceptions,
+        title=str(normalized_review.get("title", proposal.title)),
+        summary=str(normalized_review.get("summary", proposal.summary)),
+        when=dict(normalized_review["when"]),
+        decision_mode=normalized_review.get("decision_mode", proposal.decision_mode),
+        decision=str(normalized_review["decision"]),
+        invariant=str(normalized_review["invariant"]),
+        expected_effects=tuple(
+            str(value) for value in normalized_review.get("expected_effects", [])
+        ),
+        exceptions=tuple(normalized_review.get("exceptions", [])),
         exception_review=exception_review,
-        falsifiers=tuple(str(value) for value in review["falsifiers"]),
-        scope=Scope.from_dict(review.get("scope")) if review.get("scope") else proposal.scope,
+        falsifiers=tuple(str(value) for value in normalized_review["falsifiers"]),
+        scope=(
+            Scope.from_dict(normalized_review.get("scope"))
+            if normalized_review.get("scope")
+            else proposal.scope
+        ),
         status="candidate",
         review_required=False,
         provenance={
             **proposal.provenance,
-            "reviewer": str(review["reviewer"]),
-            "reviewed_at": str(review["reviewed_at"]),
-            "counterexample_report": str(review["counterexample_report"]),
-            "counterexample_report_hash": str(review["counterexample_report_hash"]),
-            "counterexample_dispositions": review.get(
+            "reviewer": str(normalized_review["reviewer"]),
+            "reviewed_at": str(normalized_review["reviewed_at"]),
+            "proposal_version": proposal.version,
+            "proposal_hash": content_hash(model_to_dict(proposal)),
+            "review_artifact": f"proposals/principle-review/{review_hash}.yaml",
+            "review_artifact_hash": review_hash,
+            "counterexample_report": str(normalized_review["counterexample_report"]),
+            "counterexample_report_hash": str(
+                normalized_review["counterexample_report_hash"]
+            ),
+            "counterexample_artifact_hash": str(
+                normalized_review["counterexample_artifact_hash"]
+            ),
+            "counterexample_dispositions": normalized_review.get(
                 "counterexample_dispositions", {}
             ),
-            "leave_one_family_out_report": str(review["leave_one_family_out_report"]),
+            "leave_one_family_out_report": str(
+                normalized_review["leave_one_family_out_report"]
+            ),
             "leave_one_family_out_report_hash": str(
-                review["leave_one_family_out_report_hash"]
+                normalized_review["leave_one_family_out_report_hash"]
+            ),
+            "leave_one_family_out_artifact_hash": str(
+                normalized_review["leave_one_family_out_artifact_hash"]
             ),
         },
     )
@@ -83,4 +111,192 @@ def review_principle(
 def promote_principle(candidate: Principle, *, version: str) -> Principle:
     if candidate.status != "candidate" or candidate.review_required:
         raise ValueError("only a reviewed candidate can be promoted")
-    return replace(candidate, version=_newer(version, candidate.version), status="validated")
+    return replace(
+        candidate,
+        version=_newer(version, candidate.version),
+        status="validated",
+        provenance={
+            **candidate.provenance,
+            "candidate_version": candidate.version,
+            "candidate_hash": content_hash(model_to_dict(candidate)),
+        },
+    )
+
+
+def bind_principle_review(
+    proposal: Principle, review: dict[str, Any]
+) -> dict[str, Any]:
+    """Add immutable proposal identity to a normalized review artifact."""
+    expected = {
+        "proposal_id": proposal.id,
+        "proposal_version": proposal.version,
+        "proposal_hash": content_hash(model_to_dict(proposal)),
+        "checkpoint_id": proposal.provenance["checkpoint_id"],
+    }
+    mismatches = [
+        key
+        for key, value in expected.items()
+        if key in review and review.get(key) != value
+    ]
+    if mismatches:
+        raise ValueError(f"principle review proposal binding mismatch: {mismatches}")
+    return {**review, **expected}
+
+
+def _rebuild_principle_candidate(
+    repository: KnowledgeRepository,
+    principle: Principle,
+    *,
+    candidate_version: str,
+    revisions: list[Principle] | None = None,
+) -> tuple[Principle, list[Principle]]:
+    """Rebuild one reviewed candidate from its immutable evidence."""
+    values = revisions if revisions is not None else repository.list_principles()
+    proposal_version = str(principle.provenance["proposal_version"])
+    proposal_hash = str(principle.provenance["proposal_hash"])
+    proposals = [
+        value
+        for value in values
+        if value.id == principle.id
+        and value.version == proposal_version
+        and value.status == "proposal"
+        and content_hash(model_to_dict(value)) == proposal_hash
+    ]
+    if len(proposals) != 1:
+        raise ValueError("principle evidence does not identify exactly one proposal")
+    proposal = proposals[0]
+
+    review_hash = str(principle.provenance["review_artifact_hash"])
+    if principle.provenance.get("review_artifact") != (
+        f"proposals/principle-review/{review_hash}.yaml"
+    ):
+        raise ValueError("principle review path is not content-addressed")
+    review = repository.load_audit("principle-review", review_hash)
+
+    counterexample_hash = str(principle.provenance["counterexample_artifact_hash"])
+    if principle.provenance.get("counterexample_report") != (
+        f"proposals/principle-counterexample/{counterexample_hash}.yaml"
+    ):
+        raise ValueError("principle counterexample path is not content-addressed")
+    counterexample = repository.load_audit(
+        "principle-counterexample", counterexample_hash
+    )
+    counterexample_unsigned = {
+        key: value for key, value in counterexample.items() if key != "report_hash"
+    }
+    if (
+        counterexample.get("report_hash") != content_hash(counterexample_unsigned)
+        or counterexample.get("report_hash")
+        != principle.provenance.get("counterexample_report_hash")
+    ):
+        raise ValueError("principle counterexample report hash mismatch")
+    counterexample_expected = {
+        "principle_id": proposal.id,
+        "principle_version": proposal.version,
+        "checkpoint_id": proposal.provenance.get("checkpoint_id"),
+        "source_partition": "development",
+    }
+    if any(
+        counterexample.get(field) != value
+        for field, value in counterexample_expected.items()
+    ):
+        raise ValueError("principle counterexample provenance mismatch")
+    scope = counterexample.get("search_scope", {})
+    searched = (
+        "searched_failure_outcomes",
+        "searched_hidden_constants",
+        "searched_forbidden_actions",
+        "searched_existing_conflicts",
+    )
+    if not isinstance(scope, dict) or any(
+        scope.get(field) is not True for field in searched
+    ):
+        raise ValueError("principle counterexample search scope is incomplete")
+
+    validate_counterexample_dispositions(
+        counterexample,
+        review.get("counterexample_dispositions", {}),
+    )
+
+    lofo_hash = str(principle.provenance["leave_one_family_out_artifact_hash"])
+    if principle.provenance.get("leave_one_family_out_report") != (
+        f"proposals/principle-lofo/{lofo_hash}.yaml"
+    ):
+        raise ValueError("principle LOFO path is not content-addressed")
+    lofo = repository.load_audit("principle-lofo", lofo_hash)
+    lofo_unsigned = {key: value for key, value in lofo.items() if key != "report_hash"}
+    if (
+        lofo.get("report_hash") != content_hash(lofo_unsigned)
+        or lofo.get("report_hash")
+        != principle.provenance.get("leave_one_family_out_report_hash")
+    ):
+        raise ValueError("principle LOFO report hash mismatch")
+    if finalize_leave_family_out_report(proposal, lofo) != lofo:
+        raise ValueError("principle LOFO report is not canonical")
+
+    expected_candidate = review_principle(
+        proposal,
+        review,
+        version=candidate_version,
+    )
+    return expected_candidate, values
+
+
+def validate_principle_candidate_evidence(
+    repository: KnowledgeRepository,
+    candidate: Principle,
+    *,
+    revisions: list[Principle] | None = None,
+) -> None:
+    """Reject a candidate that cannot be replayed from its stored review."""
+    if candidate.status != "candidate":
+        raise ValueError("principle evidence target is not a candidate")
+    expected, _ = _rebuild_principle_candidate(
+        repository,
+        candidate,
+        candidate_version=candidate.version,
+        revisions=revisions,
+    )
+    if content_hash(model_to_dict(expected)) != content_hash(
+        model_to_dict(candidate)
+    ):
+        raise ValueError("principle candidate differs from its review artifact")
+
+
+def validate_principle_evidence(
+    repository: KnowledgeRepository,
+    principle: Principle,
+    *,
+    revisions: list[Principle] | None = None,
+) -> None:
+    """Rebuild proposal → review → candidate → validated principle exactly."""
+    if principle.status not in {"validated", "stable"}:
+        raise ValueError("principle evidence target is not promoted")
+    candidate_version = str(principle.provenance["candidate_version"])
+    expected_candidate, values = _rebuild_principle_candidate(
+        repository,
+        principle,
+        candidate_version=candidate_version,
+        revisions=revisions,
+    )
+    candidate_hash = content_hash(model_to_dict(expected_candidate))
+    if candidate_hash != principle.provenance.get("candidate_hash"):
+        raise ValueError("principle candidate hash mismatch")
+    candidates = [
+        value
+        for value in values
+        if value.id == principle.id
+        and value.version == candidate_version
+        and value.status == "candidate"
+        and content_hash(model_to_dict(value)) == candidate_hash
+    ]
+    if len(candidates) != 1:
+        raise ValueError("principle evidence lacks its exact reviewed candidate")
+    expected_validated = promote_principle(
+        expected_candidate,
+        version=principle.version,
+    )
+    if content_hash(model_to_dict(expected_validated)) != content_hash(
+        model_to_dict(principle)
+    ):
+        raise ValueError("validated principle differs from its reviewed candidate")
