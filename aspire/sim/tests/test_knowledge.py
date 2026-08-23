@@ -1984,6 +1984,9 @@ class ForestAndRetrievalTests(unittest.TestCase):
         ]
         report = build_report(observations, {"library_scales": [1, 4, 16, 64]})
         self.assertEqual(report["claim_status"], "not-evaluable")
+        self.assertFalse(
+            report["coverage"]["organic_and_synthetic_reported_separately"]
+        )
         self.assertEqual(
             report["report_hash"],
             content_hash(

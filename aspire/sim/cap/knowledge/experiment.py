@@ -656,11 +656,16 @@ def build_report(observations: list[Observation], preregistration: dict[str, Any
     }
     missing_cells = sorted(expected_cells - present_cells)
     fairness_violations = _fairness_violations(observations)
+    observed_corpus_kinds = {value.corpus_kind for value in observations}
     coverage = {
         "preregistration_frozen": not validate_frozen_preregistration(preregistration),
         "all_treatment_scale_corpus_cells_present": not missing_cells,
         "missing_cells": [list(value) for value in missing_cells],
-        "organic_and_synthetic_reported_separately": all(":" in key for key in results),
+        "organic_and_synthetic_reported_separately": (
+            {"organic", "synthetic"} <= observed_corpus_kinds
+            and {key.split(":", 1)[0] for key in results}
+            == observed_corpus_kinds
+        ),
         "artifact_locks_complete_and_fair": not fairness_violations
         and not artifact_violations,
         "fairness_violations": [*fairness_violations, *artifact_violations],
