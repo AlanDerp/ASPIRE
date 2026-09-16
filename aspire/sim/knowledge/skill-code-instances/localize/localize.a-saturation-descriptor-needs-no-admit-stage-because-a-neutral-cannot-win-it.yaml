@@ -1,0 +1,49 @@
+{
+  "api_calls": [
+    "astype",
+    "np.median",
+    "float",
+    "dict",
+    "len",
+    "med.max",
+    "float",
+    "med.min"
+  ],
+  "ast_fingerprint": "39bcfd23a77f3d0a29c8de8e2b430edef5c1f35f746b96489f764a168a90ad38",
+  "checkpoint_id": null,
+  "code": "def mask_colour(rgb, mask):\n    \"\"\"Median body colour -> (sat, val, signed descriptor).\"\"\"\n    px = rgb[mask > 0].astype(np.float64)\n    if len(px) < 50:\n        return None\n    med = np.median(px, axis=0)\n    mx = float(med.max())\n    if mx <= 1e-6:\n        return None\n    sat = (mx - float(med.min())) / mx\n    val = mx / 255.0\n    return dict(med=med, sat=sat, val=val, desc=sat - val)",
+  "code_hash": "5bcddee4d254054194f31e812abd8218454ebd87157c66bdaecb612d54ef52dd",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "When the rank key is saturation itself, the single stage is already safe against bright neutral masks and the usual admit-by-hue stage is unnecessary: a neutral has sat ~ 0, so its descriptor goes negative and can never win a max()",
+  "id": "localize.a-saturation-descriptor-needs-no-admit-stage-because-a-neutral-cannot-win-it",
+  "kind": "skill-code-instance",
+  "observed_effect": "Measured on libero_object_task/pick_up_the_tomato_sauce_and_place_it_in_the_basket, whole-mask median colour, stable on all 15 development seeds for the target and the runner-up: goal bottle (62,20,0) sat 1.00 val 0.24 -> sat-val +0.757; orange-juice carton runner-up (80,55,14) -> +0.511; red-labelled can (58,48,29) -> +0.273; milk carton (89,51,40) -> +0.202; basket outer mask (149,146,136) sat 0.09 val 0.58 -> -0.497. The neutral basket mask is the brightest object in the scene (val 0.58, the maximum) yet sits at the extreme BOTTOM of the sat-val axis, because sat ~ 0 forces the descriptor negative. Margin target vs runner-up was +0.242/+0.244/+0.246/+0.250 across seeds 51-65 against a constant 0.511 runner-up; no seed came within 0.24 of flipping. 15/15 development seeds. The descriptor also degrades safely: a mask with fewer than 50 pixels returns None rather than a misleading colour",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_tomato_sauce_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "e07f134fb31096230a98abfea0e6340496b3c2b44650489b68cb8b7a82d89fc0",
+  "task": "pick_up_the_tomato_sauce_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "Ranking same-class distractors by an intrinsic colour signature on a scene that also holds a bright neutral mask (basket liner, wall, table edge) that could hold the extreme of the rank axis. The library's two-stage admit-by-hue-then-rank pattern exists because a raw channel difference can be maximised by a neutral; check whether the key you are ranking on already excludes one",
+  "vertical_capability": "localize"
+}

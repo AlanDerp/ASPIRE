@@ -1,0 +1,40 @@
+{
+  "api_calls": [],
+  "ast_fingerprint": "61d1f146cf5328efa23ee4295d5aab16b847eab4f0ee8c8e8307f1b880fd1cc0",
+  "checkpoint_id": null,
+  "code": "Z_CMD_REP_OFFSET = 0.107     # hand_z = commanded_z + this (top-down)\nFINGERTIP_OFFSET = 0.132     # fingertip_z = hand_z - this\nIK_MIN_Z = 0.005             # solve_ik clamps the commanded z to >= this\nGRIPPER_SCALE = 0.08         # gap_m = robot_cartesian_pos[-1] * this\n\nHAND_FLOOR = IK_MIN_Z + Z_CMD_REP_OFFSET   # deepest hand z; fingertips at table\nAIR_GAP = 0.006              # a pinch narrower than this caught nothing\nGRASP_MAX_GAP = 0.070        # wider than the slab's short side -> not a box pinch\n\nCARRY_Z = 0.34               # hand z for the lateral transit; clears every object\nRELEASE_UNDER_RIM = 0.040    # the slab's underside, this far below the basket rim\n\n# \"a small flat box lying on the table\"\nBOX_MIN_SIDE = 0.020\nBOX_MAX_SIDE = 0.120\nBOX_MAX_HEIGHT = 0.060\nBOX_MAX_TOP_Z = 0.070\n# warm (saturated red/orange) pixel fraction of the mask\nWARM_MIN = 0.15",
+  "code_hash": "c45a998f6fa94a0b507aee4f6c0a7c51398ffe17e4f7ca18323c62d87de44d86",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Treat the reach and height walls as software clamps inside solve_ik, not as physics: read the API source before designing a workaround",
+  "id": "manipulation.the-reach-and-height-walls-are-solve-ik-clamps-not-physics",
+  "kind": "skill-code-instance",
+  "observed_effect": "The claim is verified in the API source, not inferred: cap/integrations/franka/libero_reduced.py:383 is 'pos = np.clip(pos, [-0.1, -0.5, 0.005], [0.75, 0.5, 0.9])', so commanded x is capped at 0.75 and commanded z floored at 0.005 for EVERY task; cap/integrations/franka/common.py:29 is 'DEFAULT_TCP_OFFSET = np.array([0.0, 0.0, -0.107])', which is where the empirically measured 0.107 hand-to-TCP offset on the chocolate-pudding task actually comes from -- an API constant, not a per-task measurement. solve_ik also retries a four-step orientation ladder (requested -> top-down -> 45-tilt -> side-approach, libero_reduced.py:389-400) and returns on the first that converges, logging only a warning, so a successful solve_ik does NOT mean the requested orientation was honoured. Evidence for the clamp reading: the butter sits at x 0.708-0.717, inside the clamp, and a plain top-down command reaches it with gap after close 0.0388-0.0392 on all 15 seeds and no tilt; the sibling chocolate-pudding task's object sat at x 0.763 > 0.75 and needed a wrist-tilt ladder",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_milk_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "c0e40df22bb6dc0ad9733812df189a4fa93d9511a0db46c2e7c764c55ae5919f",
+  "task": "pick_up_the_milk_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "A top-down command whose achieved x saturates at a fixed value no matter how much further past the object you command, or a descent that stops at a fixed z. Both are constants shared by every task in every suite, so a workaround designed for one task is being designed against an API parameter",
+  "vertical_capability": "manipulation"
+}

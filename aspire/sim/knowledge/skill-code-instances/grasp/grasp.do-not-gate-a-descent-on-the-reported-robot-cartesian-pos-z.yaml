@@ -1,0 +1,45 @@
+{
+  "api_calls": [
+    "float",
+    "max",
+    "goto_pose",
+    "np.array"
+  ],
+  "ast_fingerprint": "43a639dcd5119993f85872bd824059ec450f97fdd863cfcf3ca57624c368f5a6",
+  "checkpoint_id": null,
+  "code": "def descend_ladder(xy, quat, z_start, z_target, hop=HOP):\n    \"\"\"Step z down in ABSOLUTE command space all the way to the deep target.\n\n    The target is deliberately below the container floor: the arm's physical\n    stall, not the command, sets where the release happens, and the sustained\n    downward command is what converges the xy onto the container centre.  Do\n    not gate this on `robot_cartesian_pos` -- its xyz is reported in a frame\n    that does not track the `solve_ik` world frame on a constant offset.\n    \"\"\"\n    z_cmd = float(z_start)\n    while z_cmd > z_target:\n        z_cmd = max(z_target, z_cmd - hop)\n        goto_pose(np.array([xy[0], xy[1], z_cmd]), quat)\n    return z_cmd",
+  "code_hash": "85feb3e32116af51c118d5d954ebb0d5709b64a895be24adb098c684d9fb3b73",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Drive a descent into a container from the absolute command, never from a measured-z feedback loop",
+  "id": "grasp.do-not-gate-a-descent-on-the-reported-robot-cartesian-pos-z",
+  "kind": "skill-code-instance",
+  "observed_effect": "Seed 51: commanded z 0.05 and robot_cartesian_pos[2] read 0.2850 while the episode video shows the pads inside the basket, so the stall detector fired on hop 1. With the gate removed the descent is a deterministic ladder to a deliberately unreachable flat z and the arm's physical stall sets the release; 15/15 seeds pass. Read the grip WIDTH from robot_cartesian_pos[-1] (that part is faithful and matches close_gripper's gripper_width exactly) but never the position. NOTE the disagreement with the 0.107 m offset measured on the chocolate_pudding task: do not assume one constant across tasks",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_bbq_sauce_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "5bc0ee63a30eea8bcda3ca2373a124c80d419f9fb93950ff9f664e7cd7e49058",
+  "task": "pick_up_the_bbq_sauce_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "A progress or stall gate on robot_cartesian_pos[2] while descending. Symptom: the gate fires on the first hop and aborts the descent, the reported z sits roughly constant no matter what is commanded, while the video plainly shows the gripper deep inside the container",
+  "vertical_capability": "grasp"
+}

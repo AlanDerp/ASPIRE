@@ -1,0 +1,47 @@
+{
+  "api_calls": [
+    "sorted",
+    "sorted",
+    "print",
+    "tolist",
+    "np.round"
+  ],
+  "ast_fingerprint": "df6198ec09c50f76dd8258e295367567850dad1017a282eb50e8e13d5a552e6b",
+  "checkpoint_id": null,
+  "code": "def pick_candidate(cands, colour_hint=None, verbose=False):\n    \"\"\"Two stages: admit chromatic packaging, then rank by a signed channel difference.\n\n    On this task ``brown box`` ties the goal object and its look-alike at an *identical* score\n    (0.559/0.559, 0.617/0.617), so the prompt rank is not an identity signal at all and the\n    stable sort silently picked whichever mask SAM3 returned first.  The discriminator is the\n    packaging colour: the chocolate pudding's dark maroon box reads ``chroma`` -24 while the\n    bright orange box reads -48, no overlap on any development seed, so ``max(chroma)`` - i.e.\n    the darkest, least-orange chromatic candidate - is the pudding.  The saturation gate keeps\n    a bright neutral mask (basket liner, wall) from holding the extreme of the colour axis.\n    \"\"\"\n    if not cands:\n        return None\n    if colour_hint == \"blue\":\n        return sorted(cands, key=lambda c: (c[\"pi\"], -c[\"chroma\"], -c[\"score\"]))[0]\n    pool = [c for c in cands if c[\"sat\"] > SAT_MIN] or cands     # never rank an empty list\n    if verbose:\n        for c in pool:\n            print(f\"  [rank] pi={c['pi']} {c['prompt']!r} chroma={c['chroma']:.1f} \"\n                  f\"sat={c['sat']:.2f} score={c['score']:.3f} c={np.round(c['centre'], 3).tolist()}\",\n                  flush=True)\n    return sorted(pool, key=lambda c: (c[\"pi\"], -c[\"chroma\"], -c[\"score\"]))[0]",
+  "code_hash": "00be2b89113d642eb676f2e370b43af8dd0b1e371f0e3685e4dfa985c76a8490",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Rank a prompt-tied candidate set by a signed channel difference behind a saturation gate, and choose the SIGN of that difference by where the non-targets land, not by where the target lands",
+  "id": "localize.choose-the-signed-differences-direction-by-where-the-non-targets-land",
+  "kind": "skill-code-instance",
+  "observed_effect": "Evidence: chroma = mean(B) - max(mean(R), mean(G)) reads -24.2..-24.3 on the target's dark maroon box on all 15 dev seeds (spread 0.1), -46.9..-48.3 on the look-alike, and -73.6..-74.2 on an orange carton fragment that also survives the geometric screen on 6 seeds: a >= 22.6 level margin with zero overlap, against a 0.000 prompt-score margin on the same pair. max(chroma) is correct because it ALSO rejects the orange fragment, where min(chroma) would select it. The saturation gate SAT_MIN=0.18 sits between the two real boxes (sat 0.42 and 0.59) and the basket liner (0.07), so it never touches a real candidate. Initial 13/15; final 15/15",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_orange_juice_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "4a99d5c2ab82cfc7d924c339afed040f840429657c8cfb0b4d8bd0a9727822d8",
+  "task": "pick_up_the_orange_juice_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "A same-class pair the prompt cannot order, where a colour descriptor of the candidate's own mask separates them. The sign of the difference must be chosen so every OTHER surviving candidate also falls on the far side of the axis; a sign chosen from the target alone can be right about the target and wrong about the field",
+  "vertical_capability": "localize"
+}

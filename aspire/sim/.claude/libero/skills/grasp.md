@@ -847,6 +847,27 @@ to reach it. The same code on the dressing scene stalls 4 cm short. The tracking
 the controller, not of the scene, so treat the absolute ladder as the general form and the relative
 one as an accident that worked once.
 
+**Third reason the same shape fails, and a stronger one: on a `_task` scene the reported z need not be
+in the world frame at all.** Both mechanisms above are *lag* — the arm tracks high by a constant, so a
+relative ladder under-travels. On `libero_object_task/pick_up_the_bbq_sauce_and_place_it_in_the_basket`
+a stall gate on `robot_cartesian_pos[2]` aborted the descent on **hop 1**: after a laddered descent to
+a commanded `z = 0.05` the reading was `z = 0.2850`, while the episode video plainly shows the pads
+inside the basket. The reading sat roughly constant whatever was commanded, so this was not lag but a
+frame mismatch — the same family as the 0.107 m offset measured on the chocolate_pudding `_task` run
+(see [manipulation.md](manipulation.md), "Measure the TCP, Not the Hand"), but larger, and *not* the
+same constant. **Do not carry either constant across tasks**: measure the relation with a two-point
+probe, and where the only need is for the descent to end, prefer no measured-z gate at all — ladder in
+absolute command space to a deliberately unreachable target and let the arm's physical stall set the
+release.
+
+The one field of `robot_cartesian_pos` that *was* faithful on this task is the last component: the
+gripper **width** matched `close_gripper`'s `gripper_width` exactly on every seed, so the entire hold
+check can be built on it while the position part is ignored. Evidence: with the gate removed the
+descent is deterministic and **15/15** development seeds pass; with the gate it aborted on hop 1.
+Source:
+`outputs/libero_fix_loop/libero_object_task/pick_up_the_bbq_sauce_and_place_it_in_the_basket/fix_code.py`
+— `descend_ladder` lines 164–177, `tcp` / `gap_raw` lines 50–55; 2026-09-16.
+
 **Why it works + evidence**: on `libero_object_swap/pick_up_the_alphabet_soup_and_place_it_in_the_basket`
 seed 51 a single 12 cm descent from z 0.172 to 0.052 landed at **z 0.080** — 2.8 cm short — and closed
 with `gap = 0.0012 m`, scoring 0.000 with no error logged. Split into ≤2.5 cm hops it closed at
@@ -876,6 +897,258 @@ deepest-first gain is *not* a firmer press but a different arm path. Deepest-fir
 against 7/13 on the same seeds. **Read no more into this than the seed count**: on this task a 1–2 cm
 trajectory change anywhere flips roughly 5 of 13 seeds in both directions, so treat single-seed
 comparisons as noise and report the count. Source: same `fix_code.py` — `grasp_bowl`; 2026-09-14.
+
+---
+
+## Pinch a Tall Object HIGH So Its Body Hangs Below the Pads
+
+**Trigger**: grasping a tall, narrow, capped bottle (or any object whose height is several times its
+width) for a *carry*. The symptom of getting the height wrong is visible before any reward is read:
+after the lift the object hangs tilted, and the measured grip gap is **much narrower after the lift
+than at the pinch** — the object has slid or pivoted in the jaws. A mid-height pinch puts the centre of
+mass just under the pads, which is only metastable; a high pinch leaves the mass hanging below like a
+self-restoring pendulum.
+
+```python
+GRASP_FRAC = 0.78        # of the object's OWN z-range, not of a fixed height
+LIFT_STEP  = 0.04        # absolute-z hops; NEVER one jump to the carry height
+
+# choose the pinch height and the pinch xy from the object's own cloud:
+zlo = float(np.percentile(pts[:, 2], 2)); zhi = float(np.percentile(pts[:, 2], 98))
+z_grasp = zlo + GRASP_FRAC * (zhi - zlo)
+band = pts[np.abs(pts[:, 2] - z_grasp) < 0.022]
+if len(band) < 20:
+    band = pts                                   # degrade, do not crash
+bxy = 0.5 * (np.percentile(band, 2, axis=0)[:2] + np.percentile(band, 98, axis=0)[:2])
+
+# lift as a ladder, re-reading the gap each hop:
+z_lift = z_grasp
+while z_lift < CARRY_Z:
+    z_lift = min(CARRY_Z, z_lift + LIFT_STEP)
+    goto_pose(np.array([bxy[0], bxy[1], z_lift]), quat)
+held_gap = gap_raw()      # must be within ~0.02 raw of the pinch reading
+```
+
+**Validate the height against the object's own taper before trusting it.** A depth-slab profile sweep
+prints the extents directly and shows where the shoulder is — do not pick `GRASP_FRAC` by eye:
+
+```python
+for frac in (0.30, 0.45, 0.55, 0.65, 0.75, 0.82, 0.90):
+    zz = zlo + frac * (zhi - zlo)
+    sl = pts[np.abs(pts[:, 2] - zz) < 0.012]
+    if len(sl) >= 8:
+        e = np.percentile(sl, 98, axis=0) - np.percentile(sl, 2, axis=0)
+        print("    profile frac=%.2f z=%.3f n=%3d ext=(%.3f,%.3f)" % (frac, zz, len(sl), e[0], e[1]))
+```
+
+On the ketchup bottle this read `ext_y` **0.060 at frac 0.30 → 0.052 at 0.55 → 0.038 at 0.75 → 0.033 at
+0.82** — a taper, so `GRASP_FRAC = 0.78` lands on the shoulder just under the cap and the jaws close on
+the narrowest part.
+
+**Use the lift re-read as the cheap hold check.** The pinch→lift change in the measured gap is a direct
+read-out of sliding, and it needs no extra perception: before the fix it narrowed by **0.15–0.17 raw**
+(0.49 → 0.32–0.34) on the failing seeds; after, it is `pinch 0.463–0.479 → lift 0.460` on **15/15**
+seeds, a delta of **≤ 0.016 raw** — nothing moves in the grip. So the gate is not just "still above the
+air floor" but "the gap did not *change*": `if held_gap <= AIR_GAP_RAW or held_gap > pinch_gap + 0.03`.
+
+**Why it works + evidence**: on `libero_object_task/pick_up_the_bbq_sauce_and_place_it_in_the_basket`
+(the runtime language is "pick the ketchup") the bottle was pinched at mid-height and on seeds 55, 63,
+64 it pivoted about the pinch and hung tilted while the arm carried it, so the gripper descended into
+the basket **empty** and the bottle was left standing on the table behind the basket — visible in the
+video at 0.30–0.58 of the episode at 60–70° from vertical, with the last frames showing the fingers
+inside the mouth and no bottle between them. Raising the pinch flipped **55, 63, 64** from 0.0 to 1.0
+(12/15 → 15/15) with all twelve already-passing seeds holding. Source:
+`outputs/libero_fix_loop/libero_object_task/pick_up_the_bbq_sauce_and_place_it_in_the_basket/fix_code.py`
+— `GRASP_FRAC` line 14, `LIFT_STEP` line 17, the pinch band and profile sweep at lines 194–238; 2026-09-16.
+
+---
+
+## A Correct Pinch on a Tapered Neck Reads *Below* the Air Floor — Gate on the Lift Re-Read
+
+**Trigger**: the pinch height is a fraction of the object's own height, and at that fraction the object's
+cross-section is narrow — a bottle shoulder or neck, a tapered carton, a cone. The grasp is real and
+load-bearing, but `close_gripper` returns an aperture of 0.02–0.03 m, which the usual absolute
+"< 0.03 means it closed on air" heuristic rejects. The program then discards a grasp that would have held.
+
+Trace symptom to grep for: `grasp failed: gap 0.0264` (or any value in the 0.02–0.03 band) with reward 0,
+on a program whose *close* otherwise looks clean — no air close, no wedge, no IK failure.
+
+```python
+AIR_GAP = 0.012               # closed on air really reads below this
+GRASP_MAX_GAP = 0.072         # wedged wider than this is not our object
+...
+close_gripper()
+gap_close = aperture(get_observation())
+if gap_close <= AIR_GAP or gap_close >= GRASP_MAX_GAP:
+    open_gripper(); continue                # air, or wedged on something else
+hang = tcp_pinch - object_zlo               # capture the hang HERE, before the lift
+ladder_z(x, y, tcp_pinch, top_z, quat, "lift", step=0.040)
+gap_lift = aperture(get_observation())
+if gap_lift <= AIR_GAP or gap_lift > gap_close + 0.03:
+    open_gripper(); continue                # it slid out on the way up
+```
+
+The lower bound and the upper bound are doing different jobs, and that is why both are here: `AIR_GAP`
+rejects a close on nothing, `GRASP_MAX_GAP` rejects a jaw that wedged on the table or a neighbouring
+object, and the **lift re-read** is the actual hold test — the aperture changing on the way up is a direct
+read-out of sliding, and it costs no perception. Note the asymmetry in the second gate: `> gap_close +
+0.03` compares against *this attempt's own* close, not against a constant, so a narrow pinch is not
+penalised for being narrow.
+
+**Why the absolute floor is the wrong instrument.** The object's own taper sets the floor's value. The
+shipped profile sweep on the goal bottle of
+`libero_object_task/pick_up_the_tomato_sauce_and_place_it_in_the_basket` (runtime language "Pick the
+**bbq sauce**…") measured `ext 0.046 at frac 0.30 → 0.040 at 0.55 → 0.030 at 0.75 → 0.026 at 0.82` — so
+at the documented `GRASP_FRAC = 0.78` a *correct* pinch necessarily reads ≈ 0.026 m, and an 0.030 floor
+is guaranteed to reject it on that object every time. The threshold was wrong, not the pinch height.
+
+**Evidence**: with the 0.0264 m close rejected, attempt 1 on dev seed 51 raised `grasp failed: gap 0.0264`
+and the episode scored **0.000**. After `AIR_GAP` was lowered to 0.012 and the lift re-read added, seed
+51 scored **1.0** and the full sweep went **15/15**, with `gap_close 0.0264 → gap_lift 0.0265` — a delta of
+**+0.0001, identical on all 15 development seeds**: nothing moves in the jaws. A `(yaw, frac)` ladder
+`[(0, 0.78), (0, 0.62), (90, 0.78)]` sits behind the first entry as insurance; the final sweep shows
+**exactly one grasp attempt per seed, always `yaw=0 frac=0.78`**, so the fallbacks provably never fire and
+no passing seed can regress through them.
+
+**Scope of the evidence, stated plainly**: the 0.0264 failure was the same author's *first draft* of this
+program, and the shipped `initial_code.py` already carries the corrected constant — so this is a repair
+within one task's own development, not a measured gain over a provided baseline. It is recorded because
+the *diagnosis* generalizes (the taper sets the reading; the hold test is the change, not the absolute
+value), not because the before/after is a controlled comparison. Source:
+`outputs/libero_fix_loop/libero_object_task/pick_up_the_tomato_sauce_and_place_it_in_the_basket/fix_code.py`
+— `AIR_GAP` line 30, `GRASP_MAX_GAP` line 31, `aperture` 78–80, the close gate 334–337, the lift gate
+345–351, `GRASP_LADDER` line 313; 2026-09-16.
+
+---
+
+## Pinch a Boxy Carton at a Fraction of Its OWN Measured Height — and Ladder the Lift
+
+**Trigger**: a tall, light rectangular carton (here 13.4 × 5.0 × 2.7 cm) to be carried across the
+table by a two-pad friction grasp. Neither requirement is about the carton's identity: the closing axis
+must go across the **narrow** horizontal axis, and the pinch height must be a fraction of the object's
+**own measured z-range** rather than a constant.
+
+```python
+GRASP_FRACS = (0.55, 0.40, 0.70)     # of the carton's OWN z-range
+GRASP_YAWS  = (0.0, 90.0)
+AIR_GAP, GRASP_MAX_GAP = 0.030, 0.072
+
+z_grasp = brick["bot"] + frac * brick["h"]
+open_gripper()
+goto_pose(np.array([brick["cx"], brick["cy"], z_start]), q)
+below(brick["cx"], brick["cy"], z_start, z_grasp, q)     # <=2.5 cm laddered hops
+meas = float(tcp()[2])
+if meas > brick["top"] - 0.020:      # the arm stopped at its reach-dependent floor;
+    continue                          # accept only if the pads got DOWN onto the carton
+close_gripper()
+g = gap()
+if g <= AIR_GAP or g >= GRASP_MAX_GAP:
+    continue                          # air, or wedged on something that is not the carton
+z = meas                              # ladder the LIFT: one jump throws a held object
+while z < z_start:
+    z = min(z_start, z + 0.04)
+    goto_pose(np.array([brick["cx"], brick["cy"], z]), q)
+if gap() > AIR_GAP: return True
+```
+
+Three of these lines carry more than they look:
+
+- `z_grasp = brick["bot"] + frac * brick["h"]` is what makes the identical program work wherever the
+  carton happens to stand — the height is relative to the **object**, and `brick` is re-localized on
+  every attempt.
+- The acceptance test is **relative to the object's top**, not to a commanded or absolute z:
+  `meas > brick["top"] - 0.020` rejects the attempt where the arm stopped at its own kinematic floor
+  short of the carton, which is otherwise indistinguishable from a successful descent.
+- The **lift is laddered** (≤4 cm hops) exactly like the descent. The same rule that makes a long
+  descent under-reach silently makes a long *lift* throw the payload out of the jaws, and a held
+  object is the worse case to lose.
+
+**Contrast with the bottle entry above — the fraction is not portable, the principle is.** For a
+*tapered* bottle the pinch goes **high** (`GRASP_FRAC = 0.78`) onto the narrowest shoulder. A boxy
+carton has no taper, so there is no narrow band to aim at and 55% of its own height is used. What
+carries over is not the number but the method: sweep the object's *measured* z-profile and pick the
+fraction where the cross-section is what the jaws need.
+
+**Evidence**: 15/15 development seeds grasped on the **first** candidate (yaw 0, frac 0.55), with
+`meas_z` 0.096–0.102 against carton tops of 0.138–0.140 — the pads 3.6–4.4 cm below the top — and
+`gap` 0.0519–0.0535 after the close, 0.0520–0.0530 after the lift: a pinch-to-lift delta of
+**≤ 0.0015 m**, i.e. nothing moved in the jaws. No seed logged a stall, an air close or a retry, and
+the measured gap matched the carton's 5.0 cm y-width plus pad thickness, so the closing axis genuinely
+straddled it rather than closing beside it. Source:
+`outputs/libero_fix_loop/libero_object_task/pick_up_the_ketchup_and_place_it_in_the_basket/fix_code.py`
+— `GRASP_FRACS` line 50, `grasp` lines 297–334 (laddered descent 306–311, relative-height acceptance
+312–315, gap gate 317–321, laddered lift 323–331); 2026-09-16.
+
+---
+
+## Reach Past a Kinematic Wall by Tipping the Wrist — Laddering Further Just Saturates
+
+**Trigger**: repeated closes return an **air** aperture while the pads' estimated xy stops short of
+the object centre by more than a few mm, *and commanding further past the object does not move the
+achieved position at all*. This is the grasp-side face of the reach wall that
+[manipulation.md](manipulation.md) documents as a laddered `probe_reach_x`; the move below is what to
+do once the wall has been found.
+
+```python
+TILT_LADDER = (0.0, 15.0, 25.0, 32.0, 20.0, 28.0)     # degrees
+
+def tilt_toward(e_xy, theta_deg, yaw_deg=0.0):
+    """Top-down pose tipped by theta_deg so the pads shift along +e_xy.
+
+    The tool axis is rotated about the horizontal axis perpendicular to e_xy; the sign of
+    that axis is chosen by predicting which candidate actually moves the pads toward e_xy.
+    """
+    R0 = Rotation.from_euler("z", yaw_deg, degrees=True).as_matrix() @ np.array(
+        [[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+    e = np.array([float(e_xy[0]), float(e_xy[1]), 0.0])
+    if np.linalg.norm(e) < 1e-9 or theta_deg <= 0.0:
+        q = Rotation.from_matrix(R0).as_quat()
+        return np.array([q[3], q[0], q[1], q[2]])
+    ehat = e / np.linalg.norm(e)
+    best = None
+    for axis in (np.cross(ehat, [0.0, 0.0, 1.0]), np.cross([0.0, 0.0, 1.0], ehat)):
+        R = Rotation.from_rotvec(np.asarray(axis, float) * np.radians(theta_deg)).as_matrix() @ R0
+        off = R @ np.array([0.0, 0.0, 1.0])
+        score = off[0] * ehat[0] + off[1] * ehat[1]
+        if best is None or score > best[0]:
+            best = (score, R)
+    q = Rotation.from_matrix(best[1]).as_quat()
+    return np.array([q[3], q[0], q[1], q[2]])
+```
+
+Rotating the pose about the horizontal axis re-aims the pads *along the tool axis* without moving the
+arm — the pads swing out from under the wrist, which is reach the arm does not have.
+
+**The wall this defeats is a software clamp, and that is why the tilt works and laddering does not.**
+`solve_ik` clips the commanded hand position — `np.clip(pos, [-0.1,-0.5,0.005], [0.75,0.5,0.9])` at
+`cap/integrations/franka/libero_reduced.py:383`, so x ≤ 0.75 and z ≥ 0.005 for *every* task in *every*
+suite. A larger commanded x is discarded, not fought for, which is exactly why the
+`aim += measured error` loop above converges to the same 0.750 forever. The tilt escapes the clamp
+because the clamp constrains the **hand**, while the pads sit off the hand axis under a tilted
+orientation: the pads can therefore pass 0.75 while the commanded hand position stays clipped. See
+[manipulation.md](manipulation.md), "The Reach and Height Walls Are `solve_ik` Clamps, Not Physics".
+Naming it correctly matters — the failure reads as a mechanical limit, and the natural response to a
+mechanical limit (command further, ladder harder) is precisely the response that cannot work.
+
+**Why it works + evidence**: on `libero_object_task/pick_up_the_chocolate_pudding_and_place_it_in_the_basket`
+(the runtime language is "pick the salad dressing", object remapped) the bottle sits at x = 0.763 and
+**every** top-down command saturates at the same achieved x. X overshoot does not help, and a
+closed-loop `aim += measured error` iteration converges to the same point:
+
+| commanded eef x | achieved pads x | close result |
+|---|---|---|
+| 0.763 / 0.772 / 0.781 / 0.790 / 0.799 | 0.748 / 0.750 / 0.750 / 0.750 / 0.750 | air, gap 1.2 mm |
+
+The pads stop ~13 mm short of a 26 mm-wide bottle, so every top-down close reads aperture 0.0148 — the
+whole difficulty of the task. A 12–28° tip moves the pads 0.747 → 0.752–0.760 and the same pinch then
+holds (aperture 0.33–0.48, gap 26–38 mm) **at every tilt tried**, so the exact angle is not critical
+and the ladder is a safety net rather than a search. On all 15 dev seeds candidate 0 (tilt 0) airs and
+candidate 1 (tilt 15) holds at 36.5–38.3 mm. Note the achieved 0.750 wall is the *same* x = 0.750 that
+`libero_spatial_swap` measured for this arm — an independent replication of the wall's position.
+Requires the pad offset from [manipulation.md](manipulation.md) ("Measure the TCP, Not the Hand"):
+`z_cmd = z_pad - Rz * PAD_FROM_EEF`, so the **pads** clear the object top rather than the reported
+frame. Source: `outputs/working_codes/libero_object_task_pick_up_the_chocolate_pudding_and_place_it_in_the_basket_fix.py`
+— `tilt_toward`, lines 60–82; 2026-09-16.
 
 ---
 
@@ -1161,6 +1434,34 @@ Source:
 `outputs/libero_fix_loop/libero_object_swap/pick_up_the_orange_juice_and_place_it_in_the_basket/fix_code.py`
 — `grasp` (relative gate, gap window), `orange_frac`; 2026-09-14.
 
+**Sixth confirmation, on a `_task` suite — and the first where the *closure policy*, not the floor, was
+the bug.** On `libero_object_task/pick_up_the_alphabet_soup_and_place_it_in_the_basket` the goal object is
+a flat 8.1 × 4.7 × **1.8 cm** slab, thinner than the finger pads. The pre-fix ladder closed on **every**
+descent rung; on 12 of 15 seeds an intermediate rung was as deep as the loop got, so the fingertips came
+to rest **on the slab's top face**, the close caught air, and the reading was a fully-closed gripper —
+`width 0.015–0.017` — with the achieved eef z plateaued at **0.1338–0.1345**. The three seeds that passed
+had happened to reach deeper on that same first rung (`width 0.526–0.528`): a servo/branch coin flip, not
+a strategy. Two rules generalize:
+
+- **Never close on a rung.** Close once, at the deepest z `solve_ik` accepted. The ladder's job is to
+  *find* the floor, not to offer a series of grasp attempts — a rung close turns every near-miss into a
+  plausible-looking air grasp, and **the aperture is the only signal that separates them here**: on an
+  object 1.8 cm tall, "fingers at the sides" (z 0.116) and "fingers on top" (z 0.134) differ by less than
+  the object's own height, so no absolute or object-relative height gate is sharp enough.
+- **The commanded z is the lever, so command past the floor.** This arm settles ~0.11 m above the
+  command, so *reachable* z — not the stall test — is what sets fingertip height. Walking monotonically
+  in 0.02 m steps to `FLOOR = 0.005` put the fingertips at the slab's sides at **measured eef z
+  0.1163–0.1168 on every seed**, and the first pinch of every seed read `width 0.51–0.55`, ≈ the slab's
+  4.2 cm short side.
+
+15/15 development seeds after the change (baseline 3/15); flipped 51, 52, 53, 54, 56, 58, 60, 61, 62, 63,
+64, 65. Source:
+`outputs/libero_fix_loop/libero_object_task/pick_up_the_alphabet_soup_and_place_it_in_the_basket/fix_code.py`
+— `pinch` lines 151–171 (the `while z > FLOOR` ladder is 159–166, the single `close_gripper()` at 167);
+2026-09-16. The same program derives its pinch azimuth from the object's OBB ([grasp.md](grasp.md), "Derive
+the Closing Yaw From the Object's Own Cloud") and releases at the basket's rim-band midpoint
+([localize.md](localize.md), "Take a Container's Mouth Centre From Its Top Rim").
+
 ---
 
 ## Gate a Closed Gripper on Aperture AND Finger Height
@@ -1190,6 +1491,34 @@ air**, 0.18–0.32 closed on a bottle neck.
 commanded grasp and scored reward 0. Every v2 seed reports `aperture 0.18x` and
 `lift check aperture 0.18x` at the moment of acceptance. Source:
 `.../put_the_wine_bottle_on_top_of_the_cabinet/fix_code.py` — `grasp`, lines 236–269; 2026-09-14.
+
+### The aperture is trustworthy for hold-vs-air — which is a *different* question from how deep you are
+
+The trigger above and the rule below are both true, and the boundary between them is worth stating
+because a program that confuses them either over-gates or under-gates:
+
+- **When the failure is a reach/aim failure, the aperture decides alone and is unambiguous.** On
+  `libero_object_task/pick_up_the_chocolate_pudding_and_place_it_in_the_basket` the populations are
+  cleanly separated — air closes read **0.0146–0.0149** (gap 1.2 mm), real holds **0.33–0.48** (gap
+  26–38 mm), open **0.999** — and no height corroboration was needed. Gate on a two-sided window
+  (`HOLD_MIN = 0.20`, `HOLD_MAX = 0.95`; above `HOLD_MAX` the pads never touched anything), then
+  re-check retention after the lift with `w2 < HOLD_MIN and w2 < 0.45 * w → slipped`. All 15 dev seeds
+  logged candidate 0 air **0.0148** → candidate 1 hold **0.457–0.479**, lift retention 0.447–0.492.
+- **The aperture says nothing about *where* the hold is.** That is what the height gate in the
+  previous section is for, and it is not redundant: two attempts with *identical* estimated pad
+  positions (0.752) produced one hold and one air close, and a hold at pads (0.760, 0.095) versus an
+  air close at (0.755, 0.109) differ by 5 mm — inside the estimator's own error. So the *pad estimate*
+  cannot replace the aperture, and the aperture cannot replace the height gate.
+
+**Search framing — when success is uncertain, spend the attempt budget as a search, not as an analytic
+prediction.** Because the gate is one clean bit, the honest program is a small pose ladder plus a
+one-bit test per rung, rather than an attempt to compute the right pose. Six candidates ≈ 360 sim
+steps, comfortably inside the ~999-step horizon even though each `open_gripper`/`close_gripper` pair
+costs 30 steps. The ladder here is `TILT_LADDER` (see "Reach Past a Kinematic Wall…" above), with the
+error direction for the next rung taken from the *previous* attempt's measured pad miss — so the
+search is steered, not blind. Source:
+`outputs/working_codes/libero_object_task_pick_up_the_chocolate_pudding_and_place_it_in_the_basket_fix.py`
+— `attempt_pinch`, lines 224–258; 2026-09-16.
 
 ---
 

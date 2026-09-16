@@ -1,0 +1,46 @@
+{
+  "api_calls": [
+    "abs",
+    "float",
+    "np.linalg.norm",
+    "float",
+    "float"
+  ],
+  "ast_fingerprint": "3c7363b5f3e64b1a5c4fadeb1bcd6cad57c34415589a229b1636516533c72a88",
+  "checkpoint_id": null,
+  "code": "def same_object(c, ref, sig):\n    \"\"\"Same physical can: matching colour signature and close on the table.\"\"\"\n    return (\n        abs(float(c[sig]) - float(ref[sig])) < 6.0\n        and float(np.linalg.norm(c[\"center\"][:2] - ref[\"center\"][:2])) < 0.08\n    )",
+  "code_hash": "bfc7e689be3ddbb3bac266144511f640f4d915aa0beb0bc8605b93bf3414d5a7",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Verify a lift by matching the candidate identity (colour signature plus centroid proximity) rather than by re-running the class prompt, which silently returns the sibling once the target has been carried away",
+  "id": "localize.verify-a-lift-by-identity-not-by-a-class-prompt",
+  "kind": "skill-code-instance",
+  "observed_effect": "The initial program re-ran the whole-class can prompt after the lift and took max(blue) over the result, so it always looked unchanged; after replacing it with an identity-matched check (descriptor within 6 grey levels and centroid within 8 cm) every seed logs honestly, the sibling reading -17.4 against the target +0.5 so the gate correctly matches nothing and post-release reports target still on table = False",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_cream_cheese_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "f009b609a96a26b8070f27d1413cfbb36ecdee6ebfe81ab626165541bd57caf1",
+  "task": "pick_up_the_cream_cheese_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "Post-lift grasp verification on a scene holding a same-class sibling. The class prompt returns the sibling, so a check that reads the class result reports the sibling geometry as if it were the target and always concludes the scene is unchanged",
+  "vertical_capability": "localize"
+}

@@ -1,0 +1,63 @@
+{
+  "api_calls": [
+    "np.array",
+    "as_quat",
+    "np.array",
+    "as_matrix",
+    "np.array",
+    "as_quat",
+    "np.array",
+    "np.linalg.norm",
+    "np.cross",
+    "np.cross",
+    "float",
+    "float",
+    "np.linalg.norm",
+    "as_matrix",
+    "np.array",
+    "Rotation.from_matrix",
+    "Rotation.from_euler",
+    "Rotation.from_matrix",
+    "Rotation.from_rotvec",
+    "np.asarray",
+    "np.radians"
+  ],
+  "ast_fingerprint": "3a11c1f4db8bcd4f78330e4ac35376a4a7e05db5bedcf1212ef1d3251cf0d7c1",
+  "checkpoint_id": null,
+  "code": "def tilt_toward(e_xy, theta_deg, yaw_deg=0.0):\n    \"\"\"Top-down pose tipped by theta_deg so the pads shift along +e_xy.\n\n    The tool axis is rotated about the horizontal axis perpendicular to e_xy; the sign of\n    that axis is chosen by predicting which candidate actually moves the pads toward e_xy.\n    \"\"\"\n    R0 = Rotation.from_euler(\"z\", yaw_deg, degrees=True).as_matrix() @ np.array(\n        [[1, 0, 0], [0, -1, 0], [0, 0, -1]]\n    )\n    e = np.array([float(e_xy[0]), float(e_xy[1]), 0.0])\n    if np.linalg.norm(e) < 1e-9 or theta_deg <= 0.0:\n        q = Rotation.from_matrix(R0).as_quat()\n        return np.array([q[3], q[0], q[1], q[2]])\n    ehat = e / np.linalg.norm(e)\n    best = None\n    for axis in (np.cross(ehat, [0.0, 0.0, 1.0]), np.cross([0.0, 0.0, 1.0], ehat)):\n        R = Rotation.from_rotvec(np.asarray(axis, float) * np.radians(theta_deg)).as_matrix() @ R0\n        off = R @ np.array([0.0, 0.0, 1.0])\n        score = off[0] * ehat[0] + off[1] * ehat[1]\n        if best is None or score > best[0]:\n            best = (score, R)\n    q = Rotation.from_matrix(best[1]).as_quat()\n    return np.array([q[3], q[0], q[1], q[2]])",
+  "code_hash": "22e7181ea14756f4f6341679a979d4e3dc48d787d4a6b0e3ee090c91024fe98f",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Re-aim the finger pads along the tool axis when a top-down pose cannot reach the object, instead of commanding further past it",
+  "id": "grasp.tilt-the-wrist-toward-the-measured-pad-shortfall-when-past-reach",
+  "kind": "skill-code-instance",
+  "observed_effect": "A 12-32 deg tip of the top-down pose about the horizontal axis perpendicular to the pad shortfall moves the pads 0.747 -> 0.752-0.760 and the same pinch then holds (aperture 0.33-0.48). Top-down commanded x 0.763..0.799 all saturate at achieved 0.750, ~13 mm short of a 26 mm bottle (air 0.0148, gap 1.2 mm); candidate 0 (tilt 0) airs and candidate 1 (tilt 15) holds at 36.5-38.3 mm on all 15 dev seeds",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/working_codes/libero_object_task_pick_up_the_chocolate_pudding_and_place_it_in_the_basket_fix.py",
+  "source_code_sha256": "e63cba1d9951b380d9a56bd7ddece803df3a0f5d6f53e60ddfdeeecd4e795cbd",
+  "task": "pick_up_the_chocolate_pudding_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "Repeated closes read an air aperture (pads met nothing) while the pads' estimated xy stops short of the object centre by more than a few mm, and commanding past the object does not move the achieved position at all",
+  "vertical_capability": "grasp"
+}

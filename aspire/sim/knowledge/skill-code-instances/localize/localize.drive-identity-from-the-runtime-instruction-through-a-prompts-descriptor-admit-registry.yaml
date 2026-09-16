@@ -1,0 +1,56 @@
+{
+  "api_calls": [
+    "dict",
+    "astype",
+    "float",
+    "astype",
+    "float",
+    "dict",
+    "dict",
+    "len",
+    "mean",
+    "len",
+    "mean",
+    "mean",
+    "mask.astype",
+    "mask.astype",
+    "np.maximum"
+  ],
+  "ast_fingerprint": "fe27663a48b1c4f65caad92be4259963fb9204f99f6a010ea3b63ccfc4bae12d",
+  "checkpoint_id": null,
+  "code": "def warm_fraction(rgb, mask):\n    \"\"\"Fraction of the mask that is saturated red/orange (a warm label panel).\"\"\"\n    px = rgb[mask.astype(bool)].astype(np.float64)\n    if len(px) == 0:\n        return -999.0\n    return float(((px[:, 0] > 1.4 * px[:, 1]) & (px[:, 0] > 1.4 * px[:, 2])\n                  & (px[:, 0] > 90)).mean())\n\n\ndef cool_difference(rgb, mask):\n    \"\"\"Signed blue excess of the mask (blue minus the larger of red and green).\n\n    A *difference* of two means over the same pixels, so the scene's lighting\n    level cancels and there is no absolute constant to tune.\n    \"\"\"\n    px = rgb[mask.astype(bool)].astype(np.float64)\n    if len(px) == 0:\n        return -999.0\n    return float(px[:, 2].mean() - np.maximum(px[:, 0], px[:, 1]).mean())\n\n\ndef rank_score(rgb, mask):\n    \"\"\"Descriptor that carries no colour information -> the prompt score decides.\"\"\"\n    return 0.0\n\n\n# Identity registry keyed by the object the *runtime instruction* names (the file\n# name is a decoy on this suite). The prompt list makes the object's candidates\n# *appear* — the packaging word leads, because it is a far stronger visual token\n# than the product word — and the descriptor decides *which* candidate it is.\n# `admit` is an optional floor; when it rejects every candidate the ranking\n# degrades to the prompt score rather than to an unusable list.\nTARGET_SPEC = {\n    \"butter\": dict(prompts=[\"butter box\", \"butter\", \"box\", \"carton\"],\n                   descriptor=warm_fraction, admit=WARM_MIN),\n    \"cream cheese\": dict(prompts=[\"cream cheese box\", \"cream cheese\", \"box\", \"carton\"],\n                         descriptor=cool_difference, admit=None),\n}\nDEFAULT_SPEC = dict(prompts=[\"box\", \"carton\"], descriptor=rank_score, admit=None)",
+  "code_hash": "6e107f2ece0a9f24c10d1e57612b128f822b7ad42e2ccb1d916963b523d6a03d",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Drive identity from the runtime instruction through a (prompts, descriptor, admit) registry: the prompt list controls which candidates exist, the geometric screen which kind survives, the descriptor which instance wins",
+  "id": "localize.drive-identity-from-the-runtime-instruction-through-a-prompts-descriptor-admit-registry",
+  "kind": "skill-code-instance",
+  "observed_effect": "Evidence: 15/15 dev seeds. 'butter' grounds poorly (best mask on seed 51 is the cream-cheese slab at 0.047, the butter fourth at 0.036) and 'butter box' still ranks the cream-cheese slab ABOVE the butter, with the margin flipping sign across seeds: 0.174 vs 0.157 on seed 51, 0.195 vs 0.169 on 55, 0.117 vs 0.102 on 60 -- so max(masks, key=score) picks the decoy on every seed and no threshold repairs it. The warm-fraction descriptor separates them by an order of magnitude on every seed (butter 0.378-0.405 vs cream cheese 0.000 vs dark box 0.020; worst margin 0.228 against an admit floor of 0.15). admit is a FLOOR, never a hard requirement: falling back to the score rank beats ranking an empty list",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_milk_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "c0e40df22bb6dc0ad9733812df189a4fa93d9511a0db46c2e7c764c55ae5919f",
+  "task": "pick_up_the_milk_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "A _task suite where the file name is a decoy, the instruction's product word does not ground (top score < ~0.4), and several same-shape objects survive the geometric screen. Symptom: a score ranking that puts the decoy first, or whose MARGIN CHANGES SIGN between seeds so no threshold on the score can work",
+  "vertical_capability": "localize"
+}

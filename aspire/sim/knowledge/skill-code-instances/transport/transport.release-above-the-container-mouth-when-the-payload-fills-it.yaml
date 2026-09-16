@@ -1,0 +1,50 @@
+{
+  "api_calls": [
+    "go",
+    "open_gripper",
+    "go",
+    "open_gripper",
+    "go",
+    "open_gripper",
+    "np.array",
+    "np.array",
+    "np.array"
+  ],
+  "ast_fingerprint": "4e9ea5362aae1cf7bdca88fd3d7177c43937fbf5e0dc4c00e20ae0f260ab91b4",
+  "checkpoint_id": null,
+  "code": "# --- release above the rim, then retreat straight up ----------------------\ngo(np.array([cmd[0], cmd[1], release_z]), quat)\nopen_gripper()\ngo(np.array([cmd[0], cmd[1], high_z]), quat)\nopen_gripper()\ngo(np.array([cmd[0], cmd[1], high_z + 0.04]), quat)\nopen_gripper()",
+  "code_hash": "d550e5cb8f4981190ccd410a9feec9c273e8c5b5760e8d474dfbb033302fb975",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Release a payload above the container mouth, never inside it, when the payload is as tall as the container is deep",
+  "id": "transport.release-above-the-container-mouth-when-the-payload-fills-it",
+  "kind": "skill-code-instance",
+  "observed_effect": "The baseline released at hand_z = (rim_z - 0.070) + hang, putting the payload base 7.0 cm below the rim on every seed, and scored 2/15. The shipped release_z = rim_z + RELEASE_ABOVE_RIM + hang (0.020) puts the base 2 cm above the rim and it drops in: 14/14 in each of two independent sweeps. The carton is 0.143 m tall against a basket interior ~0.135 m deep, so seating its base on the floor necessarily puts the gripper at rim height; the failing trial video shows the carton's lower edge catching the near rim while the descending arm shoves the basket ~0.03 m in +x, leaving the carton on the table at the old rim line",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_butter_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "deff825d047c5cf370356ad5176023794cbd751a49e875067d8eff49475bc38f",
+  "task": "pick_up_the_butter_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "A pick-and-place into a container where payload_height >= interior_depth, or interior_width < ~1.5 x payload_width. Symptom: the container moves during the descent and the payload is left standing beside it",
+  "vertical_capability": "transport"
+}

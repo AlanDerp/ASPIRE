@@ -20,16 +20,6 @@
 - libero_goal_task/put_the_wine_bottle_on_the_rack
 - libero_goal_task/put_the_wine_bottle_on_top_of_the_cabinet
 - libero_goal_task/turn_on_the_stove
-- libero_object_task/pick_up_the_alphabet_soup_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_bbq_sauce_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_butter_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_chocolate_pudding_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_cream_cheese_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_ketchup_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_milk_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_orange_juice_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_salad_dressing_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_tomato_sauce_and_place_it_in_the_basket
 - libero_spatial_swap/debug_smoke
 
 ---
@@ -79,20 +69,20 @@
 | salad_dressing → basket | done | 50/50 (100%) [run 78b50be0a4275b4f] |
 | tomato_sauce → basket | done | 45/50 (90%) [run de6ff86d1b1e16f0] |
 
-## libero_object_task  (0/10 done)
+## libero_object_task  (10/10 done)
 
 | Task | Status | Rate |
 |---|---|---|
-| alphabet_soup → basket | pending | — |
-| bbq_sauce → basket | pending | — |
-| butter → basket | pending | — |
-| chocolate_pudding → basket | pending | — |
-| cream_cheese → basket | pending | — |
-| ketchup → basket | pending | — |
-| milk → basket | pending | — |
-| orange_juice → basket | pending | — |
-| salad_dressing → basket | pending | — |
-| tomato_sauce → basket | pending | — |
+| alphabet_soup → basket | done | 50/50 (100%) [run e26d96827eb4a078] |
+| bbq_sauce → basket | done | 49/50 (98%) [run cea3e15b547437b0] |
+| butter → basket | done | 49/50 (98%) [run 79fae29a8a4eb5b8] |
+| chocolate_pudding → basket | done | 50/50 (100%) [run 8ef300b70ada3295] |
+| cream_cheese → basket | done | 50/50 (100%) [run 26ce0b99a134384a] |
+| ketchup → basket | done | 49/50 (98%) [run b246ad19850ec08e] |
+| milk → basket | done | 48/50 (96%) [run e6010f562f84e04a] |
+| orange_juice → basket | done | 50/50 (100%) [run 37fbd35531771dea] |
+| salad_dressing → basket | done | 50/50 (100%) [run c191daaf4d5cfa21] |
+| tomato_sauce → basket | done | 50/50 (100%) [run ba582f49dadb621a] |
 
 ## libero_spatial_swap  (8/11 done)
 

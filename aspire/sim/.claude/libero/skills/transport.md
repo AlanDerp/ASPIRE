@@ -296,6 +296,27 @@ open_gripper()
 The offset is *only* valid for the grasp it was measured from — re-measure it on every attempt,
 before that attempt's pinch.
 
+**A tilted grasp makes the offset *rotation-dependent*, so it cannot be a constant at all.** On
+`libero_object_task/pick_up_the_chocolate_pudding_and_place_it_in_the_basket` the pinch is deliberately
+tipped 15–32° to clear a reach wall (see "Reach Past a Kinematic Wall by Tipping the Wrist" in
+[grasp.md](grasp.md)), and a tilted tool puts the pads off the reported frame **in xy as well as in z**:
+the pad-to-command offset is `R @ [0, 0, PAD_FROM_EEF]`, whose horizontal part `PAD_FROM_EEF * Rz_xy`
+grows with the tilt. Recomputing the release xy from the **held** orientation on every release — rather
+than reusing an offset measured at a top-down pinch — is what keeps the object inside a 0.15 m mouth.
+The rule generalizes: whenever the grasp orientation is not constant across attempts, the compensation
+must be recomputed per attempt from that attempt's own quaternion, not carried as a number.
+
+**Re-localizing the container *after* the lift is sometimes right — and the rule above says not to.**
+The two are not in conflict; the difference is what the mask can see. On the `_swap` alphabet-soup task
+the carried can dragged the *basket's* mask centroid 8.7 cm, so the pre-grasp xy was kept. On this task
+the basket is re-observed and re-localized **after** the lift and reads cleanly: the held bottle does not
+enter the basket's mask from the scene camera, and pickup (x ≈ 0.763) and basket (x ≈ 0.60) are far
+apart in frame. So re-localize after the lift **only** when the carried object provably cannot enter the
+container's mask — and decide that from a mask you have actually looked at, not from the rule's name.
+Both readings scored 15/15 development seeds; this one also scored **50/50 held-out**. Source:
+`outputs/working_codes/libero_object_task_pick_up_the_chocolate_pudding_and_place_it_in_the_basket_fix.py`
+— `place_in_basket`, lines 278–298; 2026-09-16.
+
 **Use the pinch-time geometry for the offset's DIRECTION, and split it from its magnitude.** The two
 halves of `off` have different best sources, and mixing them up costs ~2× the object's radius:
 
@@ -722,6 +743,35 @@ the margin that flips marginal seeds, so the same change can move a seed either 
 on this task identical shipped code flipped seeds 58 and 59 between 0.0 and 1.0 on repeats. Justify the
 taper and the closure by mechanism plus the achieved-vs-commanded height print, and only then by score.
 
+#### The measured hang can be NEGATIVE — carry the sign, do not assume the payload hangs below the pads
+
+Every release height above is built as `support + hang`, which quietly assumes `hang > 0`: that the
+payload's base sits *below* the fingertips. A payload **thinner than the finger pads**, pinched with
+the pads pressed to the deepest pose the IK accepts, breaks that assumption — the pads close *below*
+the slab's base, so `hang = fingertip_z_at_grasp − object_bot` comes out **negative**. A release height
+built from a positive hang then lands short, and the slab is still on the pads when the jaws open.
+
+```python
+# measured on all 15 seeds: hand 0.117, fingertip 0.117 - 0.132 = -0.015, slab base 0.002-0.005
+hang     = (hand_at_grasp - FINGERTIP_OFFSET) - float(box["bot"])   # -0.017 .. -0.019 (NEGATIVE)
+z_under  = rim - RELEASE_UNDER_RIM                                  # 0.101
+hand_rel = z_under + hang + FINGERTIP_OFFSET                        # commanded 0.215 -> measured 0.219
+```
+
+The sign is not the point; **carrying** it is. Read the formula as a definition rather than a
+measurement — the payload's underside is at `hand − FINGERTIP_OFFSET − hang`, which holds whether the
+pads reach past the base (negative hang) or stop above it (positive hang). Written that way, the same
+three lines serve a 14 cm carton and a 15 mm slab with no branch, and the "pressed to the floor" pinch
+(see [grasp.md](grasp.md)) no longer needs a special release case.
+
+**Evidence**: on `libero_object_task/pick_up_the_milk_and_place_it_in_the_basket` (runtime language
+"Pick the *butter*…"; the payload is a **15 mm slab**) the measured hang was **−0.017…−0.019 m** on all
+15 development seeds, and the release commanded hand z 0.215–0.222 against a rim of 0.141–0.142 landed
+the slab inside the mouth every time. `gap after lift` equalled `gap after close`
+(0.0388–0.0392 m — the slab's 37 mm short side) on every seed, so nothing shifted in the jaws across
+the carry. Source: same `fix_code.py` — `main`, the hang line at 314 and the release-height lines at
+322–324 (press-to-floor pinch ladder 284–312); 2026-09-16.
+
 ### Carry a Marginal Friction Grip in Short Hops, With a Re-Close and a Gap Check Per Hop
 
 **Trigger**: a smooth, dense, cylindrical object held only by friction (a wedge pinch, a rim pinch)
@@ -824,6 +874,157 @@ than as a correction to the over-command pattern.
 `outputs/libero_fix_loop/libero_object_swap/pick_up_the_butter_and_place_it_in_the_basket/fix_code.py`
 — `find_basket`, `main`; 2026-09-14.
 
+### Release *Above* the Mouth When the Payload Is as Tall as the Container Is Deep
+
+**Trigger**: a pick-and-place where `payload_height >= container_interior_depth`, or where the mouth's
+free width is under ~1.5 × the gripper body. Symptom: the container is **displaced** during the descent
+— the payload's lower edge, and then the gripper body, catch the near wall — and the payload ends up
+standing on the table at the rim line rather than inside.
+
+**Same container, same task name, opposite rule from the entry above — and the payload is what
+changed.** On `libero_object_swap/pick_up_the_butter_and_place_it_in_the_basket` the payload is a low
+butter box and releasing ~4 cm *below* the rim scored 15/15. On
+`libero_object_task/pick_up_the_butter_and_place_it_in_the_basket` — the `_task` remap, whose
+authoritative language is `"Pick the orange juice and place it in the basket"` — the payload is a
+**0.143 m carton in a basket only ~0.135 m deep**, and a below-rim release is fatal on every seed. So
+the release height is not a property of the container; it is a function of
+`payload_height / interior_depth`.
+
+```python
+HIGH_CLEARANCE    = 0.100        # whole lateral transit height, above the rim
+RELEASE_ABOVE_RIM = 0.020        # payload BASE released 2 cm above the rim, then dropped in
+high_z    = rim_z + hang + HIGH_CLEARANCE
+release_z = rim_z + hang + RELEASE_ABOVE_RIM
+```
+
+`hang` is measured in the **commanded** frame (`pinch_z_cmd − target_zlo`, both terms taken before the
+lift — see [grasp.md](grasp.md)); lift vertically at the pick xy, fly the transit, then descend purely
+vertically and open.
+
+**Why it works**: the carton is *taller than the basket is deep*, so seating its base on the basket
+floor necessarily puts the gripper at rim height — the height at which the arm must be to seat it is
+the height at which the gripper body is inside the mouth. Against ~0.11 m of usable interior and an
+~0.08 m gripper there is no descent path that ends with the payload in the basket. Releasing the base
+2 cm above the rim and letting the carton fall the remaining distance removes the requirement
+entirely.
+
+**Evidence**: baseline `hand_z = (rim_z − 0.070) + hang` (payload base 7.0 cm below the rim) →
+**2/15**, and the trial video shows the mechanism: the carton's lower edge catches the near rim, the
+still-descending arm **shoves the basket ~0.03 m in +x**, and the carton is left on the table at the
+near rim line. Shipped `hand_z = rim_z + 0.020 + hang` → **14/14 in each of two independent draws**
+(28/28 on seeds 52–65, no seed flaky). Source:
+`outputs/libero_fix_loop/libero_object_task/pick_up_the_butter_and_place_it_in_the_basket/fix_code.py`
+— `RELEASE_ABOVE_RIM` line 42, `high_z`/`release_z` lines 403–404, the release block lines 441–446;
+2026-09-16.
+
+**Scope of the claim — this is a comparison against a *reachable* deep release, not against the
+over-command.** The over-command pattern below deliberately commands a target the arm cannot reach and
+lets the physical stall set the height; on this scene the stall was never measured, and the shipped
+program never issues an unreachable z. So the honest statement is: *given a commanded release depth,
+above-rim beats 7 cm below-rim on a payload this tall.* Whether an over-command would also have worked
+here is **untested** — do not read this entry as evidence against it.
+
+**Partially resolved by a sibling `_task` task, and in the over-command's favour.**
+`libero_object_task/pick_up_the_ketchup_and_place_it_in_the_basket` (runtime language "Pick the milk…")
+carries a **13.4 cm carton — the same object class — into the same basket** and releases by
+over-commanding a flat z 0.06. The arm stalls 2.7 cm below the rim and the task scores **15/15**
+development seeds. So an over-command into this container in a `_task` scene is *not* inherently fatal,
+and payload height alone does not distinguish the two runs. What does distinguish them is what the arm
+**does** with the command: ketchup's target is unreachable, so the *stall* sets the release height,
+whereas butter's baseline commanded `rim − 0.070` — a depth the arm **reached** — driving the gripper
+body on past the stall point and into the wall. Read the two entries together as: a release height is
+safe when a stall sets it or when an explicit above-rim rule sets it, and unsafe when it is a
+*reachable* deep target. Butter's own program was never run against an over-command, so this adjusts
+the explanation, not the measured result.
+
+**That last sentence is now itself too strong, and a third payload shows where it fails.**
+`libero_object_task/pick_up_the_tomato_sauce_and_place_it_in_the_basket` (runtime language "Pick the
+**bbq sauce**…") carries an **0.110 m bottle into a ~0.13 m interior** and releases at
+`rel_z = rim − RELEASE_UNDER_RIM + hang` with `RELEASE_UNDER_RIM = 0.040` and `hang = 0.089–0.090`
+(measured at the pinch, before any lift). The payload base lands at **0.101–0.102 against a rim of
+0.141–0.142 — exactly 4.0 cm below the rim** — and the arm **reached** the commanded z on 10 of the 15
+development seeds and stalled on the other 5 (57, 58, 59, 60, 62). **Both cases scored 1.0; the task is
+15/15.** So a reachable below-rim release is not fatal here, on a *deeper* command than several of the
+cases the paragraph above treats as dangerous.
+
+What separates the three runs is the payload-to-interior ratio, and it is the ratio — not the
+reachability — that the paragraph above is really pointing at:
+
+| task | payload | interior | base below rim | outcome |
+|---|---|---|---|---|
+| `_swap` butter | 15 mm slab | ~0.135 m | 4.0 cm | **15/15** |
+| `_task` butter | 0.143 m carton | ~0.135 m | 7.0 cm | **2/15** → above-rim 14/14 |
+| `_task` ketchup | 0.134 m carton | ~0.135 m | 2.7 cm (stall) | **15/15** |
+| `_task` tomato_sauce | 0.110 m bottle | ~0.13 m | 4.0 cm (reached on 10/15) | **15/15** |
+
+Read the four rows together and reachability stops being the discriminator: tomato_sauce's release is
+reachable and safe, ketchup's is stalled and safe, butter's is reachable and fatal. The row that is
+fatal is the one where the payload is *taller than the interior is deep*, and there the base cannot go
+7 cm below the rim without the descent path putting the carton's lower edge through the near rim. Note
+also why the *tool* height stays clear while the payload does not: the bottle is pinched high
+(`GRASP_FRAC = 0.78`), so `hang` is 0.089 and the tool sits at z 0.190 — well above the 0.141 rim —
+even with the payload base 4 cm inside. **The quantity to derive is the payload base, not the tool z.**
+
+This does **not** close the question the paragraph above opened — tomato_sauce was never run against an
+over-command either, so no run in this table isolates reachability from payload ratio, and none of them
+tests a tall payload released by stall *below* the rim. What it does establish is that "reachable deep
+release" alone does not predict the butter failure. Source:
+`outputs/libero_fix_loop/libero_object_task/pick_up_the_tomato_sauce_and_place_it_in_the_basket/fix_code.py`
+— `RELEASE_UNDER_RIM` line 39, `hang` line 342, `rel_z` line 379, the descent 380–381; 2026-09-16.
+
+### Fly the Whole Lateral Transit Above the Rim, Before Any Sideways Move
+
+**Trigger**: any carry whose path crosses the destination container, where the payload hangs below the
+hand by more than a few millimetres. A fixed free-air carry height is not safe, because the payload's
+underside sits at `carry_z − hang` and `hang` is known only after the pinch.
+
+Order is the whole content of the pattern: **lift vertically at the *pick* xy to the transit height
+first, then move laterally.** A Cartesian move that corners is not the same path as a joint-space
+interpolation, and a single "go to (x, y, high_z)" from the pick pose lets the arm swing the payload
+sideways through the rim plane on the way up.
+
+**Evidence**: on `libero_object_task/pick_up_the_butter_and_place_it_in_the_basket` the pick-pose lift
+height `LIFT_Z = 0.215` puts the payload base at 0.128 m against a rim at 0.135 m — **7 mm below** — so
+even though the *hand* looked high, the first sideways move already crossed the rim plane and fouled
+the basket. Flying the transit at `rim_z + hang + 0.100 = 0.322` placed all 14 attempted seeds
+cleanly. Source: same `fix_code.py` — `high_z` at lines 403–404 and the vertical lift to it at line
+420, which precedes every lateral step; 2026-09-16.
+
+### Close the Placement Loop on the Payload's Own Measured xy, Not the Hand's
+
+**Trigger**: any placement into a target whose free width is under ~2–3 × the hand-to-payload lateral
+offset. An open-loop model aim (`mouth − nominal_offset`) leaves the *payload's* centre off by the
+per-grasp offset, which is not the nominal one.
+
+At the transit height — payload base ~10 cm above the rim and fully visible in the agentview — measure
+the carried object's xy, close the loop, and re-command:
+
+```python
+for _ in range(MAX_ALIGN):                      # 3
+    obj = find_carried(rgb, d, K, E)            # identity-gated; xy only, never its base
+    if obj is None:
+        break                                   # no payload found -> keep the model aim
+    err = mouth - obj
+    if np.hypot(*err) < ALIGN_TOL:              # 0.006
+        break
+    step = np.clip(err, -ALIGN_STEP, ALIGN_STEP)  # 0.05
+    go([cur[0] + step[0], cur[1] + step[1], high_z], quat)
+```
+
+The identity gate is the language's **colour word plus a hand-radius window**, and the carried mask's
+*base* is never used (see "Never Re-Localize an Object While It Is in the Gripper" in
+[localize.md](localize.md) — on this very task the carried carton's mask reported a base 7.4 cm too
+high while its xy was right to 6 mm). When the gate finds nothing the loop is a no-op and the model aim
+is used, which is the correct failure mode: it degrades to the previous behaviour rather than to a
+guess.
+
+**Evidence**: measured hand-to-payload lateral offsets of +0.030 m (seed 51, two independent
+measurements agreeing to 1 mm) and +0.004…+0.006 m (seeds 54–58) against a ~0.11 m basket interior and
+a 0.05 m payload — the margin is a few centimetres, so aiming the hand at the mouth centre puts the
+payload off centre. The loop converged `|err| 0.011 → 0.005` on seed 54 and `0.009 → 0.005` on seed 55,
+both reward 1.0; the no-op path also scored 1.0 on seeds 52/53/56–65. Source: same `fix_code.py` — the
+alignment loop lines 417–438, `find_carried` lines 231–274; 2026-09-16.
+
 ### Over-Command the Descent Into a Container — the Stall Does the Centring
 
 **Trigger**: placing an object into a container whose mouth is only slightly wider than the object
@@ -917,6 +1118,7 @@ the three tasks by the *height of the carried object* orders the stall heights e
 | alphabet soup | 7.8 cm can, pinched mid-body | 0.140–0.153 (at the rim) | 0.140 |
 | milk | 14.3 cm brick, pinched at 55 % of height | 0.120–0.124 (~2 cm below) | 0.141–0.142 |
 | orange juice | 13.4 cm carton, pinched at 55 % of height | **0.113–0.114** (~2.8 cm below) | 0.141–0.142 |
+| ketchup (`_task`, carries the **milk carton**) | 13.4 cm carton, pinched at 55 % of height | **0.112–0.115** (~2.7 cm below) | 0.1415 |
 
 The orange-juice task also shows why the *object's base*, not the pad, is the quantity that matters: the
 carton is 13.4 cm tall in a basket ~13 cm deep, so its base reaches the basket floor while the pads are
@@ -924,6 +1126,80 @@ still 2.8 cm below the rim — the object's own base terminates the descent, and
 computed to put the *pads* somewhere sensible would be measuring the wrong end of the object. Source:
 `outputs/libero_fix_loop/libero_object_swap/pick_up_the_orange_juice_and_place_it_in_the_basket/fix_code.py`
 — `place`, `find_basket`; 2026-09-14.
+
+**The last row is the same carried object in a different suite, and it lands on the same stall — the
+strongest support for the carried-geometry reading.** On
+`libero_object_task/pick_up_the_ketchup_and_place_it_in_the_basket` the runtime language names the
+*milk* (the `_task` remap; see [localize.md](localize.md)), and the payload is again a **13.4 cm
+carton pinched at 55 % of its height**, released with the same flat `RELEASE_Z = 0.06` into the same
+basket. The arm stalled at `tcp z = 0.112–0.115` on every one of the 15 development seeds — matching
+the `_swap` orange-juice row's 0.113–0.114 to within 2 mm, from a different suite, a different task
+name, and a different program. Two independent programs carrying the same object into the same
+container stop at the same height, which is what makes this a property of the **arm and the carried
+geometry** rather than of either program. One implementation note from this run: the
+released-gripper check must be **two-sided** (`AIR_GAP < g < 0.075`), because an *open* gripper reads
+~0.080 and a one-sided `g > AIR_GAP` is therefore true after every successful release. Source:
+`outputs/libero_fix_loop/libero_object_task/pick_up_the_ketchup_and_place_it_in_the_basket/fix_code.py`
+— `place` lines 336–361, `find_basket` lines 271–295; 15/15 development seeds; 2026-09-16.
+
+**A fourth data point in a `_task` suite, where the same flat z 0.06 lands the payload from a *flat*
+object.** On `libero_object_task/pick_up_the_alphabet_soup_and_place_it_in_the_basket` the release ladder
+walks from `CARRY_Z = 0.30` down to the same deliberately-unreachable `DROP_Z = 0.06`, then re-commands it
+in a settle loop until the arm stops making progress (`prev − cur < 0.0008`). The arm stalls at measured
+eef z **0.212** against a rim of **0.141–0.142**, i.e. ~7 cm *above* the rim, and the 1.8 cm slab — pinched
+low, unlike the mid-body can above — falls in with `task_completed` on **15/15** development seeds. The
+spread across all four tasks in this family (stall 0.212 here, 0.140–0.153 on the can, 0.120–0.124 on the
+milk brick, 0.113–0.114 on the orange-juice carton) is the clearest statement of the rule: `DROP_Z` is a
+*constant you invent*, the stall is a property of the arm and the carried geometry, and the only thing the
+program controls is that the object's base is commanded far enough below the rim. Two details also carry
+over from the alphabet-soup `_swap` sibling above — the descent is a **ladder**, not one long move, and the
+release xy comes from the container's own rim band rather than its whole-cloud median
+([localize.md](localize.md)). Source:
+`outputs/libero_fix_loop/libero_object_task/pick_up_the_alphabet_soup_and_place_it_in_the_basket/fix_code.py`
+— `main`, release ladder at lines 234–245; 2026-09-16.
+
+**A fifth data point that confirms the *flat-object* stall height reproduces across tasks, not just
+across suites.** On `libero_object_task/pick_up_the_orange_juice_and_place_it_in_the_basket` — a
+different task, a different program, a different payload (a **2.8 cm** dark box against the alphabet
+soup `_task` sibling's 1.8 cm slab), but the same flat `DROP_Z = 0.06` and the same ladder-and-settle
+release — the arm stalls at measured eef z **0.210–0.212** against a rim of 0.141–0.142. That matches
+the alphabet-soup `_task` row's 0.212 to within 2 mm, and it lands on the *same* side of the rule as
+everything else in this family: the stall is ~7 cm **above** the rim, far from the commanded 0.06, so
+`DROP_Z` was never reached on any seed. Read the family as two clusters rather than one spread — a
+**flat payload pinched low** stalls ~7 cm above the rim (0.210–0.212, two tasks), and a **tall payload
+pinched at 55 % of its height** stalls 2–2.8 cm *below* the rim (0.112–0.124, three tasks). **The
+salad-dressing entry below does not fit either cluster, and it is recorded there as an open tension
+rather than folded in here** — treat the grouping as a correlation to test, not a predictor, until a
+single task is measured with two commanded depths. Source:
+`outputs/libero_fix_loop/libero_object_task/pick_up_the_orange_juice_and_place_it_in_the_basket/fix_code.py`
+— `main`, the release ladder (`DROP_Z` line 36); 15/15 development seeds; 2026-09-16.
+
+**A sixth data point that does NOT fit the two clusters — record the tension, do not smooth it.** On
+`libero_object_task/pick_up_the_salad_dressing_and_place_it_in_the_basket` the payload is a **7.8 cm
+can** (the same size and class as the alphabet-soup `_swap` row above, `h = 0.077–0.079`), it is carried
+into the same basket, and the release commands the **same flat unreachable depth** — `descend_to([x, y,
+0.060])`, with the source comment *"Command far below the rim on purpose: the arm stalls inside the mouth
+and the can is released there. Do not clamp the target to stay above the rim."* The pads stalled at
+measured z **0.1051–0.1052** against the 0.141–0.142 rim: ~3.6 cm **below** the rim, where the
+alphabet-soup `_swap` can stalled **at** it (0.140–0.153).
+
+So the carried-geometry reading is **not sufficient on its own**. Two tasks with the same nominal
+carried object and the same flat, unreachable command produced stalls 3.5 cm apart, which means at least
+one of the things this table treats as "the carried geometry" is not the operative variable — candidates
+that this run does not separate: the pinch height on the can (mid-body vs nearer the top), the exact
+quantity each program reads back (`tcp_world()` vs the reported eef pose vs a pad z), and the stall
+detector itself (`STALL_EPS = 0.0015` with 2 consecutive stalled hops here, vs `prev − cur < 0.0008`
+in the alphabet-soup ladder). Note the epsilon direction rules one explanation out: a *looser* progress
+threshold declares the floor *earlier* and therefore *higher*, so it cannot explain a stall 3.5 cm
+lower. **Use the table as a per-sequence lookup, not as a predictor**: what transfers across all six
+tasks is that the measured floor — not the commanded value — decides the release, and the two-cluster
+grouping above is a correlation across tasks that differ in more than payload until someone varies the
+command *within* one task and measures the stall twice. What this run does establish independently is
+the **tightness** of a repeated floor: 0.1051–0.1052 across 15 seeds is a 0.1 mm spread, so a measured
+floor is a far better release datum than any commanded constant. Source:
+`outputs/libero_fix_loop/libero_object_task/pick_up_the_salad_dressing_and_place_it_in_the_basket/fix_code.py`
+— `main` lines 386–392 (the release command and its comment), `descend_to` lines 94–134 (hop budget 16,
+`MAX_HOP` 0.025, `STALL_EPS` 0.0015, `STALL_HOPS` 2); 15/15 development seeds; 2026-09-16.
 
 ### Guard the *Container*, Not the Commanded Target
 

@@ -1,0 +1,59 @@
+{
+  "api_calls": [
+    "td_quat",
+    "open_gripper",
+    "move",
+    "float",
+    "close_gripper",
+    "grip_width",
+    "print",
+    "float",
+    "float",
+    "max",
+    "move",
+    "float",
+    "eef",
+    "print",
+    "eef",
+    "float",
+    "eef"
+  ],
+  "ast_fingerprint": "0502a38efe9e3159465c7797fdc59cf37694ac3848ff9eb00feedffaade35ee2",
+  "checkpoint_id": null,
+  "code": "def pinch(target, yaw, tag):\n    \"\"\"Monotone descent to the deepest reachable z, then close there.\"\"\"\n    bx, by = float(target[\"centre\"][0]), float(target[\"centre\"][1])\n    quat = td_quat(yaw)\n    open_gripper()\n    z = HOVER + 0.06\n    move([bx, by, z], quat)\n    meas = float(eef()[2])\n    while z > FLOOR:\n        z = max(FLOOR, z - STEP)\n        move([bx, by, z], quat)\n        now = float(eef()[2])\n        if now > meas - 0.004:                       # stalled -> fingers are on something\n            print(f\"  [{tag}] floor at cmd {z:.3f} meas_z {now:.4f}\", flush=True)\n            break\n        meas = now\n    close_gripper()\n    width = grip_width()\n    print(f\"  [{tag}] yaw={yaw:.1f} xy=({bx:.3f},{by:.3f}) meas_z={float(eef()[2]):.4f} width={width:.4f}\",\n          flush=True)\n    return width >= GRIP_MIN, quat, bx, by",
+  "code_hash": "24f671503b332f03f5e25f49db2ca9dc42a57b23c4541ad449d04bc94961337e",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Close a top-down pinch only at the deepest z the solver accepts when the goal object is thinner than the finger pads, rather than closing on an intermediate descent rung",
+  "id": "grasp.close-only-at-the-deepest-reachable-z-for-a-shallow-object",
+  "kind": "skill-code-instance",
+  "observed_effect": "Replacing the close-on-every-rung ladder with a monotone descent in 0.02 m steps to the deepest z the solver accepts (FLOOR 0.005) and closing only there put the fingertips at the box sides (measured eef z 0.1163-0.1168 on every seed) and returned gripper width 0.51-0.55 on the FIRST pinch of every seed; the baseline ladder closed at achieved eef z 0.1338-0.1345 and read width 0.015-0.017 on 12 of 15 seeds",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_alphabet_soup_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "d5ce098dfeb28af7b83f1214d918c2484a65bf744a518a7276d6abef0f49ea93",
+  "task": "pick_up_the_alphabet_soup_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "Goal object shorter than about 2.5 cm. Symptom: close_gripper returns a near-zero width (0.015-0.017, fully closed) even though the commanded xy and the SAM3 geometry look correct, and the achieved eef z plateaus about 2 cm above where the fingertips would need to be, because the fingertips are resting on the object top face",
+  "vertical_capability": "grasp"
+}

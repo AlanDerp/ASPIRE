@@ -1,0 +1,59 @@
+{
+  "api_calls": [
+    "safe_segment",
+    "mask_to_world_points",
+    "np.percentile",
+    "np.percentile",
+    "dict",
+    "float",
+    "astype",
+    "float",
+    "float",
+    "len",
+    "len",
+    "np.percentile",
+    "np.percentile",
+    "np.array",
+    "float",
+    "float",
+    "float",
+    "float",
+    "np.percentile"
+  ],
+  "ast_fingerprint": "3dbeba3a8f9d1d7c64499f88507f5201af11ea75cb37ad75e6f1cd5fcca436ae",
+  "checkpoint_id": null,
+  "code": "def find_basket(rgb, di, K, E):\n    for prompt in (\"basket\", \"wicker basket\", \"woven basket\"):\n        for m in safe_segment(rgb, prompt)[:3]:\n            if float(m[\"score\"]) < 0.3:\n                continue\n            pts = mask_to_world_points(m[\"mask\"].astype(np.uint8), di, K, E)\n            if pts is None or len(pts) < 500:\n                continue\n            z = pts[:, 2]\n            zlo, zhi = float(np.percentile(z, 2)), float(np.percentile(z, 98))\n            if zhi - zlo < 0.06:\n                continue\n            rim = pts[z > zlo + 0.85 * (zhi - zlo)]\n            if len(rim) < 200:\n                continue\n            # Mouth axis = midpoint of the rim ring's extent.  The rim point\n            # mean/median is biased toward the camera-facing wall, whose points\n            # are denser: on seed 51 the two differ by 2.1 cm.\n            xlo, xhi = np.percentile(rim[:, 0], [2, 98])\n            ylo, yhi = np.percentile(rim[:, 1], [2, 98])\n            return dict(mouth=np.array([0.5 * (xlo + xhi), 0.5 * (ylo + yhi)]),\n                        rim_z=float(np.percentile(rim[:, 2], 50)),\n                        xspan=float(xhi - xlo), yspan=float(yhi - ylo),\n                        score=float(m[\"score\"]), prompt=prompt)\n    return None",
+  "code_hash": "0256a74145f1c7f5fb58028f494a7c2b8566c31cc79006269000915a458763d3",
+  "development_outcomes": {
+    "successes": [
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Take a container mouth axis from the rim band's percentile range, not from the rim points' mean or median",
+  "id": "localize.take-a-container-mouth-axis-from-the-rims-range-not-its-point-mean",
+  "kind": "skill-code-instance",
+  "observed_effect": "On seed 51 the rim point median gives x = 0.621 and the 2/98 percentile midpoint gives x = 0.599 - a 2.1 cm difference against a 0.151 m mouth, which is the whole placement tolerance. The shipped program takes the top ~15% z-band of the container cloud as the rim, then the 2/98 percentile midpoint on each horizontal axis, and uses the span as the tolerance; the span (0.151 x 0.165 m) was stable to 1 mm across all 15 dev seeds",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_butter_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "deff825d047c5cf370356ad5176023794cbd751a49e875067d8eff49475bc38f",
+  "task": "pick_up_the_butter_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "Localising a container mouth from a mask of the whole container: rim points are denser on the camera-facing wall, so the point mean or median is biased toward the camera",
+  "vertical_capability": "localize"
+}

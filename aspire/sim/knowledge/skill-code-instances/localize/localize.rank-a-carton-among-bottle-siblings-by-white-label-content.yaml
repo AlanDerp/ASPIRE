@@ -1,0 +1,36 @@
+{
+  "api_calls": [
+    "np.where",
+    "astype",
+    "float",
+    "float",
+    "len",
+    "mean",
+    "mean",
+    "int",
+    "tuple",
+    "len",
+    "float",
+    "px.min",
+    "px.mean"
+  ],
+  "ast_fingerprint": "41a052720d2e59bcc3e836e2705ee7bc0a7cd194c1ded68ea5a6795bdb71305b",
+  "checkpoint_id": null,
+  "code": "def mask_features(rgb, mk):\n    \"\"\"White-label content and warm-pixel fraction of a boolean mask.\"\"\"\n    ys, xs = np.where(mk)\n    if len(ys) < 100:\n        return None\n    px = rgb[ys, xs].astype(np.float64)\n    white = float((px.min(axis=1) > 120).mean())\n    warm = float((px[:, 0] - px[:, 2] > 20).mean())\n    return {\"white\": white, \"warm\": warm, \"n\": int(len(ys)),\n            \"rgb\": tuple(float(v) for v in px.mean(axis=0))}",
+  "code_hash": "361fe82ae6ab1b74ce19a05d82c44a5364286be2673cfdacb5aae84487bf3936",
+  "development_outcomes": {},
+  "goal": "Rank a carton among its bottle siblings by the mask's white-label-content fraction, applied inside a geometry screen and only for the nouns it was measured on",
+  "id": "localize.rank-a-carton-among-bottle-siblings-by-white-label-content",
+  "kind": "skill-code-instance",
+  "observed_effect": "Evidence: fraction of mask pixels with min(R,G,B)>120 reads 0.036-0.045 for the milk carton against 0.002-0.008 for all three bottles, the can and the flat box (>=4.5x margin, all 15 dev seeds). No prompt separates them: 'milk' 0.177, 'milk carton' 0.338, and 'box' ranks the flat blue box first (0.621 vs 0.500). Applied only for WHITE_CUE_NOUNS because on any other noun the white read would confidently select the milk carton; elsewhere it degrades to a prompt-score rank. 15/15",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_ketchup_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "0cd295102dc84cf92db85a2f7952eaa226899285ae83eb6afc632c2d0282a710",
+  "task": "pick_up_the_ketchup_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "The instruction names a packaged product (milk, juice, cream cheese, butter) and the table holds tall bottles of the same class that every geometry screen admits; the product word scores near zero and the packaging word ranks a flat sibling first",
+  "vertical_capability": "localize"
+}

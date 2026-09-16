@@ -1,0 +1,61 @@
+{
+  "api_calls": [
+    "tcp_world",
+    "range",
+    "float",
+    "print",
+    "tcp_world",
+    "cur.copy",
+    "max",
+    "float",
+    "float",
+    "tcp_world",
+    "np.linalg.norm",
+    "float",
+    "goto_pose",
+    "print",
+    "print",
+    "float",
+    "abs",
+    "print",
+    "np.asarray",
+    "type"
+  ],
+  "ast_fingerprint": "d2d466b610619f18c005028a4b9d3ca37330bcdf63edf13ff1234873723852d0",
+  "checkpoint_id": null,
+  "code": "def descend_to(target_world, quat, label=\"\", budget=DESC_BUDGET):\n    \"\"\"Descend in <=MAX_HOP steps, holding the target xy; stop on loss of progress.\"\"\"\n    meas = tcp_world()\n    prev = None\n    stall = 0\n    for i in range(budget):\n        cur = tcp_world()\n        nxt = cur.copy()\n        nxt[2] = max(float(target_world[2]), cur[2] - MAX_HOP)\n        nxt[0] = float(target_world[0])\n        nxt[1] = float(target_world[1])\n        try:\n            goto_pose(nxt, quat)\n        except Exception as exc:\n            print(f\"  {label} hop {i}: motion failed ({type(exc).__name__})\", flush=True)\n            break\n        meas = tcp_world()\n        if i % 3 == 0 or meas[2] < 0.12:\n            print(\n                f\"  {label} hop {i}: cmd z={nxt[2]:.4f} \"\n                f\"meas=({meas[0]:.3f},{meas[1]:.3f},{meas[2]:.4f})\",\n                flush=True,\n            )\n        if meas[2] <= float(target_world[2]) + 0.004:\n            break\n        if prev is not None and abs(meas[2] - prev) < STALL_EPS:\n            stall += 1\n            if stall >= STALL_HOPS:\n                print(f\"  {label} stalled at z={meas[2]:.4f}\", flush=True)\n                break\n        else:\n            stall = 0\n        prev = meas[2]\n    xy_err = float(np.linalg.norm(meas[:2] - np.asarray(target_world[:2], dtype=float)))\n    print(f\"  {label} floor z={meas[2]:.4f} xy_err={xy_err:.4f}\", flush=True)\n    return meas",
+  "code_hash": "2b6866776ed9ed46cf683fbdacefd31d22cdbf271bf5dbee1342a389fdbc654a",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Ladder every Cartesian descent in hops of at most 2.5 cm and stop on loss of progress, taking the measured pose rather than the commanded target as the answer",
+  "id": "grasp.ladder-the-descent-and-take-the-measured-floor-as-the-answer",
+  "kind": "skill-code-instance",
+  "observed_effect": "Measured grasp floor 0.0441 identical on all 15 development seeds with the commanded target 0.033 never reached, and place floor 0.1050-0.1057; the ladder is what produces the repeatable 0.0593-0.0635 hold gap. The program measures the pad-frame offset itself with one probe move rather than hardcoding it, because robot_cartesian_pos[7] is qpos/0.04 so gap_m = 0.080 * that value",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_cream_cheese_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "f009b609a96a26b8070f27d1413cfbb36ecdee6ebfe81ab626165541bd57caf1",
+  "task": "pick_up_the_cream_cheese_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "Any descent of more than about 3 cm toward a surface, where the pose commands track high and stop early without logging an error",
+  "vertical_capability": "grasp"
+}

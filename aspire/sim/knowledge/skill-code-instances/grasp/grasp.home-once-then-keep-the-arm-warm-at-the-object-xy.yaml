@@ -1,0 +1,54 @@
+{
+  "api_calls": [
+    "print",
+    "goto_home_joint_position",
+    "np.array",
+    "enumerate",
+    "float",
+    "float",
+    "float",
+    "float",
+    "attempt_pinch",
+    "float",
+    "np.linalg.norm",
+    "float",
+    "np.linalg.norm"
+  ],
+  "ast_fingerprint": "8e306cf281bb759f6438a986f0b014c331a72867b7c8da8ddea2cca3ba140b47",
+  "checkpoint_id": null,
+  "code": "def grasp_target(obj):\n    bot, top = float(obj[\"lo\"][2]), float(obj[\"hi\"][2])\n    cx, cy = float(obj[\"c\"][0]), float(obj[\"c\"][1])\n    print(\"  grasp: c=(%.3f,%.3f) bot=%.3f top=%.3f h=%.3f\" % (cx, cy, bot, top, top - bot),\n          flush=True)\n    z_pad = bot + PINCH_LEVEL * (top - bot)\n    goto_home_joint_position()\n    err_dir = np.array([1.0, 0.0])\n    for i, th in enumerate(TILT_LADDER):\n        hold, miss = attempt_pinch(cx, cy, top, z_pad, th, err_dir, \"cand%d\" % i)\n        if hold is not None:\n            return hold\n        if float(np.linalg.norm(miss)) > 0.004:\n            err_dir = miss / float(np.linalg.norm(miss))\n    return None",
+  "code_hash": "858ae4cd6782b110ef3fd76ec6ae0bb2e0085d81b3465a60aac9def683c70b70",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Home the arm once before a pinch ladder and never inside it, so every later candidate is reached from a neighbouring pose rather than from home",
+  "id": "grasp.home-once-then-keep-the-arm-warm-at-the-object-xy",
+  "kind": "skill-code-instance",
+  "observed_effect": "A pinch attempted immediately after goto_home_joint_position() reliably airs while the second and later attempts at the same xy (reached from the previous pose) grip: probe with 6 identical tilts read from home air (0.0148), continued hold (0.4635), continued hold (0.4619), from home again air, air, from home air. A single home-to-far-x goto also sometimes settles into a fallback orientation (reported tool axis once 60 deg off vertical, pads reported at x=0.648 against a commanded 0.763), which the program logs via the reported axis_z",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/working_codes/libero_object_task_pick_up_the_chocolate_pudding_and_place_it_in_the_basket_fix.py",
+  "source_code_sha256": "e63cba1d9951b380d9a56bd7ddece803df3a0f5d6f53e60ddfdeeecd4e795cbd",
+  "task": "pick_up_the_chocolate_pudding_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "An approach that grips when repeated but fails as the first move after a home or joint-space reset",
+  "vertical_capability": "grasp"
+}

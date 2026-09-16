@@ -1,0 +1,63 @@
+{
+  "api_calls": [
+    "segment_sam3_text_prompt",
+    "max",
+    "astype",
+    "mask_to_world_points",
+    "float",
+    "print",
+    "mask.astype",
+    "np.percentile",
+    "len",
+    "np.array",
+    "np.asarray",
+    "len",
+    "np.percentile",
+    "np.percentile",
+    "np.percentile",
+    "np.percentile",
+    "float",
+    "len",
+    "float",
+    "float",
+    "float",
+    "float"
+  ],
+  "ast_fingerprint": "7b415e2e30c2e876d6b8028af66c7ae6c5ada18d27794d73dd261977f0e35120",
+  "checkpoint_id": null,
+  "code": "def find_basket(rgb, depth, K, E):\n    \"\"\"Basket MOUTH centre from the top-rim percentile box (not the cloud median).\"\"\"\n    for prompt in BASKET_PROMPTS:\n        masks = segment_sam3_text_prompt(rgb, prompt)\n        if not masks:\n            continue\n        best = max(\n            masks[:10],\n            key=lambda m: (float(m[\"box\"][2]) - float(m[\"box\"][0]))\n            * (float(m[\"box\"][3]) - float(m[\"box\"][1])),\n        )\n        mask = np.asarray(best[\"mask\"]).astype(bool)\n        pts = mask_to_world_points(mask.astype(np.uint8), depth, K, E)\n        if pts is None or len(pts) < 300:\n            continue\n        zhi = float(np.percentile(pts[:, 2], 98))\n        rim = pts[pts[:, 2] > zhi - 0.02]\n        if len(rim) < 30:\n            continue\n        cx = 0.5 * (np.percentile(rim[:, 0], 5) + np.percentile(rim[:, 0], 95))\n        cy = 0.5 * (np.percentile(rim[:, 1], 5) + np.percentile(rim[:, 1], 95))\n        print(\n            f\"  basket prompt={prompt!r} score={float(best['score']):.3f} \"\n            f\"mouth=({cx:.3f},{cy:.3f}) rim_z={zhi:.3f} n={len(pts)}\",\n            flush=True,\n        )\n        return np.array([cx, cy]), zhi\n    return None, None",
+  "code_hash": "2255a766018b54af987d5fd63f8c9beb94c890e16059b542f9c205f06fe463b7",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Take an open container mouth centre from its top-rim percentile box, and confirm the choice by hovering the wrist camera over the candidate point rather than by argument",
+  "id": "localize.rim-box-mouth-centre-confirmed-by-wrist-camera-hover",
+  "kind": "skill-code-instance",
+  "observed_effect": "Seed 55: cloud median (0.679, 0.245) against rim box (0.614, 0.244), 6.5 cm apart. Confirmed by observation: hovering the wrist camera at 0.32 m over (0.614, 0.244) puts the basket mouth dead-centre in frame while the hover over the median leaves it well left of centre. Reusing the median would spend 6.5 cm of placement tolerance on every seed; mouth about 0.15 m across, rim z 0.141-0.142",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_cream_cheese_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "f009b609a96a26b8070f27d1413cfbb36ecdee6ebfe81ab626165541bd57caf1",
+  "task": "pick_up_the_cream_cheese_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "A container whose walls dominate its own mask, so the cloud median is pulled toward the near wall; here the basket is additionally the only moving anchor while the target object is fixed across seeds, so all seed variation lands on the release",
+  "vertical_capability": "localize"
+}

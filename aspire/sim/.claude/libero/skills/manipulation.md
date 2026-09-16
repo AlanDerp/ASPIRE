@@ -66,6 +66,33 @@ home move on every seed — including seed 59 — and scores 15/15. Same `fix_co
 the pinch loop in `run`; 2026-09-15. This is the loop-shaped case of the two rules above: home is
 wrong under an object, wrong while a fixture matters, and wrong as a candidate-loop recovery.
 
+**The pinch itself can air purely because it started from home.** The cases above are about *cost*,
+*collision*, and *budget*; this one is about grip success. On
+`libero_object_task/pick_up_the_chocolate_pudding_and_place_it_in_the_basket` a pinch attempted
+immediately after `goto_home_joint_position()` reliably reads air, while the **second and later**
+attempts at the same xy — reached from the previous pose — grip. A probe holding the tilt *fixed* and
+varying only the approach path isolates it from every other variable:
+
+| approach to the pinch | aperture after close |
+|---|---|
+| from home | 0.0148 (air) |
+| continued from the previous pose | 0.4635 (hold) |
+| continued | 0.4619 (hold) |
+| from home again | air |
+| continued | air |
+| from home | air |
+
+So with a homing ladder, the very same tilt and height that grips when reached from a neighbouring
+pose airs when reached from home — and the ladder's first rung is then unrepresentative of the rest.
+Fix: `goto_home_joint_position()` **once**, before the ladder, and never inside it; within the ladder
+the arm returns straight to `(cx, cy, top + 0.10)` and descends. **Corollary — a home→far-x
+`goto_pose` can settle into a fallback orientation**: one attempt reported the tool axis 60° off
+vertical and the pads at x = 0.648 against a commanded 0.763. Log the achieved orientation each attempt
+(`axis_z` from the reported quaternion) so a fallback pose is visible in the trace rather than
+mysterious. Source:
+`outputs/working_codes/libero_object_task_pick_up_the_chocolate_pudding_and_place_it_in_the_basket_fix.py`
+— `grasp_target`, lines 261–275; 2026-09-16.
+
 ---
 
 ## Measure the TCP, Not the Hand: Inverting the TCP Offset
@@ -95,6 +122,40 @@ possible. For a perfectly top-down gripper the relation reduces to `EE - (0,0,0.
 matters because a converged orientation tilts a few degrees (`R[:,2] = [0.09, 0.003, -0.996]`
 measured). Source: `.../put_the_wine_bottle_on_top_of_the_cabinet/fix_code.py` lines 55–64;
 2026-09-14.
+
+**Refinement — the constant is not one offset but two, and the *pads* are the frame that matters.**
+On `libero_object_task/pick_up_the_chocolate_pudding_and_place_it_in_the_basket` the reported frame
+measured **0.107 m** along the tool's +z from the *commanded* point (top-down: 0.107 above — commanded
+eef z 0.200 → reported 0.310, 0.100 → 0.213, and a 45° tilt → +0.078 = 0.107·cos 45°), and the finger
+pads hang a further **0.025 m** below the command, so the pads sit 0.132 m along tool +z from the
+reported frame. Write all three explicitly rather than carrying one number:
+
+```python
+EEF_FROM_REP = 0.107
+PAD_FROM_EEF = 0.025
+PAD_FROM_REP = EEF_FROM_REP + PAD_FROM_EEF
+
+def eef_point():                    # world position of the commanded tool point
+    o = cart()
+    return o[:3] + quat_R(o[3:7]) @ np.array([0.0, 0.0, EEF_FROM_REP])
+
+def pad_point():                    # estimated world position of the finger pads
+    o = cart()
+    return o[:3] + quat_R(o[3:7]) @ np.array([0.0, 0.0, PAD_FROM_REP])
+```
+
+The pinch height then follows from commanding the **pads**, not the reported frame:
+`z_cmd = z_pad - Rz * PAD_FROM_EEF` with `Rz = (quat_R(q) @ [0, 0, 1])[2]`.
+
+**The expensive consequence is a rejected grasp, not a visible error.** A gate that compares a
+*reported* z against an *object-space* z is wrong by up to 0.13 m, and its failure mode is silence: it
+rejects a pose that would have worked. Writing this down removed two false readings from one session —
+a "descent floor at meas 0.222" and a "rejected: fingers still above the object top" — while the grasp
+was in fact viable. Both relations were self-consistent to ~1 mm once expressed this way, which is why
+a probe beats an argument: a table-contact sweep (commanded 0.200/0.100/0.050 → reported
+0.310/0.212/0.163) plus an open-pad stall (reported 0.136 = 0.005 + 0.132) pins both constants in two
+moves. Source: `outputs/working_codes/libero_object_task_pick_up_the_chocolate_pudding_and_place_it_in_the_basket_fix.py`
+— `eef_point` / `pad_point`, lines 101–110; 2026-09-16.
 
 **Corollary — `solve_ik` succeeding is NOT evidence of reachability, and a wall probe must be
 laddered.** Two traps sit either side of this measurement:
@@ -294,6 +355,48 @@ loop and replacing it with `open_gripper()` followed by a single +0.045 m climb 
 *displacement*, not a hold — and it is largest exactly at the low, strained release poses where a
 placement is decided. Source: that task's `fix_code.py` release block and its `findings.md` root causes
 10 / P3; 2026-09-16.
+
+---
+
+## The Reach and Height "Walls" Are `solve_ik` Clamps, Not Physics — Read the Source
+
+**Trigger**: a top-down command whose achieved x saturates at a fixed value no matter how much further
+past the object you command, or a descent that stops at a fixed z. Before designing a workaround — a
+wrist tilt, a hop ladder, a longer ladder — read the API source. Every such wall measured so far is a
+constant in the integration layer, shared by every task in every suite.
+
+```python
+# cap/integrations/franka/libero_reduced.py:383  (inside solve_ik)
+pos = np.clip(pos, [-0.1, -0.5, 0.005], [0.75, 0.5, 0.9])   # x <= 0.75, z >= 0.005
+
+# cap/integrations/franka/common.py:29
+DEFAULT_TCP_OFFSET = np.array([0.0, 0.0, -0.107])
+```
+
+Three consequences, in order of how often they bite:
+
+1. **The reach wall is `x <= 0.75`, and the kinematic floor is `z >= 0.005` — for every task.** So the
+   0.107 hand-to-TCP offset measured empirically on one task is *not* a per-task measurement: it is
+   `DEFAULT_TCP_OFFSET`, and constants derived from it are portable after all.
+2. **A tilt does not defeat the wall — it moves the pads off the hand axis.** The clamp applies to the
+   commanded *hand* position; a tilted orientation puts the pads somewhere else relative to that point,
+   which is why a wrist tilt reaches an object the top-down pose cannot (see
+   [grasp.md](grasp.md), "Reach Past a Kinematic Wall by Tipping the Wrist"). Framing it as defeating
+   a physical limit invites the wrong follow-up — "ladder harder" — when the wall is a parameter.
+3. **`solve_ik` retries a four-step orientation ladder and reports success on the first that
+   converges** (`libero_reduced.py:389–400`): requested → top-down → `[0.707,0.707,0,0]` 45-tilt →
+   side-approach, logging only a warning. A successful `solve_ik` therefore does **not** mean the
+   orientation you asked for was honoured: a command near the clamp, or with an awkward orientation,
+   can quietly settle into a 45° or side approach. If the orientation matters, verify it from the
+   measured pose rather than from the return value.
+
+**Evidence**: verified by reading the source, not inferred. On
+`libero_object_task/pick_up_the_milk_and_place_it_in_the_basket` the target sits at x 0.708–0.717 —
+inside the clamp — and a plain top-down command reaches it, `gap after close` 0.0388–0.0392 on all 15
+development seeds with no tilt. The sibling `libero_object_task/pick_up_the_chocolate_pudding…` has its
+object at x 0.763 > 0.75 and needed the tilt ladder; this is the same constant seen from both sides.
+Source: `outputs/libero_fix_loop/libero_object_task/pick_up_the_milk_and_place_it_in_the_basket/fix_code.py`
+— the frame/clamp constants at lines 30–48 and `cmd_of` at 109–115; 2026-09-16.
 
 ---
 

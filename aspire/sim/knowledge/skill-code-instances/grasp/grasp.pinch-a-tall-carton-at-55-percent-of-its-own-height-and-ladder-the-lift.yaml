@@ -1,0 +1,62 @@
+{
+  "api_calls": [
+    "topdown",
+    "open_gripper",
+    "goto_pose",
+    "below",
+    "float",
+    "close_gripper",
+    "gap",
+    "gap",
+    "print",
+    "open_gripper",
+    "np.array",
+    "print",
+    "goto_pose",
+    "print",
+    "goto_pose",
+    "min",
+    "goto_pose",
+    "tcp",
+    "np.array",
+    "np.array",
+    "np.array"
+  ],
+  "ast_fingerprint": "3f2be5fba1439a2d3975fcad4c2c2419f9610c111ca076810f7f3f28b8538e71",
+  "checkpoint_id": null,
+  "code": "def grasp(brick, quat):\n    \"\"\"Laddered top-down pinch of the carton; True when the grip verifiably holds.\"\"\"\n    z_start = brick[\"top\"] + 0.14\n    for yaw in GRASP_YAWS:\n        q = quat if yaw == 0.0 else topdown(yaw)\n        for frac in GRASP_FRACS:\n            z_grasp = brick[\"bot\"] + frac * brick[\"h\"]\n            open_gripper()\n            goto_pose(np.array([brick[\"cx\"], brick[\"cy\"], z_start]), q)\n            below(brick[\"cx\"], brick[\"cy\"], z_start, z_grasp, q)\n            meas = float(tcp()[2])\n            # the arm stops at a reach-dependent floor; accept only when the pads\n            # actually got down onto the carton\n            if meas > brick[\"top\"] - 0.020:\n                print(\"  grasp yaw=%.0f frac=%.2f stalled high meas=%.3f\"\n                      % (yaw, frac, meas), flush=True)\n                goto_pose(np.array([brick[\"cx\"], brick[\"cy\"], z_start]), q)\n                continue\n            close_gripper()\n            g = gap()\n            if g <= AIR_GAP or g >= GRASP_MAX_GAP:\n                print(\"  grasp yaw=%.0f frac=%.2f empty (gap=%.4f meas=%.3f)\"\n                      % (yaw, frac, g, meas), flush=True)\n                goto_pose(np.array([brick[\"cx\"], brick[\"cy\"], z_start]), q)\n                continue\n            # ladder the lift: one jump to the carry height throws a held object\n            z = meas\n            while z < z_start:\n                z = min(z_start, z + 0.04)\n                goto_pose(np.array([brick[\"cx\"], brick[\"cy\"], z]), q)\n            g2 = gap()\n            print(\"  grasp yaw=%.0f frac=%.2f meas=%.3f gap=%.4f lift=%.4f\"\n                  % (yaw, frac, meas, g, g2), flush=True)\n            if g2 > AIR_GAP:\n                return True\n            open_gripper()          # slipped while lifting: try the next candidate\n    return False",
+  "code_hash": "1f8a245e7f843893921b4ca00d3185621bf05367c4911216c8d55420f0027972",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Pinch a tall light carton at 55% of its OWN measured z-range, close across its narrow horizontal axis, and ladder the lift so nothing is thrown out of the jaws",
+  "id": "grasp.pinch-a-tall-carton-at-55-percent-of-its-own-height-and-ladder-the-lift",
+  "kind": "skill-code-instance",
+  "observed_effect": "Evidence: 15/15 development seeds grasped on the FIRST candidate (yaw 0, frac 0.55), meas_z 0.096-0.102 against carton tops 0.138-0.140 (pads 3.6-4.4 cm below the top), gap 0.0519-0.0535 after the close and 0.0520-0.0530 after the lift -- a pinch-to-lift delta of <= 0.0015 m, i.e. nothing moved in the jaws. No seed logged a stall, an air close or a retry",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_ketchup_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "0cd295102dc84cf92db85a2f7952eaa226899285ae83eb6afc632c2d0282a710",
+  "task": "pick_up_the_ketchup_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "A tall, light rectangular carton (13.4 x 5.0 x 2.7 cm) to be carried across the table. The closing axis must be across the narrow horizontal axis, and the pinch height must be a fraction of the object's own z-range so identical code works wherever it stands",
+  "vertical_capability": "grasp"
+}

@@ -1,0 +1,40 @@
+{
+  "api_calls": [],
+  "ast_fingerprint": "cb0722923b4b056081d37c4c818f51f051b341cb6aa68ff0c44a292f4335037f",
+  "checkpoint_id": null,
+  "code": "# The arm must travel sideways to reach the basket.  A payload whose base hangs\n# `hang` below the hand is BELOW the rim for any hand height under\n# rim_z + hang, so the whole lateral transit is flown at a height that clears\n# the rim by HIGH_CLEARANCE, and the descent is the last, purely vertical move.\nhigh_z = rim_z + hang + HIGH_CLEARANCE\nrelease_z = rim_z + RELEASE_ABOVE_RIM + hang",
+  "code_hash": "07fdf52229094d32aa8e5b175c5ce042bdf56e03d7e0ab641d6b5af634b0cad8",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Lift vertically to a rim-clearing transit height before any sideways motion, since the payload base sits an unknown hang below the commanded hand point",
+  "id": "transport.fly-the-whole-lateral-transit-above-the-rim",
+  "kind": "skill-code-instance",
+  "observed_effect": "A fixed free-air carry height is not safe: payload_base = carry_z - hang. LIFT_Z 0.215 with a measured hang of 0.087 puts the payload base at 0.128 m, 7 mm BELOW a rim at 0.135 m, so the baseline's very first sideways move crossed the rim plane. The shipped program lifts vertically at the pick xy, then does a single vertical lift to high_z = rim_z + hang + HIGH_CLEARANCE (0.100) before any lateral motion; order matters because a Cartesian-corner move and a joint-space interpolation are not the same path. Transit at rim_z + 0.187 = 0.322 placed cleanly on all 14 seeds",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_butter_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "deff825d047c5cf370356ad5176023794cbd751a49e875067d8eff49475bc38f",
+  "task": "pick_up_the_butter_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "Any carry whose path crosses the destination container, where the payload hangs below the hand by more than a few millimetres and the hang is only known after perception",
+  "vertical_capability": "transport"
+}

@@ -1,0 +1,47 @@
+{
+  "api_calls": [
+    "cart",
+    "cart",
+    "quat_R",
+    "np.array",
+    "quat_R",
+    "np.array"
+  ],
+  "ast_fingerprint": "8c83941820acc9ca4fc8dc0612b397c53800691be8fd221a3d3324a5a9d854b3",
+  "checkpoint_id": null,
+  "code": "def eef_point():\n    \"\"\"World position of the commanded tool point (what goto_pose drives to `pos`).\"\"\"\n    o = cart()\n    return o[:3] + quat_R(o[3:7]) @ np.array([0.0, 0.0, EEF_FROM_REP])\n\n\ndef pad_point():\n    \"\"\"Estimated world position of the finger pads (what must straddle the object).\"\"\"\n    o = cart()\n    return o[:3] + quat_R(o[3:7]) @ np.array([0.0, 0.0, PAD_FROM_REP])",
+  "code_hash": "65bcabb1d239f4326610a1b91c7158b96e3a6dc5d650a8f1cd1551f04719cece",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Convert between the commanded tool point, the reported robot_cartesian_pos frame, and the finger pads before any gate compares a reported coordinate against an object-space coordinate",
+  "id": "grasp.convert-the-reported-frame-offset-before-comparing-z",
+  "kind": "skill-code-instance",
+  "observed_effect": "robot_cartesian_pos is 0.107 m along the tool axis from the commanded point (+0.11 above when top-down, +0.078 = 0.107*cos45 when tipped 45 deg) and the pads hang a further 0.025 m below the command, so pads sit 0.132 m along tool +z from the reported frame. This removed a false 'descent floor at 0.222' and a false 'fingers still above the object top' rejection that were hiding a viable grasp",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/working_codes/libero_object_task_pick_up_the_chocolate_pudding_and_place_it_in_the_basket_fix.py",
+  "source_code_sha256": "e63cba1d9951b380d9a56bd7ddece803df3a0f5d6f53e60ddfdeeecd4e795cbd",
+  "task": "pick_up_the_chocolate_pudding_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "A reported z that sits a constant ~0.11 m off the commanded z, or a gate that rejects poses which later turn out to be correct",
+  "vertical_capability": "grasp"
+}

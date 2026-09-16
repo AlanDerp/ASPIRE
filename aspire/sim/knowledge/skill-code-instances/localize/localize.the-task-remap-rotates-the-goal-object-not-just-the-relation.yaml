@@ -1,0 +1,51 @@
+{
+  "api_calls": [
+    "str",
+    "print",
+    "replace",
+    "strip",
+    "PROMPTS.get",
+    "print",
+    "getattr",
+    "replace",
+    "noun.split",
+    "lang.lower"
+  ],
+  "ast_fingerprint": "a29960802339873ec6f1e89b94fcb8a2d96222ea71f13c18a49f555c6aa0da87",
+  "checkpoint_id": null,
+  "code": "def run():\n    lang = str(getattr(env.handle, \"task_language\", \"\"))\n    print(\"TASK_LANGUAGE: %r\" % lang, flush=True)\n    noun = lang.lower().replace(\"pick up the \", \"\").replace(\"pick the \", \"\")\n    noun = noun.split(\" and \")[0].strip()\n    prompts = PROMPTS.get(noun, [noun, \"box\", \"carton\", \"bottle\", \"can\"])\n    print(\"noun=%r prompts=%s\" % (noun, prompts), flush=True)",
+  "code_hash": "dbac9e39372f9bc59dc812aa976c88f9fd0baca885761243e9216d37df28cd88",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Drive object selection from env.handle.task_language: on a _task suite the remap rotates the GOAL OBJECT itself, not just the relation",
+  "id": "localize.the-task-remap-rotates-the-goal-object-not-just-the-relation",
+  "kind": "skill-code-instance",
+  "observed_effect": "Evidence: the BDDL named ketchup holds the MILK CARTON -- runtime language 'Pick the milk and place it in the basket' on all 15 development seeds, 15/15. Rotation confirmed across six tasks, constant per BDDL: alphabet_soup->cream cheese, bbq_sauce->ketchup, butter->orange juice, chocolate_pudding->salad dressing, cream_cheese->alphabet soup, ketchup->milk",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_ketchup_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "0cd295102dc84cf92db85a2f7952eaa226899285ae83eb6afc632c2d0282a710",
+  "task": "pick_up_the_ketchup_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "Any libero_*_task task. The identifier and the BDDL filename name one object; the runtime instruction names a different one, so a program keyed on the identifier scores 0",
+  "vertical_capability": "localize"
+}

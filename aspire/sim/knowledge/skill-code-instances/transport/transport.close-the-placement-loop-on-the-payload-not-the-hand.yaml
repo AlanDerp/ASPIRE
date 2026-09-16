@@ -1,0 +1,55 @@
+{
+  "api_calls": [
+    "range",
+    "print",
+    "get_observation",
+    "find_carried",
+    "print",
+    "go",
+    "print",
+    "depth_of",
+    "print",
+    "float",
+    "np.clip",
+    "np.array",
+    "np.linalg.norm",
+    "float",
+    "np.linalg.norm"
+  ],
+  "ast_fingerprint": "279864318f61a44e05911ce934f8d3b12c3dff07847354056e5640bb21288567",
+  "checkpoint_id": null,
+  "code": "# --- place the PAYLOAD, not the hand: closed-loop lateral alignment --------\n# Descend only once the carton itself is centred on the mouth.  Aiming by model\n# alone is not enough: the carton hangs ~0.03 m off the hand axis, and the\n# basket mouth is only ~0.15 m across, so a hand-centred descent puts the carton\n# on the rim.\ncmd = mouth - off\naligned = False\nfor it in range(3):\n    if not go(np.array([cmd[0], cmd[1], high_z]), quat):\n        print(\"  align %d: IK refused at (%.3f,%.3f)\" % (it, cmd[0], cmd[1]), flush=True)\n        break\n    obsa = get_observation()\n    cama = obsa[\"agentview\"]\n    c = find_carried(cama[\"images\"][\"rgb\"], depth_of(cama), cama[\"intrinsics\"],\n                     cama[\"pose_mat\"], cmd, cw, language)\n    if c is None:\n        print(\"  align %d: payload not seen from above the rim\" % it, flush=True)\n        break\n    err = mouth - c[\"xy\"]\n    print(\"  align %d: hand=(%.3f,%.3f) carton=(%.3f,%.3f) err=(%+.3f,%+.3f) |err|=%.3f\"\n          % (it, cmd[0], cmd[1], c[\"xy\"][0], c[\"xy\"][1], err[0], err[1],\n             float(np.linalg.norm(err))), flush=True)\n    if float(np.linalg.norm(err)) <= ALIGN_TOL:\n        aligned = True\n        break\n    cmd = cmd + np.clip(err, -MAX_ALIGN_STEP, MAX_ALIGN_STEP)\nprint(\"  aligned=%s  final hand=(%.3f,%.3f)\" % (aligned, cmd[0], cmd[1]), flush=True)",
+  "code_hash": "155b78469131396413a618a95624ed5f04f17ef51e083350487987b9f80686fb",
+  "development_outcomes": {
+    "successes": [
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Centre the carried object itself on the container mouth by measuring the payload xy from above and re-commanding, instead of aiming the hand at the mouth",
+  "id": "transport.close-the-placement-loop-on-the-payload-not-the-hand",
+  "kind": "skill-code-instance",
+  "observed_effect": "At high_z (payload base 10 cm above the rim, fully visible in the agentview) the program measures the carried carton's xy with SAM3 + depth, computes err = mouth - carton_xy, clamps the step to MAX_ALIGN_STEP and re-commands, up to 3 iterations, stopping inside ALIGN_TOL (6 mm). Seed 54 converged |err| 0.011 -> 0.005 in two iterations and seed 55 0.009 -> 0.005, both scoring 1.0. Where the identity gate finds no payload the loop is a no-op and the model aim (mouth - off) is used, which also scored 1.0 on seeds 52/53/56-65 - so this is robustness, not the flip",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_butter_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "deff825d047c5cf370356ad5176023794cbd751a49e875067d8eff49475bc38f",
+  "task": "pick_up_the_butter_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "Any placement into a target whose free width is less than about 2-3x the hand-to-payload lateral offset, so an open-loop model aim leaves the object off centre",
+  "vertical_capability": "transport"
+}

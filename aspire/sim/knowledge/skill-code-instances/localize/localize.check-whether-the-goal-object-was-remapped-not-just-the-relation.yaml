@@ -1,0 +1,42 @@
+{
+  "api_calls": [
+    "language.lower"
+  ],
+  "ast_fingerprint": "71267399aa71add90440d536e3c2df67fb837efedcc5b82da9711c4eec8e531f",
+  "checkpoint_id": null,
+  "code": "def target_signature(language):\n    \"\"\"Colour axis of the label that identifies the can named by the instruction.\n\n    Alphabet soup is the blue-labelled can, tomato sauce the red-labelled one;\n    the two share geometry exactly, so the label colour is the only separator.\n    \"\"\"\n    low = language.lower()\n    if \"tomato\" in low:\n        return \"red\"\n    return \"blue\"",
+  "code_hash": "ed3ab68695a37d0a3225a6cd9e5a86f5d3be588c5acfdda5414ce820aa5d0847",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "In a _task suite, read env.handle.task_language to decide which OBJECT is the goal, not merely which relation, because the identifier noun can be a live distractor present in the scene",
+  "id": "localize.check-whether-the-goal-object-was-remapped-not-just-the-relation",
+  "kind": "skill-code-instance",
+  "observed_effect": "The file and dispatch identifier say cream cheese and a blue cream-cheese box is physically present as bait, while the runtime string reads \"Pick the alphabet soup and place it in the basket\" on all 15 development seeds; the program derives its target appearance descriptor from the runtime string instead (blue label for alphabet soup, red for tomato sauce) and scored 15/15",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_cream_cheese_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "f009b609a96a26b8070f27d1413cfbb36ecdee6ebfe81ab626165541bd57caf1",
+  "task": "pick_up_the_cream_cheese_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "Suite identifier ends in _task and the scene contains the object named by the task identifier. Symptom: a program that keys on the task or BDDL name confidently carries the wrong object, and unlike the spatial_task remap the wrong noun is not a hallucination but real bait sitting on the table",
+  "vertical_capability": "localize"
+}

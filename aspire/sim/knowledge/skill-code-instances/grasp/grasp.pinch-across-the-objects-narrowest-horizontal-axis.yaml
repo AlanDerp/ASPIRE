@@ -1,0 +1,48 @@
+{
+  "api_calls": [
+    "sorted",
+    "float",
+    "np.degrees",
+    "np.arctan2",
+    "range",
+    "float",
+    "abs"
+  ],
+  "ast_fingerprint": "86d856c0824c6adc65b4166cd2a04fcc247f5cf4d750fe8f0c0a8964a0af8a69",
+  "checkpoint_id": null,
+  "code": "def yaw_for(target, mode=0):\n    \"\"\"Pinch azimuth: close across the object's narrowest horizontal axis (mode 0),\n    its widest (mode 1), or the mirrored narrow axis (mode 2).\"\"\"\n    horiz = sorted([i for i in range(3) if abs(target[\"R\"][2, i]) < 0.5],\n                   key=lambda i: float(target[\"extent\"][i]))\n    if not horiz:\n        return 0.0\n    idx = horiz[-1] if mode == 1 else horiz[0]\n    axis = target[\"R\"][:, idx]\n    yaw = float(np.degrees(np.arctan2(axis[0], -axis[1])))\n    return yaw + 180.0 if mode == 2 else yaw",
+  "code_hash": "7c1b7aff9a8d262860edec730a6d06bc7d050d4b76dc1cc0088d5cf62d381d52",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Derive the top-down pinch azimuth from the object own oriented bounding box by closing across its narrowest horizontal axis, with mirrored and widest-axis fallbacks",
+  "id": "grasp.pinch-across-the-objects-narrowest-horizontal-axis",
+  "kind": "skill-code-instance",
+  "observed_effect": "Taking the closing axis from the OBB, yaw = atan2(axis_x, -axis_y) over the narrowest horizontal axis (the horizontal axis with the smallest extent), removed the need for any per-object azimuth constant; the descent-then-close fix held on all 15 development seeds with this azimuth, and modes 2 and 1 provide the mirrored narrow axis and the widest axis as ordered fallbacks inside try_grasp",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_alphabet_soup_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "d5ce098dfeb28af7b83f1214d918c2484a65bf744a518a7276d6abef0f49ea93",
+  "task": "pick_up_the_alphabet_soup_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "A top-down pinch whose closing direction is guessed rather than measured, so the fingers straddle the object long axis or miss it entirely",
+  "vertical_capability": "grasp"
+}

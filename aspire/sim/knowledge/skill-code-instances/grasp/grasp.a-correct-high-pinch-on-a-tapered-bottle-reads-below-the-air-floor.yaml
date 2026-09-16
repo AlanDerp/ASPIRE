@@ -1,0 +1,41 @@
+{
+  "api_calls": [],
+  "ast_fingerprint": "f8ff51a2e1e6d1069ae74d2496c47eeebb6ced98d3357231ca47387740b6637c",
+  "checkpoint_id": null,
+  "code": "GRIPPER_MAX = 0.080           # normalized aperture 1.0 == 8 cm wide open\n# The bottle tapers to 2.6 cm at its shoulder, so a *correct* high pinch reads\n# ~0.026 m and a 0.030 air floor would reject the good grasp.  Closed on air\n# really reads <=0.012; the load-bearing hold test is the lift re-read below.\nAIR_GAP = 0.012               # closed on air reads below this\nGRASP_MAX_GAP = 0.072         # wedged wider than this is not our object\n\nGRASP_FRAC = 0.78             # pinch high on a tapered bottle (hangs below pads)\nLIFT_STEP = 0.040             # absolute-z hops; never one jump\nDESCEND_STEP = 0.030\nSTALL_EPS = 0.004\n\nCARRY_CLEAR = 0.100           # lateral transit this far above the rim\nRELEASE_UNDER_RIM = 0.040     # object underside this far below the measured rim",
+  "code_hash": "e2527b32dd6dcaefb9fa6fb1378ed4a8445bb2f04479356083b1f36d70e2c684",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Gate a grasp on the lift re-read, not on an absolute aperture: a correct high pinch on a tapered bottle closes to ~0.026 m, which a 0.030 air-grasp floor rejects",
+  "id": "grasp.a-correct-high-pinch-on-a-tapered-bottle-reads-below-the-air-floor",
+  "kind": "skill-code-instance",
+  "observed_effect": "On libero_object_task/pick_up_the_tomato_sauce_and_place_it_in_the_basket (runtime language 'Pick the bbq sauce...') GRASP_FRAC 0.78 pinches the bottle's shoulder, which measures 2.6 cm across: close_gripper returns 0.0264 m and an 0.030 absolute air floor rejected it, so attempt 1 on seed 51 raised 'grasp failed: gap 0.0264' and scored 0.000. The program's own depth-slab taper sweep measured ext 0.046 at frac 0.30 -> 0.040 at 0.55 -> 0.030 at 0.75 -> 0.026 at 0.82, i.e. a correct pinch on that object necessarily reads below 0.03. Shipped AIR_GAP 0.012 plus a lift re-read (gap_lift <= AIR_GAP or gap_lift > gap_close + 0.03) and a GRASP_MAX_GAP 0.072 upper sanity band took seed 51 to 1.0 and the full sweep to 15/15, with gap_close 0.0264 -> gap_lift 0.0265 (delta +0.0001) identical on all 15 seeds. PRE-CHANGE REFERENCE: the 0.0264 failure was the same author's first draft (the shipped initial_code.py already carries the 0.012 constant), so 'improved' here means the constant change flipped seed 51 from 0.000 to 1.000 within this task's own development, not a gain over the provided baseline",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_tomato_sauce_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "e07f134fb31096230a98abfea0e6340496b3c2b44650489b68cb8b7a82d89fc0",
+  "task": "pick_up_the_tomato_sauce_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "The object is pinched at a fraction of its own height where its cross-section is narrow (a bottle shoulder or neck, a tapered carton), so a load-bearing pinch reads 0.02-0.03 m. Trace symptom: close_gripper returns ~0.026 and the program raises 'grasp failed: gap 0.0264' with reward 0 on a program that otherwise grasps cleanly and whose lift would have held",
+  "vertical_capability": "grasp"
+}

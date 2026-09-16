@@ -1,0 +1,60 @@
+{
+  "api_calls": [
+    "segment_sam3_text_prompt",
+    "print",
+    "sorted",
+    "int",
+    "see",
+    "float",
+    "float",
+    "np.percentile",
+    "np.percentile",
+    "dict",
+    "print",
+    "np.asarray",
+    "mk.sum",
+    "np.percentile",
+    "np.percentile",
+    "len",
+    "float",
+    "float",
+    "float"
+  ],
+  "ast_fingerprint": "8ba2d1549d5be09efa3ead86fe8d829367e5582b4156f17dc61d3adbc7ab34ff",
+  "checkpoint_id": null,
+  "code": "def find_basket(rgb, depth, K, E):\n    \"\"\"Container: rim = 98th pct z; mouth centre = midpoint of the top-rim footprint.\"\"\"\n    best = None\n    for p in [\"basket\", \"wicker basket\", \"woven basket\"]:\n        masks = segment_sam3_text_prompt(rgb, p)\n        print(\"    basket prompt %-14s num_masks=%d\" % (p, len(masks)), flush=True)\n        for m in sorted(masks, key=lambda d: -d[\"score\"])[:6]:\n            mk = np.asarray(m[\"mask\"]) > 0\n            n = int(mk.sum())\n            if n < 2500 or n > 20000:\n                continue\n            pts = see(rgb, depth, K, E, mk)\n            if pts.shape[0] < 1500:\n                continue\n            zlo = float(np.percentile(pts[:, 2], 2))\n            zhi = float(np.percentile(pts[:, 2], 98))\n            h = zhi - zlo\n            if h < 0.060 or zhi < 0.09:\n                continue\n            rim_pts = pts[pts[:, 2] > zlo + 0.55 * h]\n            if rim_pts.shape[0] < 40:\n                rim_pts = pts\n            fx = np.percentile(rim_pts[:, 0], [1, 99])\n            fy = np.percentile(rim_pts[:, 1], [1, 99])\n            cand = dict(prompt=p, score=float(m[\"score\"]), n=n, zlo=zlo, zhi=zhi, h=h,\n                        rim=zhi, mx=0.5 * (fx[0] + fx[1]), my=0.5 * (fy[0] + fy[1]),\n                        wid=float(fx[1] - fx[0]), dep=float(fy[1] - fy[0]))\n            print(\"      basket cand prompt=%-10s score=%.3f n=%5d zlo=%.3f zhi=%.3f \"\n                  \"mouth=(%.3f,%.3f) fp=%.3f x %.3f\"\n                  % (p, cand[\"score\"], n, zlo, zhi, cand[\"mx\"], cand[\"my\"],\n                     cand[\"wid\"], cand[\"dep\"]), flush=True)\n            if best is None or cand[\"rim\"] > best[\"rim\"]:\n                best = cand\n    return best",
+  "code_hash": "5c57f5833d4a087e106a3a91f653942f2575585cae05df2eea2912cb6f7ffc46",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "When one prompt returns two geometry-passing masks on the same container, select by the HIGHEST z-top, not by score or point count: the interior mask reads the rim 3 cm low and every downstream z is derived from it",
+  "id": "localize.pick-the-highest-z-top-container-mask-because-the-interior-mask-reads-the-rim-low",
+  "kind": "skill-code-instance",
+  "observed_effect": "Measured on libero_object_task/pick_up_the_tomato_sauce_and_place_it_in_the_basket, development seed 51: the top-1 'basket' mask reads n=11934, zhi=0.142, mouth (0.599,0.264); the second mask reads n=5702, zhi=0.111, mouth (0.615,0.265). A rim taken off the interior mask is 3.1 cm low, which would move the whole release 3.1 cm deeper into the basket -- more than the 4.0 cm the release is placed below the rim in the first place. Shipped rule: keep every geometry-passing mask, then select on cand['rim'] > best['rim'] where rim is the cloud's 98th-percentile z, and take the mouth centre from the top-rim footprint (points above zlo + 0.55*h) rather than the whole cloud. Result: rim read 0.141-0.142 on all 15 seeds (1 mm spread) and the mouth centre varied only x 0.592-0.618, y 0.244-0.271, with the payload landing every seed. 15/15 development seeds",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_tomato_sauce_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "e07f134fb31096230a98abfea0e6340496b3c2b44650489b68cb8b7a82d89fc0",
+  "task": "pick_up_the_tomato_sauce_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "A container prompt (basket, box, bin) returns more than one mask that survives the geometry screen -- typically the outer/rim shell and the interior floor/liner. The interior mask scores lower AND tops out lower, so a 'take the best-scoring mask' or 'take the largest mask' rule silently reads the rim from the lining. Symptom: the mouth centre is a few cm off and the release lands deeper than intended, or the payload clips the near wall",
+  "vertical_capability": "localize"
+}

@@ -1,0 +1,51 @@
+{
+  "api_calls": [
+    "float",
+    "np.zeros",
+    "find_carried",
+    "print",
+    "np.array",
+    "np.clip",
+    "print",
+    "print",
+    "print",
+    "np.array",
+    "float"
+  ],
+  "ast_fingerprint": "1dbc3c9666e783fe375c04444589a21c47a5a75ee07c291149b4ff8809bfce19",
+  "checkpoint_id": null,
+  "code": "# Two numbers are needed to place the CARTON rather than the gripper.\n#\n#   hang  -- how far the payload base sits below the commanded hand point.\n#            Both terms of the estimate are in the COMMANDED hand frame\n#            (obs[\"robot_cartesian_pos\"] reports a point ~0.105 m above the\n#            position handed to solve_ik), so it needs no second observation.\n#            A SAM3 mask of a carried carton is often only its top flap and\n#            reports a base up to 0.10 m too high, so the mask is never used\n#            for this.\n#   off   -- how far the payload sits laterally from the hand axis.  The same\n#            truncated mask gets this right: its xy was cross-checked against an\n#            independent colour+depth localisation and agreed to 1 mm.  So the\n#            lateral term is taken from the mask even when its base is not.\nhang = float(pos[2] - target[\"zlo\"])\noff = np.zeros(2)\ncarried = find_carried(rgb2, d2, K2, E2, np.array([pos[0], pos[1]]), cw, language)\nif carried is not None:\n    off_meas = carried[\"xy\"] - np.array([pos[0], pos[1]])\n    off = np.clip(off_meas, -MAX_LATERAL_FIX, MAX_LATERAL_FIX)\n    print(\"  carried prompt=%s frac=%.2f zlo=%.3f xy=(%.3f,%.3f) hang_from_mask=%.3f\"\n          % (carried[\"prompt\"], carried[\"frac\"], carried[\"zlo\"], carried[\"xy\"][0],\n             carried[\"xy\"][1], float(LIFT_Z - carried[\"zlo\"])), flush=True)\n    print(\"  hang taken from the pre-lift estimate %.3f; lateral offset from the mask\"\n          % hang, flush=True)\nelse:\n    print(\"  carried not seen - no lateral offset available\", flush=True)\nprint(\"  hang=%.3f  hand-to-payload xy offset=(%.3f,%.3f)\" % (hang, off[0], off[1]),\n      flush=True)",
+  "code_hash": "952a3c4f536256d64883b7fa3609aaaa829b181fa7d5159eae72d682f966b00f",
+  "development_outcomes": {
+    "successes": [
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Measure a carried object's hang from pre-lift commanded-frame geometry and use the post-lift mask only for its lateral xy",
+  "id": "localize.never-take-a-carried-masks-base-only-its-xy",
+  "kind": "skill-code-instance",
+  "observed_effect": "On seed 51 the carried carton's SAM3 mask reported base z 0.205 against a true 0.131 - 0.074 m too high - while its xy (0.499, 0.057) matched an independent colour+depth centre (0.500, 0.063) to 6 mm. Same prompt, same object: on seeds 54/55 the mask returned the full carton (base 0.123-0.124 vs true ~0.128). So the mask is never used for the hang, which comes from hang = pinch_z_cmd - target_zlo with BOTH terms in the commanded frame (obs[robot_cartesian_pos] reports a point ~0.105 m above the position handed to solve_ik, which is what inflated the baseline's hang on the 12/15 seeds where the carried-mask lookup latched onto a table object)",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_task/pick_up_the_butter_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "deff825d047c5cf370356ad5176023794cbd751a49e875067d8eff49475bc38f",
+  "task": "pick_up_the_butter_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "Any time a carried object's height or base is needed from a single agentview frame - the mask may be only the object's top flap",
+  "vertical_capability": "localize"
+}

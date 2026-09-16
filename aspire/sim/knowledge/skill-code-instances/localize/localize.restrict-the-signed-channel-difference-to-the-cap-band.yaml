@@ -1,0 +1,55 @@
+{
+  "api_calls": [
+    "np.zeros_like",
+    "astype",
+    "np.median",
+    "float",
+    "np.where",
+    "len",
+    "int",
+    "int",
+    "len",
+    "mk.any",
+    "ys.min",
+    "ys.max",
+    "int",
+    "max"
+  ],
+  "ast_fingerprint": "6a11f57ab623e07a3a6cf9cac218e96b6dae48dea8aae4de8ec59c1640ded98e",
+  "checkpoint_id": null,
+  "code": "def cap_signature(rgb, mask, frac=0.25):\n    \"\"\"Signed green difference of the top band of the mask (the cap).\"\"\"\n    mk = mask > 0\n    ys = np.where(mk.any(axis=1))[0]\n    if len(ys) == 0:\n        return -999.0\n    y0, y1 = int(ys.min()), int(ys.max())\n    cut = y0 + int(frac * (y1 - y0)) + 1\n    cap = np.zeros_like(mk)\n    cap[y0:cut, :] = mk[y0:cut, :]\n    cpx = rgb[cap].astype(np.float64)\n    if len(cpx) < 30:\n        return -999.0\n    med = np.median(cpx, axis=0)\n    return float(med[1] - max(med[0], med[2]))",
+  "code_hash": "bf076794c6a61be96c0d666369eafb23d58ee8408e7c62dbcf4d105b551f1fbe",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Identify an object by a signed channel difference computed only over the cap band, using a median rather than a mean",
+  "id": "localize.restrict-the-signed-channel-difference-to-the-cap-band",
+  "kind": "skill-code-instance",
+  "observed_effect": "G minus max(R, B) over the top quarter of the mask's row span reads +26/+27 for the target and <= -2.0 for every sibling, so CAP_GREEN_MIN = 12.0 sits in a ~28-level measured gap. A median instead of a mean keeps a specular highlight from swinging the axis. Caveat: the band is in image rows, so it is only the cap while the object is upright in frame",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/working_codes/libero_object_task_pick_up_the_chocolate_pudding_and_place_it_in_the_basket_fix.py",
+  "source_code_sha256": "e63cba1d9951b380d9a56bd7ddece803df3a0f5d6f53e60ddfdeeecd4e795cbd",
+  "task": "pick_up_the_chocolate_pudding_and_place_it_in_the_basket",
+  "task_family": "libero_object_task",
+  "trigger": "The identity lives on a small band of the object (a coloured cap) while the body is neutral-to-dark, so a whole-mask mean dilutes the discriminating axis toward zero",
+  "vertical_capability": "localize"
+}
