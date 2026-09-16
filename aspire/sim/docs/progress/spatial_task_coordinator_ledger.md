@@ -78,22 +78,28 @@ Dev-to-held-out relationship, all ten tasks (dev is the shipped `fix_code.py`; `
 | between_plate_and_ramekin | 13/15 | 47/50 | 94% vs 87% dev — no drop; the two dev-blocked seeds did **not** cost held-out points at a higher rate |
 | from_table_center | 13/15 | 41/50 | −5 pts, on the two dev seeds blocked by the kinematic x-clamp |
 | on_the_ramekin | 14/15 (15/15 + 14/15 = 29/30) | 41/50 | −14 pts — the largest clean-dev-to-held-out drop |
-| next_to_the_cookie_box | 13/15 | 36/50 | −14 pts |
+| next_to_the_cookie_box | **9/15** (7/15 re-measured initial — see DEVIATION 1b) | 36/50 | **+12 pts — held-out *better* than dev** |
 | on_the_stove | 14/15 | **36/50** | **−22 pts — dev badly *over*-stated it** |
 
 **The claim recorded here at four tasks — "every task that reached 15/15 dev held ≥98% held-out" — is
-FALSIFIED by the wave-2 results and is withdrawn.** Three tasks reached 15/15 dev (`next_to_the_ramekin`,
-`on_cookie_box`, and `on_the_ramekin` on its first sweep) and they landed at 96%, 94% and 82%. In the
-other direction `on_the_wooden_cabinet` shipped a dev program *worse* than its own initial code and
-reached 94% held out, while `on_the_stove`, whose 14/15 I spent ~38 min of GPU re-measuring, is the
-campaign's weakest at 72%.
+FALSIFIED by the wave-2 results and is withdrawn.** Five tasks reached 15/15 dev on the shipped file
+(`next_to_the_ramekin`, `on_cookie_box`, `on_the_ramekin` on its first sweep, plus wave-1's
+`next_to_plate` and `in_the_top_drawer…`); they landed at **100%, 98%, 96%, 94% and 82%**. The 82% is
+`on_the_ramekin`, which then scored 14/15 on a byte-identical repeat sweep — a clean dev sweep is no
+guarantee of anything above 8-in-10 held out. In the other direction `on_the_wooden_cabinet` shipped a
+dev program *worse* than its own initial code, with three seeds it could not repair, and reached **94%**
+held out — higher than two of the 15/15-dev tasks. And `on_stove`, whose 14/15 I spent ~38 min of GPU 7
+re-measuring precisely because its worker's evidence was ambiguous, is the campaign's joint-weakest at
+72%, tied with `next_to_the_cookie_box` — whose *own* dev score was 9/15, the worst of the ten.
 
 The honest summary is that **dev score is a weak predictor in both directions on this suite**, and the
-dev-to-held-out gap is not a fixed conversion — at 15/15 dev the held-out rate spans 82–100%, and at
-11–14/15 dev it spans 72–94% with the extreme *good* case coming from the worst dev score. Nothing here
-supports ranking the ten shipped programs by their dev numbers. Sample sizes are the obvious caveat in
-both directions: 15 dev seeds and 50 held-out trials, on tasks whose own workers documented
-byte-identical-code flips of 1–2 seeds per sweep.
+dev-to-held-out gap is not a fixed conversion. At 15/15 dev the held-out rate spans 82–100%; across
+9–14/15 dev it spans 72–94%, and the top of that lower band (94%) belongs to an 11/15 program while the
+bottom of the upper band (82%) belongs to a 15/15 one — the two bands overlap almost completely. Three
+of the ten tasks scored *better* held out than on dev (the largest, `next_to_the_cookie_box`, by 12
+points). Nothing here supports ranking the ten shipped programs by their dev numbers. Sample sizes are
+the obvious caveat in both directions: 15 dev seeds and 50 held-out trials, on tasks whose own workers
+documented byte-identical-code flips of 1–2 seeds per sweep.
 
 ## Event Log
 
