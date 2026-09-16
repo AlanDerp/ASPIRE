@@ -8,33 +8,8 @@
 **Stage 2 needed** (fix_code.py exists, run validation on seeds 1–50):
 - libero_spatial_swap/pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate
 - libero_spatial_swap/pick_up_the_black_bowl_on_the_wooden_cabinet_and_place_it_on_the_plate
-- libero_spatial_task/pick_up_the_black_bowl_next_to_the_ramekin_and_place_it_on_the_plate
-- libero_spatial_task/pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate
-- libero_spatial_task/pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate
-- libero_spatial_task/pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate
-- libero_spatial_task/pick_up_the_black_bowl_on_the_wooden_cabinet_and_place_it_on_the_plate
 
 **Pending** (ready for Stage 1):
-- libero_goal_task/open_the_middle_drawer_of_the_cabinet
-- libero_goal_task/open_the_top_drawer_and_put_the_bowl_inside
-- libero_goal_task/push_the_plate_to_the_front_of_the_stove
-- libero_goal_task/put_the_bowl_on_the_plate
-- libero_goal_task/put_the_bowl_on_the_stove
-- libero_goal_task/put_the_bowl_on_top_of_the_cabinet
-- libero_goal_task/put_the_cream_cheese_in_the_bowl
-- libero_goal_task/put_the_wine_bottle_on_the_rack
-- libero_goal_task/put_the_wine_bottle_on_top_of_the_cabinet
-- libero_goal_task/turn_on_the_stove
-- libero_object_task/pick_up_the_alphabet_soup_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_bbq_sauce_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_butter_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_chocolate_pudding_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_cream_cheese_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_ketchup_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_milk_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_orange_juice_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_salad_dressing_and_place_it_in_the_basket
-- libero_object_task/pick_up_the_tomato_sauce_and_place_it_in_the_basket
 - libero_spatial_swap/debug_smoke
 
 ---
@@ -54,21 +29,6 @@
 | wine_bottle → top of cabinet | done | 49/50 (98%) [run 90fc9db09f194873] |
 | turn → stove | done | 50/50 (100%) [run db3140470743059e] |
 
-## libero_goal_task  (0/10 done)
-
-| Task | Status | Rate |
-|---|---|---|
-| open middle_drawer_of_the_cabinet | pending | — |
-| open top_drawer + bowl | pending | — |
-| push plate → stove front | pending | — |
-| bowl → plate | pending | — |
-| bowl → stove | pending | — |
-| bowl → top of cabinet | pending | — |
-| cream_cheese → bowl | pending | — |
-| wine_bottle → rack | pending | — |
-| wine_bottle → top of cabinet | pending | — |
-| turn → stove | pending | — |
-
 ## libero_object_swap  (10/10 done)
 
 | Task | Status | Rate |
@@ -83,21 +43,6 @@
 | orange_juice → basket | done | 50/50 (100%) [run 62ece8bb0f399b01] |
 | salad_dressing → basket | done | 50/50 (100%) [run 78b50be0a4275b4f] |
 | tomato_sauce → basket | done | 45/50 (90%) [run de6ff86d1b1e16f0] |
-
-## libero_object_task  (0/10 done)
-
-| Task | Status | Rate |
-|---|---|---|
-| alphabet_soup → basket | pending | — |
-| bbq_sauce → basket | pending | — |
-| butter → basket | pending | — |
-| chocolate_pudding → basket | pending | — |
-| cream_cheese → basket | pending | — |
-| ketchup → basket | pending | — |
-| milk → basket | pending | — |
-| orange_juice → basket | pending | — |
-| salad_dressing → basket | pending | — |
-| tomato_sauce → basket | pending | — |
 
 ## libero_spatial_swap  (8/11 done)
 
@@ -115,7 +60,7 @@
 | bowl: on_the_stove → plate | done | 50/50 (100%) [run 1f5f58430ca46a27] |
 | bowl: on_the_wooden_cabinet → plate | stage1-done | — |
 
-## libero_spatial_task  (5/10 done)
+## libero_spatial_task  (10/10 done)
 
 | Task | Status | Rate |
 |---|---|---|
@@ -124,8 +69,8 @@
 | bowl: in_the_top_drawer_of_the_wooden_cabinet → plate | done | 49/50 (98%) [run 4f1d6c15887ef077] |
 | bowl: next_to_the_cookie_box → plate | done | 36/50 (72%) [run d39417005b795d5b] |
 | bowl: next_to_the_plate → plate | done | 50/50 (100%) [run 07c56ad6eafa444b] |
-| bowl: next_to_the_ramekin → plate | stage1-done | 43/44 (97%) [run 026de13c06dfe388] |
-| bowl: on_the_cookie_box → plate | stage1-done | 21/22 (95%) [run a9822c6b28ae68ab] |
-| bowl: on_the_ramekin → plate | stage1-done | — |
-| bowl: on_the_stove → plate | stage1-done | 7/8 (87%) [run 1027ae9586cb5a01] |
-| bowl: on_the_wooden_cabinet → plate | stage1-done | 14/15 (93%) [run 5734f4475347a652] |
+| bowl: next_to_the_ramekin → plate | done | 48/50 (96%) [run 026de13c06dfe388] |
+| bowl: on_the_cookie_box → plate | done | 47/50 (94%) [run a9822c6b28ae68ab] |
+| bowl: on_the_ramekin → plate | done | 41/50 (82%) [run d47c03b635b81424] |
+| bowl: on_the_stove → plate | done | 36/50 (72%) [run 1027ae9586cb5a01] |
+| bowl: on_the_wooden_cabinet → plate | done | 47/50 (94%) [run 5734f4475347a652] |

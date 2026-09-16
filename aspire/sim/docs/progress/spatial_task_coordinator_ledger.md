@@ -37,14 +37,16 @@ Task registry order (from `gen_progress.py`):
 
 | GPU | State | Task | Notes |
 |---|---|---|---|
-| 3 | EVAL | next_to_the_ramekin | Stage 1 **15/15**, promotion **0007 VERIFIED**; Stage 2 running (run `026de13c06dfe388`, log `spatial_task_next_to_ramekin_stage2.log`) |
-| 4 | EVAL | on_the_ramekin | Stage 1 **15/15** then **14/15** on a byte-identical repeat sweep (**29/30** combined), promotion **0010 VERIFIED**; Stage 2 running (run `d47c03b635b81424`, log `spatial_task_on_the_ramekin_stage2.log`) |
-| 5 | EVAL | on_cookie_box | Stage 1 **15/15** (zero fix iterations), promotion **0006 VERIFIED**; Stage 2 running (run `a9822c6b28ae68ab`, log `spatial_task_on_cookie_box_stage2.log`) |
-| 6 | EVAL | on_the_wooden_cabinet | Stage 1 **11/15** with 3 BLOCKED seeds (53, 56, 61), promotion **0009 VERIFIED**; Stage 2 running (run `5734f4475347a652`, log `spatial_task_on_wooden_cabinet_stage2.log`) |
-| 7 | EVAL | on_the_stove | Stage 1 **14/15**, then a full repeat sweep of both v5 and v6 (`rep5`/`rep6`); promotion **0008 VERIFIED**, **v5 shipped unchanged**. Stage 2 running (run `1027ae9586cb5a01`, log `spatial_task_on_stove_stage2.log`) |
+| 3 | EVAL | next_to_the_ramekin | Stage 1 **15/15**, promotion **0007 VERIFIED**; Stage 2 **complete 48/50** (run `026de13c06dfe388`, log `spatial_task_next_to_ramekin_stage2.log`) — held-out failures on seeds 10 and 46, both `completed=0`; GPU now idle |
+| 4 | EVAL | on_the_ramekin | Stage 1 **15/15** then **14/15** on a byte-identical repeat sweep (**29/30** combined), promotion **0010 VERIFIED**; Stage 2 **complete 41/50** (run `d47c03b635b81424`) — held-out failures on seeds 10, 18, 21, 22, 27, 40, 41, 43, 44, all `completed=0`; GPU idle |
+| 5 | EVAL | on_cookie_box | Stage 1 **15/15** (zero fix iterations), promotion **0006 VERIFIED**; Stage 2 **complete 47/50** (run `a9822c6b28ae68ab`) — GPU idle |
+| 6 | EVAL | on_the_wooden_cabinet | Stage 1 **11/15** with 3 BLOCKED seeds (53, 56, 61), promotion **0009 VERIFIED**; Stage 2 **complete 47/50** (run `5734f4475347a652`) — GPU idle |
+| 7 | EVAL | on_the_stove | Stage 1 **14/15**, then a full repeat sweep of both v5 and v6 (`rep5`/`rep6`); promotion **0008 VERIFIED**, **v5 shipped unchanged**. Stage 2 **complete 36/50** (run `1027ae9586cb5a01`) — GPU idle |
 
-Queue: **empty — Stage 1 is finished for all ten tasks and all ten promotions are VERIFIED (0001–0010).**
-All five GPUs 3–7 are now running Stage 2 evals (held-out seeds 1–50).
+Queue: **empty, and the campaign is finished.** Stage 1 complete for all ten tasks, all ten promotions
+VERIFIED (0001–0010), and all ten Stage 2 evals `status=complete` — **442/500 held-out trials (88.4%)**.
+GPUs 3–7 were released as each eval finished; all five are idle and nothing further was dispatched onto
+them.
 
 ### Stage 2 (held-out seeds 1-50) results
 
@@ -55,30 +57,43 @@ All five GPUs 3–7 are now running Stage 2 evals (held-out seeds 1–50).
 | pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate | 3 | `954a62be143ef2d9` | **47/50** | 94% |
 | pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate | 4 | `b4785212294799a8` | **41/50** | 82% |
 | pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate | 6 | `d39417005b795d5b` | **36/50** | 72% |
-| pick_up_the_black_bowl_next_to_the_ramekin_and_place_it_on_the_plate | 3 | `026de13c06dfe388` | running | — |
-| pick_up_the_black_bowl_on_cookie_box_and_place_it_on_the_plate | 5 | `a9822c6b28ae68ab` | running | — |
-| pick_up_the_black_bowl_on_the_wooden_cabinet_and_place_it_on_the_plate | 6 | `5734f4475347a652` | running | — |
-| pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate | 7 | `1027ae9586cb5a01` | running | — |
-| pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate | 4 | `d47c03b635b81424` | running | — |
-| pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate | 7 | `1027ae9586cb5a01` | running | — |
+| pick_up_the_black_bowl_next_to_the_ramekin_and_place_it_on_the_plate | 3 | `026de13c06dfe388` | **48/50** | 96% |
+| pick_up_the_black_bowl_on_cookie_box_and_place_it_on_the_plate | 5 | `a9822c6b28ae68ab` | **47/50** | 94% |
+| pick_up_the_black_bowl_on_the_wooden_cabinet_and_place_it_on_the_plate | 6 | `5734f4475347a652` | **47/50** | 94% |
+| pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate | 7 | `1027ae9586cb5a01` | **36/50** | 72% |
+| pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate | 4 | `d47c03b635b81424` | **41/50** | 82% |
 
-Dev-to-held-out relationship so far, for the four complete tasks:
+**Campaign total: 442/500 held-out trials = 88.4%**, all ten runs `status=complete`.
 
-| task | dev | held-out | note |
+Dev-to-held-out relationship, all ten tasks (dev is the shipped `fix_code.py`; `on_the_ramekin` and
+`on_the_stove` report both sweeps where a repeat was run):
+
+| task | dev (51–65) | held-out (1–50) | note |
 |---|---|---|---|
 | next_to_plate | 15/15 | 50/50 | no gap |
 | in_the_top_drawer… | 15/15 | 49/50 | no gap (single-seed miss) |
-| between_plate_and_ramekin | 13/15 | 47/50 | 94% vs 87% dev — no drop, and the two dev-blocked seeds did **not** cost held-out points at a higher rate |
-| from_table_center | 13/15 | 41/50 | 5-point gap, on the two dev seeds blocked by the kinematic x-clamp — consistent with a scene-geometry limit that recurs at a similar rate rather than a defect the fix should have caught |
+| next_to_the_ramekin | 15/15 | 48/50 | −4 pts; both misses `completed=0` |
+| on_cookie_box | 15/15 | 47/50 | −6 pts |
+| on_the_wooden_cabinet | **11/15** (3 BLOCKED) | **47/50** | **+21 pts — dev badly *under*-stated it** |
+| between_plate_and_ramekin | 13/15 | 47/50 | 94% vs 87% dev — no drop; the two dev-blocked seeds did **not** cost held-out points at a higher rate |
+| from_table_center | 13/15 | 41/50 | −5 pts, on the two dev seeds blocked by the kinematic x-clamp |
+| on_the_ramekin | 14/15 (15/15 + 14/15 = 29/30) | 41/50 | −14 pts — the largest clean-dev-to-held-out drop |
+| next_to_the_cookie_box | 13/15 | 36/50 | −14 pts |
+| on_the_stove | 14/15 | **36/50** | **−22 pts — dev badly *over*-stated it** |
 
-Two of the four now have a 13/15 dev score and they landed at 94% and 82% — so the dev-block→held-out
-relationship is **not** a fixed conversion, and the earlier "dev blocks predict held-out blocks"
-reading is weaker than it looked at three points. Worth stating plainly in the final report rather than
-leaning on it.
+**The claim recorded here at four tasks — "every task that reached 15/15 dev held ≥98% held-out" — is
+FALSIFIED by the wave-2 results and is withdrawn.** Three tasks reached 15/15 dev (`next_to_the_ramekin`,
+`on_cookie_box`, and `on_the_ramekin` on its first sweep) and they landed at 96%, 94% and 82%. In the
+other direction `on_the_wooden_cabinet` shipped a dev program *worse* than its own initial code and
+reached 94% held out, while `on_the_stove`, whose 14/15 I spent ~38 min of GPU re-measuring, is the
+campaign's weakest at 72%.
 
-What *does* survive at four points: **every task that reached 15/15 dev held ≥98% held-out.** No task
-has yet lost held-out ground after a clean dev sweep. The converse — that dev blocks predict held-out
-blocks — is the part the fourth datapoint contradicted, so it should not be asserted.
+The honest summary is that **dev score is a weak predictor in both directions on this suite**, and the
+dev-to-held-out gap is not a fixed conversion — at 15/15 dev the held-out rate spans 82–100%, and at
+11–14/15 dev it spans 72–94% with the extreme *good* case coming from the worst dev score. Nothing here
+supports ranking the ten shipped programs by their dev numbers. Sample sizes are the obvious caveat in
+both directions: 15 dev seeds and 50 held-out trials, on tasks whose own workers documented
+byte-identical-code flips of 1–2 seeds per sweep.
 
 ## Event Log
 
