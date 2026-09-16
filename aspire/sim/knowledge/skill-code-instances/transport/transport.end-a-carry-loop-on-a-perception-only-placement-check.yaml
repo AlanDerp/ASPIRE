@@ -1,0 +1,50 @@
+{
+  "api_calls": [
+    "observe",
+    "dedupe",
+    "bowl_candidates",
+    "float",
+    "np.linalg.norm",
+    "print",
+    "float",
+    "float"
+  ],
+  "ast_fingerprint": "a94e7e095e12e3f33dc4449f65ed09ff6d9db32701038677bb1373ed63b64359",
+  "checkpoint_id": null,
+  "code": "def bowl_on_plate(plate):\n    \"\"\"Closed-loop placement check from perception only: a bowl-shaped cloud whose\n    centre is over the plate's footprint and whose underside sits ON the plate\n    surface (+7 mm) rather than on the table (-5 mm).\"\"\"\n    rgb, d, K, E = observe()\n    for c in dedupe(bowl_candidates(rgb, d, K, E, BOWL_PROMPTS)):\n        r = float(np.linalg.norm(c[\"c\"] - plate[\"c\"]))\n        if r < 0.075 and float(c[\"lo\"][2]) > float(plate[\"top\"]) - 0.006:\n            print(\"  VERIFIED on plate: c=(%.3f,%.3f) r=%.3f zlo=%.3f\"\n                  % (c[\"c\"][0], c[\"c\"][1], r, c[\"lo\"][2]), flush=True)\n            return c\n    return None",
+  "code_hash": "b0a71c83ec037a33c195505f0fc2a8ad4e3f93efa0cb06fafed65e95bd232fb6",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "End a place loop on a perception-only confirmation that the object is already on the goal, rather than on an iteration counter, so an unconditional extra carry cannot disturb or replace a placement that already succeeded.",
+  "id": "transport.end-a-carry-loop-on-a-perception-only-placement-check",
+  "kind": "skill-code-instance",
+  "observed_effect": "On seed 51 the initial program placed the bowl correctly at (0.709, 0.196) and then, because the loop only ended on a counter, re-carried and grabbed the ramekin instead. Adding a perception-only check that looks for a bowl-shaped cloud whose centre is within 0.075 m of the plate centre and whose underside sits above plate_top - 0.006 m makes the loop exit immediately after the verified placement (log line VERIFIED on plate: c=(0.709,0.196) r=0.006) with no second carry. Seeds 51-65 all scored 1.0 on the re-measured shipped revision. The check is perception-only: it reads the same bowl and plate candidates the rest of the program uses and takes no ground-truth input.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "94f35672ffbbfce5a7f16fb96bad7ecb1fd259e752438f04cfd4bb376e185938",
+  "task": "pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_task",
+  "trigger": "Any place task whose retry loop can carry a second time. Symptom: the first placement is already correct, but the loop re-carries; the second carry either grabs a different object (a look-alike or the reference object) or knocks the placed object off the goal.",
+  "vertical_capability": "transport"
+}

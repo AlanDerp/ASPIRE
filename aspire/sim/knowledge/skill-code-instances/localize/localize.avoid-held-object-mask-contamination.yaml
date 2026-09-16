@@ -1,0 +1,49 @@
+{
+  "api_calls": [
+    "segment_sam3_text_prompt",
+    "sorted",
+    "mask_to_world_points",
+    "astype",
+    "len",
+    "np.linalg.norm",
+    "near.sum",
+    "np.asarray"
+  ],
+  "ast_fingerprint": "ab6dddcd50db23f4744d7bd126897afd37950035f032b0cd05c45e556001680f",
+  "checkpoint_id": null,
+  "code": "def bowl_points(rgb, d, K, E, ref_xy=None, radius=0.12):\n    \"\"\"World points of the metal bowl (optionally restricted near ref_xy).\"\"\"\n    for p in [\"metal bowl\", \"silver bowl\", \"bowl\"]:\n        masks = segment_sam3_text_prompt(rgb, p)\n        if not masks:\n            continue\n        for m in sorted(masks, key=lambda x: -x[\"score\"])[:3]:\n            pts = mask_to_world_points(m[\"mask\"].astype(np.uint8), d, K, E)\n            if pts is None or len(pts) < 40:\n                continue\n            if ref_xy is not None:\n                near = np.linalg.norm(pts[:, :2] - np.asarray(ref_xy), axis=1) < radius\n                if near.sum() < 40:\n                    continue\n                pts = pts[near]\n            return pts\n    return None",
+  "code_hash": "d4476b6fdbc2658cde6ebc690cd54c5aaba1767acd1d46ffa71c4b4ec2b4eeff",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Measure an object's centre without contamination from the gripper that holds it",
+  "id": "localize.avoid-held-object-mask-contamination",
+  "kind": "skill-code-instance",
+  "observed_effect": "The carried-object mask picks up the gripper fingers (n=3550 vs 2683 points) and drags the measured centroid ~3.3 cm toward the wrist; the pre-pinch observation is used for the offset instead and the carried measurement is kept as a diagnostic print only",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/put_the_bowl_on_the_stove/fix_code.py",
+  "source_code_sha256": "98c40142fd85d50e2594ea23f384b2f828d23e859478cfef066b7bcc01ac91d2",
+  "task": "put_the_bowl_on_the_stove",
+  "task_family": "libero_goal_swap",
+  "trigger": "A SAM3 text prompt whose object word is also true of the gripper ('metal bowl') applied to an object held in the gripper",
+  "vertical_capability": "localize"
+}

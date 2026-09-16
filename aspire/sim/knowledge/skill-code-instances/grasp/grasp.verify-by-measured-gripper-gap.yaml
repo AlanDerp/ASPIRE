@@ -1,0 +1,37 @@
+{
+  "api_calls": [
+    "float",
+    "np.asarray",
+    "get_observation"
+  ],
+  "ast_fingerprint": "9e8b14fc146c8f0ffbd515f53a59be3db25086f84ec456f18bec334313bf39db",
+  "checkpoint_id": null,
+  "code": "def _gap():\n    \"\"\"Measured total finger gap in metres (0 = fully closed).\"\"\"\n    return float(np.asarray(get_observation()[\"robot_cartesian_pos\"], dtype=np.float64)[-1]) * 0.08",
+  "code_hash": "47c211251d4872d9458ba602c14460fcf01ec637e9fc31ac3e3b9a8d174535c7",
+  "development_outcomes": {
+    "successes": [
+      54,
+      56,
+      58,
+      60,
+      61,
+      62,
+      63,
+      64
+    ]
+  },
+  "goal": "Verify a grasp from a physical contact measurement rather than from the planner's claimed pose",
+  "id": "grasp.verify-by-measured-gripper-gap",
+  "kind": "skill-code-instance",
+  "observed_effect": "Total finger gap = robot_cartesian_pos[-1] * 0.08 separates air (~0.0010), a real bowl hold (0.0033-0.0185), and a blocked grip (0.0211-0.0349); every grasp and every transport hop is gated on it, so a blocked grip is not mistaken for a hold",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/open_the_top_drawer_and_put_the_bowl_inside/fix_code.py",
+  "source_code_sha256": "915b19eea818af63d807130d9c50d952d8866e9b3223e0b0fbbfd9ba9ebec3af",
+  "task": "open_the_top_drawer_and_put_the_bowl_inside",
+  "task_family": "libero_goal_swap",
+  "trigger": "A grasp of a smooth or rigid object where the planner has no reliable contact signal, so success cannot be read off the commanded trajectory",
+  "vertical_capability": "grasp"
+}

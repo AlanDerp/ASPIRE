@@ -1,0 +1,44 @@
+{
+  "api_calls": [
+    "range",
+    "tcp_pos",
+    "goto_pose",
+    "np.array"
+  ],
+  "ast_fingerprint": "3f6d24509949d1bd2d0be8d9985a868c20d83c7a6ad24d64cc8b96e1c43c678d",
+  "checkpoint_id": null,
+  "code": "def settle(quat, repeats=3):\n    \"\"\"Re-command the current pose so sim time passes and the payload stops swinging.\n\n    get_observation() costs no sim steps, so it cannot damp a pendulum.\n    \"\"\"\n    for _ in range(repeats):\n        p = tcp_pos()\n        goto_pose(np.array([p[0], p[1], p[2]]), quat)",
+  "code_hash": "d91e1b33f745ef828f91d1b82bc6e0f19d0dcf24f2d015c1eb5e950fa765f029",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Damp a carried payload's swing before the fingers open, given that perception advances no sim time",
+  "id": "transport.pass-sim-time-with-a-command-not-an-observation",
+  "kind": "skill-code-instance",
+  "observed_effect": "settle(quat, repeats) = N redundant goto_pose(tcp_pos(), quat) calls at the CURRENT pose. This is the inverse of the 'perception costs no sim steps' rule: because get_observation() / segment_sam3_* / mask_to_world_points advance no sim steps, a loop of observations cannot damp a pendulum -- only a COMMAND buys sim time. Measured: the held bowl was off_from_goal 0.0045 immediately before open_gripper() and 0.0416 immediately after, i.e. the fingers opened on a moving payload; with settle() before the open, after the release, and between the small post-release hops the transient disappears. This CORRECTS the pre-existing transport.md section 'Physics Settling After Release', which prescribed an open_gripper() then for _ in range(3): get_observation() loop. Contrast localize.perception-costs-no-sim-steps, which uses the same fact to make closed loops cheap",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "effec801fc9c43e68c0e8d7b783e6ed917f6c304e99807e8f9b0f9121707afb1",
+  "task": "pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_task",
+  "trigger": "A payload held by a pinch is still swinging when the gripper opens: it moves 2-4 cm at the instant of release and lands off target. Corollary trigger: a settling loop written as repeated get_observation() calls, which changes nothing",
+  "vertical_capability": "transport"
+}

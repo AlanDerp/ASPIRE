@@ -1,0 +1,53 @@
+{
+  "api_calls": [
+    "range",
+    "achieved_tcp",
+    "np.array",
+    "float",
+    "move_tcp",
+    "achieved_tcp",
+    "np.linalg.norm",
+    "np.linalg.norm",
+    "print",
+    "min",
+    "tolist",
+    "np.round"
+  ],
+  "ast_fingerprint": "9a92ce93da02b948bb95dbd584fbbf0b14d065cc1eae938b83f4cd28e127e7c2",
+  "checkpoint_id": null,
+  "code": "def hop_to(px, py, step=0.030, tol=0.016, max_iter=16, tag=\"\"):\n    \"\"\"Translate the TCP to (px, py) at its current height, in small hops.\n\n    See the module docstring: one large Cartesian jump leaves the arm short of\n    its target because solve_ik is warm-started and iterated only a handful of\n    times per call.  Small hops keep it inside its convergence basin.\n    \"\"\"\n    for _ in range(max_iter):\n        cur = achieved_tcp()\n        d = np.array([px - cur[0], py - cur[1], 0.0])\n        n = float(np.linalg.norm(d))\n        if n < tol:\n            return True\n        nxt = cur + d * min(1.0, step / n)\n        move_tcp(nxt, TOPDOWN, tol=0.020, retries=0)\n        a = achieved_tcp()\n        if np.linalg.norm(a[:2] - cur[:2]) < 0.003:\n            print(f\"  lateral stall{tag} at {np.round(a, 3).tolist()}\", flush=True)\n            return False\n    return False",
+  "code_hash": "56d8970b2f70dbe4ff0ff3c7a49a0519dab5c214c2d0ad5ccddf0f20e97f8d3c",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Get a Cartesian move to actually arrive when the target is far from the current pose",
+  "id": "manipulation.ladder-cartesian-motion-into-hops",
+  "kind": "skill-code-instance",
+  "observed_effect": "Laddering every Cartesian motion into hops of <= 30 mm: measured over the rack, commanding x=0.78 landed at 0.686 and y=-0.32 landed at -0.182 with a single hop, whereas with hop_to the TCP tracks the target to a few millimetres. move_to_joints returning success is not evidence of arrival",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/put_the_wine_bottle_on_the_rack/fix_code.py",
+  "source_code_sha256": "ca2e22ca24fe2e22ac771d267458e21fbca4c16e66c71772433271168076dd41",
+  "task": "put_the_wine_bottle_on_the_rack",
+  "task_family": "libero_goal_swap",
+  "trigger": "A single large Cartesian hop; solve_ik clips the target, applies the (0,0,-0.1) TCP offset and runs a warm-started solve_ik_with_convergence(max_iters=5), so a big jump falls outside its basin - yet move_to_joints still reports completed: true",
+  "vertical_capability": "manipulation"
+}

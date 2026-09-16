@@ -1,0 +1,44 @@
+{
+  "api_calls": [
+    "float",
+    "float",
+    "min",
+    "print",
+    "np.linalg.norm",
+    "max",
+    "np.asarray",
+    "np.asarray"
+  ],
+  "ast_fingerprint": "13b4183a12149a49c780c5808a36ac12a46593fafda7775a678e424ff0d07bc2",
+  "checkpoint_id": null,
+  "code": "def on_plate(landed, goal_xy, plate_r, plate_surf):\n    \"\"\"True when the re-measured bowl cloud rests inside the plate footprint.\n\n    The trial is scored on the state it ENDS in, so this is the only feedback\n    channel the program has: once the goal object is verifiably seated, the rest\n    of the episode can only make things worse.\n    \"\"\"\n    if landed is None:\n        return False\n    dxy = float(np.linalg.norm(np.asarray(landed[:2]) - np.asarray(goal_xy)))\n    z = float(landed[2])\n    tol = min(0.045, max(0.030, 0.75 * plate_r))\n    ok = dxy <= tol and (plate_surf - 0.030) <= z <= (plate_surf + 0.045)\n    print(\"   placement check dxy=%.4f (tol %.3f) z=%.4f surf=%.4f -> %s\"\n          % (dxy, tol, z, plate_surf, \"ON PLATE\" if ok else \"off\"), flush=True)\n    return ok",
+  "code_hash": "b87748c0c538efeff6152ab916d18ffdec38b713cbacbbb83ae55f0c4d84553b",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      54,
+      56,
+      57,
+      58,
+      59,
+      61,
+      63
+    ]
+  },
+  "goal": "Preserve a completed placement inside an episode that keeps iterating, when the score is read from the episode's FINAL state",
+  "id": "manipulation.the-score-is-the-final-state-never-act-after-a-placement",
+  "kind": "skill-code-instance",
+  "observed_effect": "The harness scores the goal predicate of the episode's FINAL state: env.step(code) runs the whole block and reward = compute_reward() of the last inner step. Any iteration AFTER a successful release can therefore only DESTROY the score. Add a loop-top rule that refuses to touch a target already resting in the goal region: if carries > 0 and the target's measured centre is inside the goal footprint, settle and break. Measured on seed 64: initial_code.py placed the bowl at release xy=(0.706,0.154) against plate=(0.714,0.209), then attempt 1 targeted the bowl it had just placed, re-grasped it (wall 0 r=0.038 close width=0.0967 -> lift width [0.0856,0.0773,0.0715,0.0667]) and carried it off the plate; the 999-frame video ends with an EMPTY plate. With the rule the carried state is preserved and the same seed scores 1.0. Use a WIDE tolerance (dxy <= 0.045) for the loop-top OBB-centre reading and a STRICT one (dxy <= 0.030) for a raw post-release cloud. CAVEAT for the record: seed 64 still reads 0 in the shipped 9/15 sweep, where it fails on a different signature (horizon/marginal grip), so this pattern's 0->1 demonstration is a development measurement, not a shipped-sweep one",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "767f0d3d71c7eccadec5aa57d156cf94f7f2ff25e3ae10b2b514cdbabc10fbf0",
+  "task": "pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_task",
+  "trigger": "Any pick-and-place loop that re-localises and re-grasps after a successful release (for it in range(MAX_ITERS)): attempt n+1 targets the object attempt n just placed, picks it back up, and carries it off the goal",
+  "vertical_capability": "manipulation"
+}

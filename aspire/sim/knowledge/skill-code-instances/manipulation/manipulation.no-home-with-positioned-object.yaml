@@ -1,0 +1,49 @@
+{
+  "api_calls": [
+    "get_observation",
+    "find_top_handle",
+    "open_gripper",
+    "move_tcp",
+    "move_tcp",
+    "close_gripper",
+    "_log",
+    "open_gripper",
+    "move_tcp",
+    "drawer_front",
+    "_log",
+    "move_tcp",
+    "_gap",
+    "get_observation",
+    "round"
+  ],
+  "ast_fingerprint": "24034a0f86dbf05915d2ff8d178dcc031a761b259d85758729db69cb380970cf",
+  "checkpoint_id": null,
+  "code": "def open_top_drawer():\n    \"\"\"Grasp the top handle bar and pull the drawer open.\"\"\"\n    obs = get_observation()\n    bar = find_top_handle(obs)\n    if bar is None:\n        return\n    x_bar, y_bar, z_bar = bar\n    open_gripper()\n    move_tcp([x_bar, y_bar + 0.12, z_bar], SIDE_QUAT, axis=SIDE_AXIS)\n    move_tcp([x_bar, y_bar - 0.008, z_bar], SIDE_QUAT, axis=SIDE_AXIS)\n    close_gripper()\n    _log(\"open grip %.4f\" % _gap())\n    # closed-loop, incremental pulls: a single raw goto_pose leaves the drawer\n    # only partly open when the IK falls short of the commanded pose\n    for dy in (0.05, 0.12, 0.17):\n        move_tcp([x_bar, y_bar - 0.008 + dy, z_bar], SIDE_QUAT, iters=3, axis=SIDE_AXIS)\n        front = drawer_front(get_observation())\n        _log(\"  pull to +%.2f front\" % dy, None if front is None else [round(v, 3) for v in front])\n        if front is not None and front[1] > -0.045:      # already well out\n            break\n    open_gripper()\n    # straight up: the home motion drags the open drawer back in\n    try:\n        move_tcp([x_bar, y_bar + 0.16, z_bar + 0.26], SIDE_QUAT, iters=3, axis=SIDE_AXIS)\n    except Exception:\n        pass",
+  "code_hash": "2940307d987eb5476329bffc889ec5eb7a4e2eee622e4de5131853472ac72e33",
+  "development_outcomes": {
+    "successes": [
+      54,
+      56,
+      58,
+      60,
+      61,
+      62,
+      63,
+      64
+    ]
+  },
+  "goal": "Leave a movable fixture (drawer, door) in the state the program produced, so the rest of the program can rely on it",
+  "id": "manipulation.no-home-with-positioned-object",
+  "kind": "skill-code-instance",
+  "observed_effect": "Home drags the open drawer 8 cm shut (panel front y measured -0.0093 right after the pull vs -0.0885 after home, i.e. 8 of the 15 cm opening lost); retreating straight up in the approach axis preserves the full 0.130-0.146 m opening on every dev seed",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/open_the_top_drawer_and_put_the_bowl_inside/fix_code.py",
+  "source_code_sha256": "915b19eea818af63d807130d9c50d952d8866e9b3223e0b0fbbfd9ba9ebec3af",
+  "task": "open_the_top_drawer_and_put_the_bowl_inside",
+  "task_family": "libero_goal_swap",
+  "trigger": "Retreating from an articulated fixture via goto_home_joint_position() or any intermediate pose while the fixture is open",
+  "vertical_capability": "manipulation"
+}

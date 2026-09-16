@@ -1,0 +1,52 @@
+{
+  "api_calls": [
+    "tcp",
+    "max",
+    "range",
+    "tcp",
+    "np.array",
+    "int",
+    "goto_pose",
+    "np.ceil",
+    "float",
+    "np.linalg.norm"
+  ],
+  "ast_fingerprint": "41c405d6e0f6c0722872c43f4f15d3a373a887d33edd245446130a72396faf6d",
+  "checkpoint_id": null,
+  "code": "def hop_to(px, py, pz, quat, step=HOP):\n    \"\"\"Walk to a Cartesian target in <=step hops, re-reading the measured TCP.\n\n    A single long hop falls outside the warm-started IK solver's basin and lands\n    short while still reporting success.\n    \"\"\"\n    cur = tcp()\n    d = np.array([px, py, pz]) - cur\n    n = max(1, int(np.ceil(float(np.linalg.norm(d)) / step)))\n    for i in range(1, n + 1):\n        goto_pose(cur + d * (i / n), quat)\n    return tcp()",
+  "code_hash": "2a77d341d6456bf0dd3d7a9887aae78990b50a87ee11e74cf71db2e2c83a3ced",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Split every Cartesian descent into hops of <= 2.5 cm measured from the achieved TCP, because one long hop silently under-reaches by centimetres without erroring",
+  "id": "grasp.laddered-descent-defeats-silent-underreach",
+  "kind": "skill-code-instance",
+  "observed_effect": "One 12 cm descent from z 0.172 to 0.052 landed at z 0.080 (2.8 cm short) and closed with gap 0.0012 m; laddered into <=2.5 cm hops it holds at gap 0.0633-0.0637 m on grasp attempt 0 for all 15 development seeds",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_swap/pick_up_the_alphabet_soup_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "0d6ce6f44edcf1f31af06c0f4da63cac86837bda001c237222832b026befc07c",
+  "task": "pick_up_the_alphabet_soup_and_place_it_in_the_basket",
+  "task_family": "libero_object_swap",
+  "trigger": "A goto_pose / solve_ik descent whose vertical travel is more than a few centimetres: the commanded depth is not reached, the fingers close on air and move_to_joints still reports completed true",
+  "vertical_capability": "grasp"
+}

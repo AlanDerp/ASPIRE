@@ -1,0 +1,44 @@
+{
+  "api_calls": [
+    "ee_pose",
+    "as_matrix",
+    "Rotation.from_quat"
+  ],
+  "ast_fingerprint": "f6ff4ceee4d10c1f4e1b0f0a207a6d53bcf800609e18d84bed88a17ac76b3902",
+  "checkpoint_id": null,
+  "code": "def achieved_tcp():\n    \"\"\"World position the gripper's TCP actually reached.\n\n    solve_ik(position, quat) targets EE = position + R @ (0, 0, -0.1), so the\n    inverse relation is TCP = EE + 0.1 * R[:, 2].\n    \"\"\"\n    e = ee_pose()\n    q = e[3:7]\n    R = Rotation.from_quat([q[1], q[2], q[3], q[0]]).as_matrix()\n    return e[:3] + 0.1 * R[:, 2]",
+  "code_hash": "bb81761619e59df3d45c8cda6d5cec19a61b065da9ded94bff968af776be1df5",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Measure the tool-tip position actually achieved by an IK move, so a closed-loop error signal is meaningful",
+  "id": "manipulation.tcp-offset-inversion",
+  "kind": "skill-code-instance",
+  "observed_effect": "Correct inversion TCP = EE + 0.1 * R[:,2] makes the physical floor at 0.119 m appear immediately; a sign-flipped form reported a constant 21.5 cm error on every move",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/put_the_wine_bottle_on_top_of_the_cabinet/fix_code.py",
+  "source_code_sha256": "8c1e524cd34684b4ccacaf20fef97894b2fab595c9de24105b9419467dff3bec",
+  "task": "put_the_wine_bottle_on_top_of_the_cabinet",
+  "task_family": "libero_goal_swap",
+  "trigger": "Closed-loop check of solve_ik output compares robot_cartesian_pos (the hand frame) against the commanded pose, mixing in a 0.10 m constant",
+  "vertical_capability": "manipulation"
+}

@@ -1,0 +1,58 @@
+{
+  "api_calls": [
+    "goto_home_joint_position",
+    "open_gripper",
+    "move_tcp",
+    "close_gripper",
+    "float",
+    "print",
+    "float",
+    "print",
+    "achieved_tcp",
+    "max",
+    "move_tcp",
+    "print",
+    "move_tcp",
+    "achieved_tcp",
+    "print",
+    "ee_pose",
+    "ee_pose"
+  ],
+  "ast_fingerprint": "df3d8cca9dbb7c3c45b731da56a4e79a6861d18b0abf9aae4d1dfa5820e99ce9",
+  "checkpoint_id": null,
+  "code": "def grasp(bx, by, gz, top_z, quat, step=0.015):\n    \"\"\"Stepped descent toward gz, closing at the lowest height actually reached.\n\n    Returns the measured TCP z at the moment of closing, or None if the finger\n    never got below the bottle's top.\n    \"\"\"\n    goto_home_joint_position()\n    open_gripper()\n    zcmd = gz + 0.10\n    move_tcp([bx, by, zcmd], quat, tol=0.030, retries=1)\n    meas = achieved_tcp()[2]\n    while zcmd > gz:\n        zcmd = max(gz, zcmd - step)\n        move_tcp([bx, by, zcmd], quat, tol=0.030, retries=0)\n        now = achieved_tcp()[2]\n        if now > meas - 0.004:            # no further progress -> kinematic floor\n            print(f\"  descent floor at cmd {zcmd:.3f} meas {now:.3f}\", flush=True)\n            break\n        meas = now\n    if meas > top_z - 0.005:              # fingers still above the bottle\n        print(f\"  gripper above bottle (meas {meas:.3f} vs top {top_z:.3f})\",\n              flush=True)\n        return None\n    close_gripper()\n    ap = float(ee_pose()[7])\n    print(f\"  closed at tcp_z {meas:.3f} aperture {ap:.3f}\", flush=True)\n    if ap <= 0.05:\n        return None\n    lift_err = move_tcp([bx, by, meas + 0.06], quat, tol=0.030, retries=0)[1]\n    ap2 = float(ee_pose()[7])\n    print(f\"  lift check aperture {ap2:.3f} (move err {lift_err:.3f})\", flush=True)\n    if ap2 <= 0.05:\n        return None\n    return meas",
+  "code_hash": "a6ed9d094deef29853de90cd75fca6e6680cb4dbcc86f79af8e9bfafeda72f35",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Reach a grasp height that is below the arm's true kinematic floor by descending in steps and closing at the height actually achieved",
+  "id": "grasp.kinematic-floor-descent",
+  "kind": "skill-code-instance",
+  "observed_effect": "Stepped descent detects the floor and closes the gripper at the bottle neck (TCP 0.120) instead of the unreachable nominal target; 8/15 -> 15/15, all first attempt",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/put_the_wine_bottle_on_top_of_the_cabinet/fix_code.py",
+  "source_code_sha256": "8c1e524cd34684b4ccacaf20fef97894b2fab595c9de24105b9419467dff3bec",
+  "task": "put_the_wine_bottle_on_top_of_the_cabinet",
+  "task_family": "libero_goal_swap",
+  "trigger": "solve_ik reports success but the measured TCP stops tracking the command before reaching the requested grasp height",
+  "vertical_capability": "grasp"
+}

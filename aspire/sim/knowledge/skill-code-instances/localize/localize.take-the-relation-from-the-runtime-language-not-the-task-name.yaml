@@ -1,0 +1,58 @@
+{
+  "api_calls": [
+    "set",
+    "min",
+    "enumerate",
+    "min",
+    "min",
+    "enumerate",
+    "enumerate",
+    "list",
+    "float",
+    "ak_idx.add",
+    "enumerate",
+    "float",
+    "np.linalg.norm",
+    "max",
+    "max",
+    "np.linalg.norm"
+  ],
+  "ast_fingerprint": "56c2d29356f2a16af658db3491e69b091f8a1126c0673a341e131fd5d3bb2c94",
+  "checkpoint_id": null,
+  "code": "def pick_ramekin_and_target(cands, akitas):\n    \"\"\"The instruction's relation decides between the two equal-score twins:\n    class first (the akita pool), then the akita NEAREST the ramekin.\n\n    The ramekin itself has no usable prompt (`ramekin` -> 0.003), so it is found\n    geometrically -- the smallest on-table bowl-like candidate that is not an\n    akita.\n    \"\"\"\n    if not cands:\n        return None, None\n    ak_idx = set()\n    for a in akitas:\n        for i, c in enumerate(cands):\n            if float(np.linalg.norm(a[\"c\"] - c[\"c\"])) < 0.045:\n                ak_idx.add(i)\n    if not ak_idx:\n        ak_idx = {i for i, c in enumerate(cands) if c[\"score\"] >= 0.85}\n    rest = [c for i, c in enumerate(cands) if i not in ak_idx]\n    if rest:\n        ramekin = min(rest, key=lambda c: max(c[\"ext\"][0], c[\"ext\"][1]))\n    else:                                        # no reference found: smallest overall\n        ramekin = min(cands, key=lambda c: max(c[\"ext\"][0], c[\"ext\"][1]))\n    pool = [c for i, c in enumerate(cands) if i in ak_idx and c is not ramekin]\n    if not pool:\n        pool = [c for c in cands if c is not ramekin] or list(cands)\n    if ramekin is None:\n        return None, None\n    target = min(pool, key=lambda c: float(np.linalg.norm(c[\"c\"] - ramekin[\"c\"])))\n    return ramekin, target",
+  "code_hash": "5c9c4fdc025eb908258d7721e392afcd06adcd2b7c569e1f560df66980091f2e",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "In a LIBERO-Pro _task suite, take the named reference object and the relation from env.handle.task_language at runtime, never from the BDDL filename or the task name, and select the class pool member nearest that reference rather than nearest the goal.",
+  "id": "localize.take-the-relation-from-the-runtime-language-not-the-task-name",
+  "kind": "skill-code-instance",
+  "observed_effect": "For pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate the runtime instruction read \"Pick the akita black bowl next to the ramekin and place it on the plate\" on all 15 development seeds, i.e. the reward follows the RAMEKIN relation while the file name says plate. On seed 51 the akita nearest the ramekin (0.490, 0.310) was carried and placed and scored reward 1.0, while the akita nearest the plate (0.659, 0.325) was never touched; selection and language were identical on all 15 seeds and the shipped revision scored 15/15. The reference object itself has no usable prompt (ramekin about 0.003), so it is found geometrically as the smallest on-table bowl-like candidate outside the akita pool, and the pool is screened first with an attribute prompt (black bowl 0.777 vs 0.287 for the look-alike). The runtime language string is read once in run() at fix_code.py line 466 and the relation selection is implemented by the ingested function.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "94f35672ffbbfce5a7f16fb96bad7ecb1fd259e752438f04cfd4bb376e185938",
+  "task": "pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_task",
+  "trigger": "Suite name ends in _task and the relation named by the file name disagrees with the relation in the runtime instruction. Symptom: the program confidently carries the object the file name implies and scores 0 while the scene contains no better explanation.",
+  "vertical_capability": "localize"
+}

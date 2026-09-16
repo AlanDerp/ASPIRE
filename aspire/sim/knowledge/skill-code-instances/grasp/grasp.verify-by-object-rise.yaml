@@ -1,0 +1,48 @@
+{
+  "api_calls": [
+    "view",
+    "localize",
+    "mean",
+    "float",
+    "float",
+    "np.percentile",
+    "max"
+  ],
+  "ast_fingerprint": "cc782c856958914d0ee0767c22727b35a157ea89887013bb6a96f77ecf1f1b79",
+  "checkpoint_id": null,
+  "code": "def bowl_state(obs):\n    rgb, di, K, E = view(obs)\n    b = localize(rgb, di, K, E, BOWL_PROMPTS)\n    if b is None:\n        return None\n    pts = b[\"pts\"]\n    return {\"pts\": pts, \"xy\": pts[:, :2].mean(axis=0),\n            \"rim_z\": float(np.percentile(pts[:, 2], 97)),\n            \"zmax\": float(pts[:, 2].max()), \"info\": b}",
+  "code_hash": "e65c12efbf4fdb84e9b0aecd40554078d5168d8c801814e29fcd6496d79129d6",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Re-observe the goal object after a lift so the grasp-confirmation signal is the object rising, not the ambiguous gripper width",
+  "id": "grasp.verify-by-object-rise",
+  "kind": "skill-code-instance",
+  "observed_effect": "Post-lift object zmax exposed the air grasp that a pre-lift merged object+gripper mask had hidden (0.040 vs a falsely lifted 0.095); drove the direction sweep",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/put_the_bowl_on_top_of_the_cabinet/fix_code.py",
+  "source_code_sha256": "f8a1f73d5ce902c622f687de0c79594c1d4fd12af252a0a83050a0b669a2a7f2",
+  "task": "put_the_bowl_on_top_of_the_cabinet",
+  "task_family": "libero_goal_swap",
+  "trigger": "Grasp is uncertain; gripper width alone cannot distinguish a thin-shell pinch from fingers closed on nothing",
+  "vertical_capability": "grasp"
+}

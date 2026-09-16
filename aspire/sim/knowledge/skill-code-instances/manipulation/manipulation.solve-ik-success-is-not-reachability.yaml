@@ -1,0 +1,50 @@
+{
+  "api_calls": [
+    "float",
+    "goto_pose",
+    "float",
+    "goto_home_joint_position",
+    "np.array",
+    "print",
+    "get_observation",
+    "type",
+    "str"
+  ],
+  "ast_fingerprint": "3e01b12a6fb62d7244189f41cdb5134a59ff96aa23983046ec5cfb4581949178",
+  "checkpoint_id": null,
+  "code": "def probe_reach_x(pcy, z, quat=TOP_DOWN):\n    \"\"\"Probe the workspace wall along +x at (y=pcy, z=z); returns the achieved\n    x, or nan if the probe itself failed.\n\n    The only honest way to learn where the arm stops is to drive it there and\n    read back the pose.  NOTE this single long lunge is a *conservative lower\n    bound*: lunging straight to x=0.95 measures ~0.696, while laddering out in\n    small hops reaches ~0.750 at the same height (measured on seed 55, fingertip\n    z = 0.125).  The solver converges to a different branch for a 0.35 m jump\n    than for an incremental approach, and the real release descent is\n    incremental.  Treat a \"beyond\" verdict as advisory, never as the wall.\n    \"\"\"\n    got = float(\"nan\")\n    try:\n        goto_pose(np.array([PROBE_X, pcy, z]), quat)\n        got = float(get_observation()[\"robot_cartesian_pos\"][0])\n    except Exception as e:\n        print(f\"  reach probe failed: {type(e).__name__} {str(e)[:60]}\", flush=True)\n    try:\n        goto_home_joint_position()\n    except Exception:\n        pass\n    return got",
+  "code_hash": "84579fc96af58b13af676f4f7d883863b342b992bcdede1b58c4ece90cb51899",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Decide whether a Cartesian target is actually reachable, before gating an action on it",
+  "id": "manipulation.solve-ik-success-is-not-reachability",
+  "kind": "skill-code-instance",
+  "observed_effect": "solve_ik does NOT raise for out-of-workspace poses, so a try/except reachable() screen returns True far past the joint limit and never fires - reachability must come from a goto_pose read-back. The wall probe must also be LADDERED: commanding straight to x=0.95 from home reads back x_max=0.696-0.697, while laddering out in small hops at the same height and y reaches 0.750, because the solver converges to a different IK branch for a 0.35 m jump than for the incremental approach the real descent uses. On the fixed runs the closed-loop correction never fired (achieved-vs-commanded 0.0003-0.0020 m), independently confirming the chosen column was inside the workspace",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "2f7a4b84bad7216ea20231534e2edc379d6172e70b68872fcc5bde4bcb757034",
+  "task": "pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "A commanded Cartesian point that is never achieved, with the error CONSTANT in one axis across a whole descent and no exception raised; or any code that treats solve_ik returning a solution as proof of reachability",
+  "vertical_capability": "manipulation"
+}

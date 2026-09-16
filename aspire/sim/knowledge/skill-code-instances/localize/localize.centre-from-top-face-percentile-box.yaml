@@ -1,0 +1,42 @@
+{
+  "api_calls": [
+    "np.percentile"
+  ],
+  "ast_fingerprint": "c9cbd374887a965147ee91761e2cdcd9476895df4ca66b4ad5e8fcf49e7c9c3a",
+  "checkpoint_id": null,
+  "code": "def span_of(pts, lo=3.0, hi=97.0):\n    \"\"\"Midpoint and size of the percentile box of a cloud's xy projection.\"\"\"\n    p = np.percentile(pts[:, :2], [lo, hi], axis=0)\n    return 0.5 * (p[0] + p[1]), (p[1] - p[0])",
+  "code_hash": "7c6dd65e477a3f3b7bff1de94b402e0a2ba794910ce1dba69e7ed185a65cde8f",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Take an object's grasp centre from its visible top face rather than from the whole mask cloud",
+  "id": "localize.centre-from-top-face-percentile-box",
+  "kind": "skill-code-instance",
+  "observed_effect": "The midpoint of the top face's percentile box is 1.5 cm from the whole-cloud median on seed 51 (0.7025 vs 0.7176) on a 5 cm-wide object, and is insensitive to lumpy mask edges because it is a percentile box rather than a mean; all 15 development seeds grasped from the top-face centre",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_swap/pick_up_the_chocolate_pudding_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "ba3599192bfc3b5e16c4b71b5617626de6a949d4a68d1a09d20f30401ffec68a",
+  "task": "pick_up_the_chocolate_pudding_and_place_it_in_the_basket",
+  "task_family": "libero_object_swap",
+  "trigger": "A small boxy object whose mask includes a visible front face as well as the top, so the perspective bias drags the whole-cloud median toward the camera",
+  "vertical_capability": "localize"
+}

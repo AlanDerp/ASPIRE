@@ -1,0 +1,56 @@
+{
+  "api_calls": [
+    "localize",
+    "np.histogram",
+    "len",
+    "int",
+    "np.abs",
+    "sel.sum",
+    "float",
+    "len",
+    "np.argmax",
+    "np.percentile",
+    "np.median",
+    "np.percentile",
+    "np.percentile",
+    "np.percentile",
+    "np.percentile"
+  ],
+  "ast_fingerprint": "3ff714651f4de1c2fd5c4f53e7a83bb3b6c13f96375738604995abefdcc9930e",
+  "checkpoint_id": null,
+  "code": "def cabinet_top(rgb, d, K, E):\n    cab = localize(rgb, d, K, E, CAB_PROMPTS)\n    if cab is None:\n        return None\n    cp = cab[\"pts\"]\n    zs = cp[:, 2]\n    hist, edges = np.histogram(zs, bins=50)\n    lo = len(hist) // 3\n    idx = int(np.argmax(hist[lo:])) + lo        # densest upper z plateau\n    z_bin = 0.5 * (edges[idx] + edges[idx + 1])\n    sel = np.abs(zs - z_bin) < 0.02\n    if sel.sum() < 20:\n        sel = zs >= np.percentile(zs, 90)\n    top = cp[sel]\n    return {\"z\": float(np.median(top[:, 2])),\n            \"x\": 0.5 * (np.percentile(top[:, 0], 5) + np.percentile(top[:, 0], 95)),\n            \"y\": 0.5 * (np.percentile(top[:, 1], 5) + np.percentile(top[:, 1], 95)),\n            \"n\": len(top), \"prompt\": cab[\"prompt\"], \"score\": cab[\"score\"]}",
+  "code_hash": "a6e1a5723e3f2ae95cc0e1ec9b5b7032ec6d734809ef43e20416a9c03bc5aefe",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Recover the flat top face of a boxy support from a noisy SAM3 mask that mixes the top with sloped sides",
+  "id": "localize.surface-z-plateau",
+  "kind": "skill-code-instance",
+  "observed_effect": "Densest upper z-plateau recovers 5900-8000 in-band points and a stable z_top of 0.215-0.216 on all 15 seeds (raw z-max was 0.299 with 24 outliers)",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/put_the_bowl_on_top_of_the_cabinet/fix_code.py",
+  "source_code_sha256": "f8a1f73d5ce902c622f687de0c79594c1d4fd12af252a0a83050a0b669a2a7f2",
+  "task": "put_the_bowl_on_top_of_the_cabinet",
+  "task_family": "libero_goal_swap",
+  "trigger": "pts[:,2].max() lands on a sparse edge or reflection outlier rather than the true support surface",
+  "vertical_capability": "localize"
+}

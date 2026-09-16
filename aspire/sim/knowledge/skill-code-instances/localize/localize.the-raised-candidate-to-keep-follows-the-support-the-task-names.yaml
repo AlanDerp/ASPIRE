@@ -1,0 +1,47 @@
+{
+  "api_calls": [
+    "max",
+    "print",
+    "min",
+    "max",
+    "abs"
+  ],
+  "ast_fingerprint": "d39800cc99a3148bb37d6e9a80093c69fff1c1324e636c9316178cc59832359e",
+  "checkpoint_id": null,
+  "code": "def pick_on_cabinet(cands, cabinet, table_z=None):\n    \"\"\"The bowl resting on the cabinet: inside its footprint AND at its top height.\n\n    Falls back, in order, to (a) the lowest-base candidate that is clearly NOT on the\n    table (a raised support) when the cabinet could not be localized, and (b) the\n    largest candidate.  Every fallback is printed so a failure is visible in the trace.\n    \"\"\"\n    if not cands:\n        return None\n    if cabinet is not None:\n        lo, hi = cabinet[\"lo\"], cabinet[\"hi\"]\n        pool = [c for c in cands\n                if lo[0] - FOOT_PAD <= c[\"cx\"] <= hi[0] + FOOT_PAD\n                and lo[1] - FOOT_PAD <= c[\"cy\"] <= hi[1] + FOOT_PAD]\n        if pool:\n            return min(pool, key=lambda c: abs(c[\"base\"] - cabinet[\"top\"]))\n        print(\"  no bowl inside the cabinet footprint\", flush=True)\n    if table_z is not None:\n        # The instruction names the TALL support (\"on the wooden cabinet\", 0.216 m), so if\n        # the cabinet lookup ever fails the raised candidate to keep is the HIGHEST one,\n        # not the lowest: on this scene the lowest raised candidate is the identical decoy\n        # bowl on the 0.020 m stove slab, i.e. `min` would hand back exactly the wrong\n        # object.  (The direction is task-specific - the sibling stove task's target IS the\n        # low bowl - so this fallback is written for the support this task names.)\n        raised = [c for c in cands if c[\"base\"] > table_z + 0.008]\n        if raised:\n            return max(raised, key=lambda c: c[\"base\"])\n    return max(cands, key=lambda c: c[\"n\"])",
+  "code_hash": "8f0cf9c71321265a6be3fedfaa6304c80c6e7e78cdf74626f119b6f15983b41c",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Screen the candidate by the named support footprint and top height, and make the no-support fallback prefer the raised candidate that matches the support the instruction names - highest for a tall support, lowest for a low one.",
+  "id": "localize.the-raised-candidate-to-keep-follows-the-support-the-task-names",
+  "kind": "skill-code-instance",
+  "observed_effect": "SAM3 score cannot resolve the pair: 0.926 vs 0.898, a 0.028 margin. The primary path localizes the support (wooden cabinet found on 15/15 seeds, score >= 0.836, ext=(0.22-0.25, 0.25-0.26, 0.207)) and keeps the bowl inside its padded footprint whose base is closest to the support top - correct on 15/15 seeds (target base 0.221 vs decoy base 0.026). The refinement is in the FALLBACK: the sibling stove task used min(raised, key=base), and copying that here would have returned exactly the wrong object, because on this scene the lowest raised candidate is the identical decoy on the 0.020 m slab. Since the instruction names the TALL support, the fallback must prefer the HIGHEST raised candidate. The direction is therefore a property of the support the task names, not a constant: pick it from the instruction, and branch on it explicitly rather than inheriting a sibling task default.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_on_the_wooden_cabinet_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "5f79f031178bc89332959b2333dbf3c77c440dcf56d777dfceb9fee4618df510",
+  "task": "pick_up_the_black_bowl_on_the_wooden_cabinet_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "The instruction names a spatial relation to a support (on the wooden cabinet) and the scene contains visually near-identical object instances on DIFFERENT supports - here the target on the 0.216 m cabinet and an identical decoy on the 0.020 m stove slab.",
+  "vertical_capability": "localize"
+}

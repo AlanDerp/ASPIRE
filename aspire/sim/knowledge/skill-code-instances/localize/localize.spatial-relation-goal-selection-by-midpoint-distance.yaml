@@ -1,0 +1,45 @@
+{
+  "api_calls": [
+    "sorted",
+    "print",
+    "math.hypot",
+    "math.hypot"
+  ],
+  "ast_fingerprint": "c167bd699491da87ac08175ee531ff26028b503710e96a33e50b87425997cdf9",
+  "checkpoint_id": null,
+  "code": "def pick_goal_bowl(bowls, plate, ramekin):\n    \"\"\"The bowl lying between the plate and the ramekin.\n\n    Distance to the *midpoint* of the plate-ramekin pair, which is the sampled\n    form of \"between\": it is minimised by the object sitting on the segment\n    joining them and is insensitive to how far along that segment it sits\n    (a perpendicular-distance-to-segment metric would need endpoint clamping).\n    \"\"\"\n    mx = 0.5 * (plate[\"cx\"] + ramekin[\"cx\"])\n    my = 0.5 * (plate[\"cy\"] + ramekin[\"cy\"])\n    ranked = sorted(bowls, key=lambda b: math.hypot(b[\"cx\"] - mx, b[\"cy\"] - my))\n    for b in ranked:\n        print(f\"    bowl ({b['cx']:.3f},{b['cy']:.3f}) fp={b['footprint']:.3f} \"\n              f\"score={b['score']:.3f} -> d_mid={math.hypot(b['cx']-mx, b['cy']-my):.3f}\",\n              flush=True)\n    return ranked[0], ranked",
+  "code_hash": "617c9f5fdf9fd95e45428f7caa209fd1eeeeab27aedd22bfbec16532aeaa1afc",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Select the goal object when the instruction names a spatial relation rather than an appearance, and no prompt separates the candidates",
+  "id": "localize.spatial-relation-goal-selection-by-midpoint-distance",
+  "kind": "skill-code-instance",
+  "observed_effect": "Select the candidate nearest the MIDPOINT of the two named reference objects, and when no prompt grounds a named small container, identify it as the smallest bowl-like object by footprint. SAM3 grounded all three round objects for every bowl prompt tried (bowl 0.906-0.930, metal bowl 0.914-0.941, small bowl 0.926-0.949) while ramekin scored ~0.001, so no prompt separates the two bowls. The margin between the goal object and the decoy under the midpoint rule was 0.036-0.15 m across seeds 51-65 (e.g. seed 57: 0.092 vs 0.244) - never close - so the relation is stable where the prompt is not",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "2f7a4b84bad7216ea20231534e2edc379d6172e70b68872fcc5bde4bcb757034",
+  "task": "pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "LIBERO spatial-relation task with two identical objects where the language names a relation ('between the plate and the ramekin') and every appearance prompt grounds BOTH candidates equally",
+  "vertical_capability": "localize"
+}

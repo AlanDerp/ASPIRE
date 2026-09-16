@@ -1,0 +1,53 @@
+{
+  "api_calls": [
+    "np.median",
+    "np.percentile",
+    "np.percentile",
+    "m.sum",
+    "float",
+    "float",
+    "float",
+    "float",
+    "np.abs",
+    "np.abs",
+    "np.percentile",
+    "np.percentile"
+  ],
+  "ast_fingerprint": "fd26140c508fe0e9b9fc6015cea768bb2ba01d731699cf4333d22144cc1d85fc",
+  "checkpoint_id": null,
+  "code": "def bowl_geometry(pts):\n    \"\"\"Robust bowl pose: 2/98-percentile *extent midpoint*, not the median.\n\n    Measured on this scene: the bowl's visible cloud is biased toward the\n    camera by the far inner wall, so its median sits ~2 cm off the true centre\n    (median 0.640 vs extent-midpoint 0.659 on seed 51).  A wall pinch commanded\n    from the median therefore lands *inside* the mouth, where closing the\n    fingers shoves the bowl sideways instead of gripping it.\n    \"\"\"\n    c = np.median(pts, axis=0)\n    m = (np.abs(pts[:, 0] - c[0]) < 0.075) & (np.abs(pts[:, 1] - c[1]) < 0.075)\n    if m.sum() >= 40:\n        pts = pts[m]\n    xlo, xhi = np.percentile(pts[:, 0], [2, 98])\n    ylo, yhi = np.percentile(pts[:, 1], [2, 98])\n    return float(0.5 * (xlo + xhi)), float(0.5 * (ylo + yhi)), \\\n        float(np.percentile(pts[:, 2], 2)), float(np.percentile(pts[:, 2], 98)), pts",
+  "code_hash": "c13512932dc0480fde29f4d702d004de217de240d34489075c5ae6d9559376ae",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Get the true centre of an open container from a single view, for a radial pinch or a centring move",
+  "id": "localize.hollow-container-extent-midpoint-not-median",
+  "kind": "skill-code-instance",
+  "observed_effect": "2nd/98th-percentile extent midpoint of the cloud after a median trim, instead of the median. Seed 51: median x=0.640 vs extent-midpoint x=0.659 against a true centre of 0.663, a systematic ~2 cm bias; the median-based pinch closed the fingers inside the mouth and shoved the bowl sideways, the extent-midpoint pinch held. All 15 seeds then rested within 0.007 m of the commanded point with a symmetric z=[0.003,0.048]",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "08aec4c10f300304842c4bb84e6a666795ac10433b0631554b65a82744696c10",
+  "task": "pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "Open container (bowl/cup/pot) whose visible point cloud includes the FAR INNER WALL; the median is pulled toward the camera and the pinch then lands inside the mouth",
+  "vertical_capability": "localize"
+}

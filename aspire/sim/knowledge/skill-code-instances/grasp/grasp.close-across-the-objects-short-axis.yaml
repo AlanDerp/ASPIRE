@@ -1,0 +1,49 @@
+{
+  "api_calls": [
+    "np.linalg.eigh",
+    "np.array",
+    "float",
+    "top_xy.mean",
+    "np.degrees",
+    "int",
+    "np.arctan2",
+    "np.argmax"
+  ],
+  "ast_fingerprint": "01cb818804141e2fa01e9e6007f15056fa36c355037b09da0cdc27e530b978da",
+  "checkpoint_id": null,
+  "code": "def closing_yaw_across_short_axis(top_xy):\n    \"\"\"Yaw whose finger-closing axis (sin y, -cos y) follows the top face's SHORT axis.\"\"\"\n    c = top_xy - top_xy.mean(axis=0)\n    w, v = np.linalg.eigh(c.T @ c)\n    axis = v[:, int(np.argmax(w))]                 # long axis of the top face\n    normal = np.array([-axis[1], axis[0]])         # short axis direction\n    return float(np.degrees(np.arctan2(normal[0], -normal[1])))",
+  "code_hash": "dd06d6d7cd376448cbf9b9372dced7e63571fee0a2df9f7e962155f2dd07e930",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Derive the finger-closing yaw for a rectangular object that is narrower than the gripper opening in one direction only",
+  "id": "grasp.close-across-the-objects-short-axis",
+  "kind": "skill-code-instance",
+  "observed_effect": "Returning the yaw whose closing axis follows the top face's short axis (perpendicular to the larger-eigenvalue eigenvector) reads -1.4 to -1.6 degrees on all 15 development seeds and produces a measured pinch gap of 0.0459-0.0461 m, matching the box's short side, i.e. the fingers straddle the short dimension as intended",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_swap/pick_up_the_chocolate_pudding_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "ba3599192bfc3b5e16c4b71b5617626de6a949d4a68d1a09d20f30401ffec68a",
+  "task": "pick_up_the_chocolate_pudding_and_place_it_in_the_basket",
+  "task_family": "libero_object_swap",
+  "trigger": "A rectangular object (8.5 x 5.5 cm against an ~8 cm gripper opening) where a hard-coded topdown(0) is correct only when the object happens to be axis-aligned, and closing across the long axis needs a straddle the gripper cannot perform",
+  "vertical_capability": "grasp"
+}

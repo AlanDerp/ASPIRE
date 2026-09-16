@@ -1,0 +1,47 @@
+{
+  "api_calls": [
+    "graspnet_candidates",
+    "yaw_quat",
+    "yaw_quat",
+    "yaw_quat",
+    "yaw_quat",
+    "yaw_quat"
+  ],
+  "ast_fingerprint": "27e2b4d39647ec886adac7141eee648ffec50ade0e1b274cd68a4e2f662cdea9",
+  "checkpoint_id": null,
+  "code": "def candidates(bx, by, b_lo, b_hi, Rw, Rw_lo, zr, zr_lo, rgb, d, K, E):\n    \"\"\"Grasp pinches on the bowl's wall, in the order we prefer to try them.\"\"\"\n    out = [\n        (\"radial_+x_high\", yaw_quat(90), (bx + Rw, by, zr)),\n        (\"radial_-x_high\", yaw_quat(90), (bx - Rw, by, zr)),\n        (\"radial_+y_high\", yaw_quat(0), (bx, by + Rw, zr)),\n        (\"radial_-y_high\", yaw_quat(0), (bx, by - Rw, zr)),\n        (\"radial_+x_low\", yaw_quat(90), (bx + Rw_lo, by, zr_lo)),\n        (\"rim_side\", SIDE_Y, (bx, by + 0.9 * Rw, b_hi - 0.005)),\n    ]\n    return out + graspnet_candidates(rgb, d, K, E)",
+  "code_hash": "4a047ac912c5848e4798f11a23762a0ff7d767833dd911676e86d42aabaff900",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Acquire an object wider than the gripper opening by pinching its wall radially instead of its centre",
+  "id": "grasp.radial-wall-pinch-candidates",
+  "kind": "skill-code-instance",
+  "observed_effect": "Candidate list puts the TCP on the bowl wall (centre + outer radius at 62% of height) with a radial closing axis; air-grasp candidates fall through to the mirrored side and the bowl lifts",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/put_the_bowl_on_the_stove/fix_code.py",
+  "source_code_sha256": "98c40142fd85d50e2594ea23f384b2f828d23e859478cfef066b7bcc01ac91d2",
+  "task": "put_the_bowl_on_the_stove",
+  "task_family": "libero_goal_swap",
+  "trigger": "The object's width exceeds the ~0.08 m gripper opening, so a top-down pinch at the object centre closes on air",
+  "vertical_capability": "grasp"
+}

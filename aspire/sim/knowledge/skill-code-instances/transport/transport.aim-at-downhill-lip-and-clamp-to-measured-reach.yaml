@@ -1,0 +1,50 @@
+{
+  "api_calls": [
+    "float",
+    "float",
+    "float",
+    "np.percentile",
+    "len",
+    "np.percentile",
+    "len",
+    "np.clip",
+    "np.median"
+  ],
+  "ast_fingerprint": "5d668f7dfa18160a7228df8783fee53bbd2ea2e60d49368c5cccb82397bfee12",
+  "checkpoint_id": null,
+  "code": "def choose_place_xy(rack_pts, x_lo=0.58, x_hi=0.70, inset=0.012):\n    \"\"\"Aim at the rack's top surface near its downhill (front) lip.\n\n    The top of this rack is a plane that varies only with y: high at the back,\n    low at the front.  The front lip is therefore both the lowest and the\n    nearest part of the top - the shortest drop and the easiest reach.  x is\n    clamped to a band the arm can hold a top-down pose over; the arm cannot\n    carry a top-down pose past y ~ -0.19 at all, so the uphill end of the rack\n    is not a candidate.\n    \"\"\"\n    z_hi = float(np.percentile(rack_pts[:, 2], 98.0))\n    band = rack_pts[rack_pts[:, 2] > z_hi - 0.09]\n    if len(band) < 20:\n        band = rack_pts\n    y_front = float(np.percentile(band[:, 1], 97.0))\n    lip = band[band[:, 1] > y_front - 0.03]\n    if len(lip) < 5:\n        lip = band\n    x = float(np.clip(np.median(lip[:, 0]), x_lo, x_hi))\n    return x, y_front - inset",
+  "code_hash": "9eb5b437c1f660bb2bf929212b79a2f11dbd1beaf4705c4acc580e568649c522",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Choose a placement point on a support whose surface slopes, when the arm's reachable set covers only part of it",
+  "id": "transport.aim-at-downhill-lip-and-clamp-to-measured-reach",
+  "kind": "skill-code-instance",
+  "observed_effect": "Isolate the support's top band, take its extreme along the slope axis as the downhill lip, inset by 0.012 so the object's centre sits just inside the lip, and clamp the lateral aim to a band measured by a reach PROBE (not by solve_ik's willingness to return a solution). On the rack the top runs z=0.299 at y=-0.30 to z=0.236 at y=-0.18 (slope only in y) and a top-down pose cannot pass y ~ -0.19; retargeting from (0.561,-0.202) to (0.700,-0.191) moved the arm's floor at the place point from 6 cm above the surface to 1 cm above it, and 15/15 seeds then released inside that 1 cm",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/put_the_wine_bottle_on_the_rack/fix_code.py",
+  "source_code_sha256": "ca2e22ca24fe2e22ac771d267458e21fbca4c16e66c71772433271168076dd41",
+  "task": "put_the_wine_bottle_on_the_rack",
+  "task_family": "libero_goal_swap",
+  "trigger": "'put X on Y' where Y's support surface slopes - the near/uphill end can be out of reach while the far/downhill end is in reach, and a generic criterion (highest band, largest mask, nearest centroid) can select exactly the unreachable part",
+  "vertical_capability": "transport"
+}

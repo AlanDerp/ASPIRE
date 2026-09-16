@@ -1,0 +1,39 @@
+{
+  "api_calls": [
+    "abs"
+  ],
+  "ast_fingerprint": "ebe11f0dc0348a345f2cece4422ce591f3aa0689f510744d2e7a64ff3bd5f498",
+  "checkpoint_id": null,
+  "code": "def is_trustworthy(cd, expect_z=None):\n    \"\"\"Does this segmentation really look like the bowl alone?\n\n    SAM3 keeps hallucinating the drawer bowl at its original location after it\n    has been picked up (measured: c=(0.727,-0.139) z_lo=0.159 score=0.95), and\n    while the bowl is carried it also returns phantom masks of the bowl at its\n    OLD resting place: measured c=(0.679,-0.028) z_lo=0.009 score=0.85 while\n    that bowl was gripped 4 cm higher - the score screen accepts it, and the\n    8 cm nudge it drives throws the bowl 4.5 cm past the plate.  A bowl that\n    is really there is a 3-9 cm tall object whose underside is above the\n    table top.\n    \"\"\"\n    if not (0.004 <= cd[\"z_lo\"] <= 0.42\n            and 0.025 <= (cd[\"z_hi\"] - cd[\"z_lo\"]) <= 0.090):\n        return False\n    if expect_z is not None:\n        # The bowl is in the fingers: its underside must be where the grip\n        # geometry puts it (tcp_z - bottom_gap).\n        return abs(cd[\"z_lo\"] - expect_z) <= 0.035\n    return cd[\"score\"] >= 0.30",
+  "code_hash": "fceed1cc68c0d178c0c7bacd4bda2afe6830306c536d9cfd957607ce0ec94cda",
+  "development_outcomes": {
+    "successes": [
+      52,
+      53,
+      54,
+      55,
+      57,
+      58,
+      59,
+      60,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Reject a stale or phantom segmentation of an object that is currently inside the gripper",
+  "id": "localize.physical-sanity-gate-on-a-segmentation-of-a-held-object",
+  "kind": "skill-code-instance",
+  "observed_effect": "Gate on PHYSICAL SANITY of the held object, not on confidence. Two checks: (a) an absolute plausibility band on the object underside z and its height (0.004 <= z_lo <= 0.42 and 0.025 <= z_hi - z_lo <= 0.090); (b) when the object is known to be clamped, its underside must be where THIS grip geometry puts it, abs(z_lo - (tcp_z - bottom_gap)) <= 0.035. CRITICAL ASYMMETRY: apply the depth check ONLY while the object is held, and leave the score-only path as the DEFAULT for free-space measurements -- an in-drawer or pre-grasp measurement can legitimately fall outside the expected-depth band, and applying the gate there REGRESSED seed 52 (offset went from [0.039,0.006] to [-0.008,0.024], wedging the descent at x=0.728). Rejected the phantom masks on seeds 51 and 56 (c=(0.680,-0.028) z_lo=0.009 score=0.86 REJECT), converting two silent 4 cm throws into honest misses while leaving the 12 passing seeds unchanged",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "ca3b4b5ab2a6cfa9384b474807974f6e242f4995f659883f22825dbd9caf9360",
+  "task": "pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "You localize an object that is ALREADY in the gripper (centring, insertion, re-grasp) and the segmenter sometimes returns a stale mask at the object previous resting place, with a plausible shape and a mediocre but not obviously wrong score. A score threshold does not separate it: the phantom measured score 0.85-0.86 for a mask 4 cm off in z from where the object was actually being held, while the true held mask is not reliably higher-scoring",
+  "vertical_capability": "localize"
+}

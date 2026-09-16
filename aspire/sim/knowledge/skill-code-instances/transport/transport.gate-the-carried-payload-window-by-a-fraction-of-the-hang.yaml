@@ -1,0 +1,59 @@
+{
+  "api_calls": [
+    "np.asarray",
+    "sorted",
+    "mask_cloud",
+    "np.percentile",
+    "np.percentile",
+    "np.percentile",
+    "np.percentile",
+    "np.array",
+    "len",
+    "float",
+    "float",
+    "float",
+    "segment_sam3_text_prompt",
+    "len",
+    "np.linalg.norm",
+    "float",
+    "float"
+  ],
+  "ast_fingerprint": "7760f051131561721783b78611d1e41b7bbed78523eeccc0d0b0283b4f23b2f9",
+  "checkpoint_id": null,
+  "code": "def held_cloud(rgb, d, K, E, near_xy, z_floor, radius=0.10):\n    \"\"\"The carried payload's own cloud, gated in HEIGHT and in SHAPE.\n\n    A carried object is the only same-class cloud up at carry height, so a\n    z_floor just below the gripper excludes everything resting on the table\n    without needing a table estimate.  The gate must be TIGHT (a fraction of the\n    hang, not a fixed 0.20 m): a decoy can stand 6 cm tall, and a loose floor\n    lets it into the cloud, where the centre estimate splits the difference\n    between payload and decoy.\n\n    A single SAM3 mask can also span BOTH akita bowls when the payload passes\n    over its twin, so a merged blob is rejected by its footprint: two bowls\n    ~10 cm apart give a >0.15 m extent, a single bowl never does.\n    \"\"\"\n    near_xy = np.asarray(near_xy, dtype=np.float64)[:2]\n    for p in HELD_PROMPTS:\n        for m in sorted(segment_sam3_text_prompt(rgb, p) or [], key=lambda x: -float(x[\"score\"]))[:4]:\n            pts = mask_cloud(m, d, K, E)\n            if pts is None or len(pts) < 60:\n                continue\n            sel = pts[(np.linalg.norm(pts[:, :2] - near_xy, axis=1) < radius) & (pts[:, 2] > z_floor)]\n            if len(sel) < 60:\n                continue\n            lo = np.percentile(sel, 2, axis=0)\n            hi = np.percentile(sel, 98, axis=0)\n            w, dp, h = float(hi[0] - lo[0]), float(hi[1] - lo[1]), float(hi[2] - lo[2])\n            if not (0.040 <= w <= 0.150 and 0.040 <= dp <= 0.150):\n                continue                      # merged blob, not one bowl\n            if not (0.004 <= float(lo[2]) and 0.020 <= h <= 0.090):\n                continue\n            # trimmed extent midpoint (not the median, which a residual tail skews)\n            clo = np.percentile(sel, 10, axis=0)\n            chi = np.percentile(sel, 90, axis=0)\n            c = np.array([0.5 * (clo[0] + chi[0]), 0.5 * (clo[1] + chi[1])])\n            return sel, c\n    return None",
+  "code_hash": "130dbf4c3147d84e71c3edc3ea610ee670537f5c98525773984354d298f88614",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Re-measure a carried object through a height window whose depth scales with the measured hang, and reject a merged segmentation by its footprint, so a taller same-class decoy standing near the goal cannot pull the centre estimate off the payload.",
+  "id": "transport.gate-the-carried-payload-window-by-a-fraction-of-the-hang",
+  "kind": "skill-code-instance",
+  "observed_effect": "Seeds 51-65 all scored reward 1.0 on the re-measured shipped revision. Seed 53 was the only development failure of the initial program: the held-cloud gate used a FIXED depth (tcp_z - 0.20, about 0.002 m at carry height), so a taller decoy akita standing with z extent 0.002-0.062 within 0.10 m of the plate passed the gate, and SAM3 returned ONE mask spanning both akitas as the payload passed over its twin. The merged centre landed at (0.697, 0.281), i.e. post-carry err = (+0.013, -0.079), and the servo carried a correctly aimed bowl to (0.682, 0.129), off the plate. With the gate depth at tcp_z - 0.12 (about 2.7x the measured 0.044 m hang, still below the 0.062 m top of the tallest table clutter), a footprint acceptance band of 0.040-0.150 m on each xy extent to reject the merged blob, a trimmed 10/90 extent midpoint instead of the median, a 0.10 m TCP-distance sanity check and a 0.060 m correction cap, seed 53 flipped 0.000 to 1.000 on the first fix attempt (measured off = (+0.052, +0.003), post-carry err = (+0.003, -0.002), verified on plate at r = 0.006) and all 14 previously passing seeds stayed at 1.0.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "94f35672ffbbfce5a7f16fb96bad7ecb1fd259e752438f04cfd4bb376e185938",
+  "task": "pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_task",
+  "trigger": "Re-measuring a held object with SAM3 during transport in a scene that contains a same-class decoy within about 0.15 m of the goal. Symptom: the post-carry error jumps by many centimetres and moves an otherwise correct placement off target, or the held-cloud centre sits between the payload and a neighbour.",
+  "vertical_capability": "transport"
+}

@@ -1,0 +1,57 @@
+{
+  "api_calls": [
+    "black_class_pool",
+    "rows.sort",
+    "print",
+    "sorted",
+    "ring_height",
+    "rows.append",
+    "print",
+    "math.hypot",
+    "print",
+    "any",
+    "round",
+    "max",
+    "max",
+    "max",
+    "c.get",
+    "format",
+    "float"
+  ],
+  "ast_fingerprint": "576ebf9e19ecdbed438e72a899c4eac237c7a286f5653c62f32eb78348c2c0a4",
+  "checkpoint_id": null,
+  "code": "def pick_reference_and_target(cands, cloud):\n    \"\"\"The ramekin (reference) and the akita bowl the instruction means.\n\n    The ramekin is the smallest bowl-like object that is *not* an akita and\n    rests on the table; the target is the akita nearest to it.  Product words\n    carry no signal here (`ramekin` scores ~0.001 scene-wide) and neither does\n    bare size, because the stove crank is bowl-sized too.\n    \"\"\"\n    pool = black_class_pool(cands)\n    if not pool:\n        return None, None\n    rest = [c for c in cands if not any(c is p for p in pool)]\n    if not rest:\n        return None, None\n    rows = []\n    for c in rest:\n        rz = ring_height(cloud, c[\"c\"], c[\"e\"])\n        rows.append((0 if (rz is None or rz < RING_Z_TABLE) else 1,\n                     round(max(c[\"e\"][0], c[\"e\"][1]), 4), c, rz))\n    rows.sort(key=lambda t: (t[0], t[1]))\n    for off_table, fp, c, rz in rows:\n        print(f\"  ref cand c=({c['c'][0]:.3f},{c['c'][1]:.3f}) diam={fp:.3f} \"\n              f\"z-ext={c['e'][2]:.3f} black={c['black']:.3f} ring_z=\"\n              f\"{'None' if rz is None else format(rz, '.3f')} \"\n              f\"{'OFF-TABLE' if off_table else ''} prompt={c['prompt']!r}\", flush=True)\n    ram = rows[0][2]\n    print(f\"  RAMEKIN ~= ({ram['c'][0]:.3f},{ram['c'][1]:.3f}) diam=\"\n          f\"{max(ram['e'][0], ram['e'][1]):.3f} (no prompt grounds it; geometry rule)\",\n          flush=True)\n    for c in pool:\n        c[\"dist\"] = math.hypot(c[\"c\"][0] - ram[\"c\"][0], c[\"c\"][1] - ram[\"c\"][1])\n    pool = sorted(pool, key=lambda c: c[\"dist\"])\n    for c in cands:\n        print(f\"  cand c=({c['c'][0]:.3f},{c['c'][1]:.3f},{c['c'][2]:.3f}) \"\n              f\"diam={max(c['e'][0], c['e'][1]):.3f} z-ext={c['e'][2]:.3f} \"\n              f\"black={c['black']:.3f} dist_to_ramekin={c.get('dist', float('nan')):.3f} \"\n              f\"{'<-- TARGET' if c is pool[0] else ''} prompt={c['prompt']!r}\", flush=True)\n    return ram, pool[0]",
+  "code_hash": "f517683fba00b3cf93a5b7ae9e560be21009b977d85381e58fbf259c3972a6f1",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      61,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Resolve a spatial relation whose reference object has no usable segmentation prompt by finding that reference geometrically among shape-and-size candidates, screened by whether it stands on the table.",
+  "id": "localize.find-an-ungroundable-reference-object-by-geometry-screened-by-table-level",
+  "kind": "skill-code-instance",
+  "observed_effect": "The reference is the smallest on-table bowl-like candidate passing a shape + size + table-level gate (RING_Z_TABLE = 0.02 rejects any candidate whose ring is not near z = 0, which is what rejects the stove crank), and the target is the akita whose class score is high AND which is nearest that reference. Picks akita A at 0.133 m from the ramekin over akita B at 0.264 m on every development seed. Together with the in-air hang measurement the shipped revision scores 13/15 on dev seeds 51-65.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_next_to_the_ramekin_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "8df6e6db44f41e6ba5ff171af52613fe0754d3c3132d8ab0d5aa91ac85d1aedd",
+  "task": "pick_up_the_black_bowl_next_to_the_ramekin_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "The instruction names a reference object that SAM3 cannot ground (the ramekin scores about 0.001 scene-wide) and the scene holds same-class distractors - here two akita bowls plus a bowl-sized stove crank that scores 0.087 under the prompt black bowl.",
+  "vertical_capability": "localize"
+}

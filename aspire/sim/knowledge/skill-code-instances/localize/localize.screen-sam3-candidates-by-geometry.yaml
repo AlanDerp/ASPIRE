@@ -1,0 +1,49 @@
+{
+  "api_calls": [
+    "_obs_parts",
+    "segment_sam3_text_prompt",
+    "sorted",
+    "_points_in_mask",
+    "np.median",
+    "np.median",
+    "np.percentile",
+    "np.percentile",
+    "np.percentile",
+    "_log",
+    "segment_sam3_text_prompt",
+    "len",
+    "np.linalg.norm",
+    "np.linalg.norm",
+    "len"
+  ],
+  "ast_fingerprint": "43827a05a7419404f95b3f28c3b08d6a83119b20f07ab1b78c45bca2d245c99d",
+  "checkpoint_id": null,
+  "code": "def bowl_cloud(obs, z_top=0.13):\n    \"\"\"Point cloud of the bowl (world frame), or None.\n\n    The top-scoring SAM3 mask for \"metal bowl\" is not always the bowl: with the\n    drawer open it can be a mask that also covers the drawer, whose highest\n    points sit 9 cm above the bowl's rim (a grasp aimed from that cloud closes\n    on air).  Candidates are therefore screened until one looks like a bowl\n    resting on the table, and the cloud is trimmed to a cylinder around its own\n    (robust) centre so a neighbouring plate or drawer cannot skew the extents.\n    \"\"\"\n    rgb, depth, K, E = _obs_parts(obs)\n    try:\n        masks = segment_sam3_text_prompt(rgb, \"metal bowl\")\n        if not masks:\n            masks = segment_sam3_text_prompt(rgb, \"bowl\")\n    except Exception:\n        return None\n    if not masks:\n        return None\n    for m in sorted(masks, key=lambda mm: -mm[\"score\"])[:12]:\n        pts = _points_in_mask(m[\"mask\"], depth, K, E, 300)\n        if pts is None:\n            continue\n        c = np.median(pts, axis=0)\n        keep = pts[np.linalg.norm(pts[:, :2] - c[:2], axis=1) < 0.075]\n        if len(keep) < 250:\n            continue\n        c = np.median(keep, axis=0)\n        cloud = keep[np.linalg.norm(keep[:, :2] - c[:2], axis=1) < 0.075]\n        z_hi = np.percentile(cloud[:, 2], [2, 98])\n        x_hi = np.percentile(cloud[:, 0], [2, 98])\n        y_hi = np.percentile(cloud[:, 1], [2, 98])\n        # a bowl on the table: low, compact, and taller than a flat shadow\n        if z_hi[1] > z_top or (z_hi[1] - z_hi[0]) < 0.030:\n            continue\n        if (x_hi[1] - x_hi[0]) > 0.20 or (y_hi[1] - y_hi[0]) > 0.20:\n            continue\n        _log(\"bowl mask score %.3f n %d z[%.3f %.3f]\" % (m[\"score\"], len(cloud), z_hi[0], z_hi[1]))\n        return cloud\n    return None",
+  "code_hash": "efe9dbbd6791c545af439ba13ee72a6b7b9b146f0dcf686f6e595e4bd2165956",
+  "development_outcomes": {
+    "successes": [
+      54,
+      56,
+      58,
+      60,
+      61,
+      62,
+      63,
+      64
+    ]
+  },
+  "goal": "Localize an object that shares colour or texture with a fixture in the scene",
+  "id": "localize.screen-sam3-candidates-by-geometry",
+  "kind": "skill-code-instance",
+  "observed_effect": "Screen the top 12 masks by geometry: trim to a 7.5 cm cylinder around the cloud median, then require 98th-percentile z < 0.13 m and a height > 0.030 m; the unscreened top mask reported rim 0.129 where the true rim is 0.039 and the grasp closed on air (gap=0.0010), while the screened cloud grasped on the first depth (gap=0.0066)",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/open_the_top_drawer_and_put_the_bowl_inside/fix_code.py",
+  "source_code_sha256": "915b19eea818af63d807130d9c50d952d8866e9b3223e0b0fbbfd9ba9ebec3af",
+  "task": "open_the_top_drawer_and_put_the_bowl_inside",
+  "task_family": "libero_goal_swap",
+  "trigger": "The top-scoring SAM3 text-prompt mask is not the object - a dark drawer reads higher than the bowl inside it",
+  "vertical_capability": "localize"
+}

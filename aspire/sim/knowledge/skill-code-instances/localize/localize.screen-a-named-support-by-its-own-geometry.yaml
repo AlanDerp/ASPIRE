@@ -1,0 +1,58 @@
+{
+  "api_calls": [
+    "segment_sam3_text_prompt",
+    "sorted",
+    "cloud",
+    "np.percentile",
+    "np.percentile",
+    "dict",
+    "mask_to_world_points",
+    "float",
+    "max",
+    "astype",
+    "float",
+    "float",
+    "float",
+    "float",
+    "np.percentile",
+    "float",
+    "np.asarray"
+  ],
+  "ast_fingerprint": "6206b0c7400c1a4c40a1736f8e135dfe7c33389ad1b1de2fb94e0a63acf79fe8",
+  "checkpoint_id": null,
+  "code": "def find_stove(rgb, d, K, E):\n    \"\"\"The stove: a low, wide, flat slab resting on the table.\n\n    The scene also answers `stove` with the 0.21 m-tall drawer cabinet (and with its own\n    burner disc), so the screen is what does the work: a slab is at most 10 cm tall, sits\n    at table level, and is at least 10 cm across.\n    \"\"\"\n    for prompt in STOVE_PROMPTS:\n        masks = segment_sam3_text_prompt(rgb, prompt)\n        if not masks:\n            continue\n        for m in sorted(masks, key=lambda x: -float(x[\"score\"]))[:6]:\n            pts = cloud(mask_to_world_points(\n                np.asarray(m[\"mask\"]).astype(np.uint8), d, K, E), min_pts=200)\n            if pts is None:\n                continue\n            lo = np.percentile(pts, 2, axis=0)\n            hi = np.percentile(pts, 98, axis=0)\n            w, dp, h = hi - lo\n            if h > 0.10:                    # the cabinet is 0.21 m tall\n                continue\n            if float(lo[2]) > 0.020:        # resting on the table\n                continue\n            if max(w, dp) < 0.10:           # a slab, not a fragment or the burner\n                continue\n            return dict(lo=lo, hi=hi, top=float(np.percentile(pts[:, 2], 95)),\n                        cx=float(0.5 * (lo[0] + hi[0])), cy=float(0.5 * (lo[1] + hi[1])),\n                        score=float(m[\"score\"]), prompt=prompt)\n    return None",
+  "code_hash": "3951e922ff69f7a570e6094f19504a56855f235e9a0782109d585171b21eae41",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Localize a furniture support reliably when its own prompt also fires on other furniture in the scene",
+  "id": "localize.screen-a-named-support-by-its-own-geometry",
+  "kind": "skill-code-instance",
+  "observed_effect": "Screen the support candidates by THREE physical gates with measured margins rather than by score ranking: (1) height -- the support must be flat, h <= 0.10 (stove 0.028 vs cabinet 0.209); (2) base level -- it must rest on the table, base z <= 0.020 (stove -0.008 vs table -0.011); (3) width -- it must be a slab, max(w,dp) >= 0.10 (stove 0.176-0.182 vs the burner 0.090 which is a fragment not the support). Take the support TOP from the 95th percentile of its own points so downstream grasp height and release drop are computed from the support, not from the table. The gate triple, not the score ranking, is what makes the lookup deterministic: returned the true slab on 15/15 seeds and never selected the cabinet",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "06b3b395100c6dbd42e42614e05a475884e9045269863b9153d7539fb7f96a47",
+  "task": "pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "Support-style prompts (stove, cabinet, table, counter). The prompt top-1 is the real support but OTHER furniture also answers it: the true stove scored 0.70-0.86 while the 0.21 m-tall drawer cabinet in the same scene also answered stove (0.20-0.25) and wooden cabinet (0.80), and the stove own burner disc came back as a smaller stove/plate mask. Selecting the support by score alone is unstable and is luck, not identification",
+  "vertical_capability": "localize"
+}

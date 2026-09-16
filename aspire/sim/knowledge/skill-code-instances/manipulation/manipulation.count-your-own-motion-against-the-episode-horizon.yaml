@@ -1,0 +1,39 @@
+{
+  "api_calls": [],
+  "ast_fingerprint": "2e149fd0907b9691cacd486bffe201fc9600197cfe4aefd99bbb10b397602e44",
+  "checkpoint_id": null,
+  "code": "HORIZON = 4000\nHOP_COST = 30\nGRIP_COST = 30\nATTEMPT_BUDGET = 1400\n_MOTION = {\"hops\": 0, \"grips\": 0}\n\n\ndef spent():\n    return HOP_COST * _MOTION[\"hops\"] + GRIP_COST * _MOTION[\"grips\"]",
+  "code_hash": "be3cf7752414009bfc2594ce3a11ff326de64090cb334110c21813c260a5a4f0",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      64,
+      65
+    ]
+  },
+  "goal": "Gate a retry loop against the episode's finite motion budget without trimming legitimate work",
+  "id": "manipulation.count-your-own-motion-against-the-episode-horizon",
+  "kind": "skill-code-instance",
+  "observed_effect": "Shadow the API entry points to count your own motion, then gate RETRIES with it -- never the first attempt. Measured costs on this scene: goto_pose ~= 30 env steps, open_gripper/close_gripper exactly 30 each, one full attempt ~= 1400 steps (a 354-frame pass at _subsample_rate=4 = 1416), so only 2-3 attempts fit in HORIZON=4000. The prior 8-candidate retry died at 3916 of 4000 steps mid-episode. The gate is 'if HORIZON - spent() < ATTEMPT_BUDGET: break', where spent() sums HOP_COST*hops + GRIP_COST*grips -- i.e. the budget is measured from the program's own commands, not estimated per candidate. The transferable discipline: a probe that ran 4 pinches (~76 goto_pose) exhausted the episode; count commands, not intentions",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "6548d1a3930a3b05c1b912b4dc7cdd4cb566c751027225d2f3daac321b1e14b7",
+  "task": "pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_task",
+  "trigger": "Any fix-loop program that retries (grasp candidates, re-localisation) under a fixed episode horizon: a multi-candidate retry path runs the episode into truncation and raises 'ValueError: executing action in terminated episode' mid-carry",
+  "vertical_capability": "manipulation"
+}

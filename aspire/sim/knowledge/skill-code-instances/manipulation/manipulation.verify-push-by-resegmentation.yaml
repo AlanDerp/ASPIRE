@@ -1,0 +1,32 @@
+{
+  "api_calls": [
+    "plate_now",
+    "print",
+    "descend_at",
+    "low",
+    "low",
+    "low",
+    "plate_now",
+    "print",
+    "print"
+  ],
+  "ast_fingerprint": "d868e71f7b8b5e57dda8d55d3ad4477dd7ae13ddbfeeb91d88882bb94cf112c3",
+  "checkpoint_id": null,
+  "code": "cur, r_cur = plate_now()\nprint(\"PHASE-1 from c=(%.3f,%.3f) r=%.3f\" % (cur[0], cur[1], r_cur), flush=True)\nif cur[0] < GOAL_X - 0.03:\n    descend_at(BASE[0], BASE[1], \"d1\")\n    low(BASE[0], cur[1], \"t1a\")\n    standoff_x = cur[0] - r_cur - 0.02\n    low(standoff_x, cur[1], \"t1b\")\n    end_x = (GOAL_X + 0.02) - r_cur\n    low(end_x, cur[1], \"p1\")\n    c1, _ = plate_now()\n    if c1 is not None:\n        print(\"AFTER-1 c=(%.3f,%.3f) dx=%.3f\" % (c1[0], c1[1], c1[0] - cur[0]), flush=True)\nelse:\n    print(\"PHASE-1 skipped: plate already past the stove's near edge\", flush=True)",
+  "code_hash": "3889edd79f61e3fd76f819030eed6a0fbd092ea51171695980844b8d25fa4860",
+  "development_outcomes": {},
+  "goal": "Tell whether a non-prehensile push actually moved the object",
+  "id": "manipulation.verify-push-by-resegmentation",
+  "kind": "skill-code-instance",
+  "observed_effect": "Re-segment the object before and after the push and print the measured displacement; this is how a 0.283 m TCP travel was shown to be only 0.025 m of object motion (fingertip sliding over the plate, not driving it), and how a real 0.118 m push was confirmed (0.442 -> 0.560). TCP motion alone is not evidence",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/push_the_plate_to_the_front_of_the_stove/fix_code.py",
+  "source_code_sha256": "fe03854e24291d5dc8ee48c21786540fc3c0984f72a9b41f5d807412eae5beaa",
+  "task": "push_the_plate_to_the_front_of_the_stove",
+  "task_family": "libero_goal_swap",
+  "trigger": "Any non-prehensile push/slide, where 'the gripper moved' does not imply 'the object moved' - the finger can pass over or beside it",
+  "vertical_capability": "manipulation"
+}

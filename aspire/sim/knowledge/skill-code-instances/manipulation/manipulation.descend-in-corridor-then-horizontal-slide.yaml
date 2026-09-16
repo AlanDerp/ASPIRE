@@ -1,0 +1,33 @@
+{
+  "api_calls": [
+    "ee_tcp",
+    "max",
+    "range",
+    "np.array",
+    "int",
+    "cmd",
+    "cmd",
+    "np.ceil",
+    "float",
+    "np.linalg.norm"
+  ],
+  "ast_fingerprint": "7c670b9d7e26ae3d233a558acd920e15e3b90f3cd061c1c3e906ede9c0c9f7e7",
+  "checkpoint_id": null,
+  "code": "def low(x, y, tag=\"slide\"):\n    \"\"\"Horizontal slide at the lowest z the arm can hold, interpolated in <=STEP.\"\"\"\n    cur = ee_tcp()\n    d = np.array([x, y]) - cur[:2]\n    n = max(1, int(np.ceil(float(np.linalg.norm(d)) / STEP)))\n    t = cur\n    for i in range(1, n + 1):\n        q = cur[:2] + d * (i / n)\n        t = cmd([q[0], q[1], Z_LOW], tag)\n    return t\n\n\ndef descend_at(x, y, tag=\"desc\"):\n    t = None\n    for z in (0.30, 0.12, 0.03, Z_LOW, Z_LOW):\n        t = cmd([x, y, z], tag)\n    return t",
+  "code_hash": "772709e39c29e51b4f74487359f209edb0e815802c94c5f6d41ad847ae4e46b9",
+  "development_outcomes": {},
+  "goal": "Move a flat object laterally when a vertical descent at the object's own xy cannot reach it",
+  "id": "manipulation.descend-in-corridor-then-horizontal-slide",
+  "kind": "skill-code-instance",
+  "observed_effect": "Descend once at a measured free staging point the arm CAN reach at low z, then perform every horizontal move at a fixed low z in <=5 cm waypoints; the +X push moved the plate 0.118 m this way where a direct descent moved nothing",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/push_the_plate_to_the_front_of_the_stove/fix_code.py",
+  "source_code_sha256": "fe03854e24291d5dc8ee48c21786540fc3c0984f72a9b41f5d807412eae5beaa",
+  "task": "push_the_plate_to_the_front_of_the_stove",
+  "task_family": "libero_goal_swap",
+  "trigger": "A non-prehensile push/slide where a direct descent at the object's xy stalls far above the table (TCP z 0.09-0.23) and moves nothing",
+  "vertical_capability": "manipulation"
+}

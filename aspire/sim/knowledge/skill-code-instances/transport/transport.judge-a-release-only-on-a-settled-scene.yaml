@@ -1,0 +1,40 @@
+{
+  "api_calls": [
+    "range",
+    "state",
+    "move",
+    "np.array"
+  ],
+  "ast_fingerprint": "b44390a49750832a14a011e60fd3e5c025775f4ad27228d6d864fee962c23f9f",
+  "checkpoint_id": null,
+  "code": "def settle_at_rest(quat, n=6, dz=0.004):\n    \"\"\"Advance the sim with the payload at rest (small upward nudges, no lateral pull).\"\"\"\n    for _ in range(n):\n        if DONE[0]:\n            return\n        pos, _ = state()\n        move(pos + np.array([0.0, 0.0, dz]), quat)",
+  "code_hash": "794272f5e23a1f10338fd0d3074372b966cb9bcca46eb81164a7ff21b3d9576e",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      54,
+      56,
+      57,
+      58,
+      59,
+      61,
+      63
+    ]
+  },
+  "goal": "Verify a placement from a cloud that is valid, not from a cloud taken while the payload is still falling",
+  "id": "transport.judge-a-release-only-on-a-settled-scene",
+  "kind": "skill-code-instance",
+  "observed_effect": "open_gripper() costs ~30 sim steps and the payload is in free fall for most of them, so a cloud taken right after it is a measurement of a MOVING object -- and it reads optimistically, because the falling object is already inside the goal footprint's xy while still centimetres above it. Measure, then judge, only after settling: retreat clear, settle (redundant goto_pose at the current pose -- see the settling section), re-segment, and apply a STRICT band to that cloud (dxy <= 0.030, support_surf - 0.025 <= z <= support_surf + 0.035), keeping the wider band (dxy <= 0.045) for the loop-top OBB-centre reading. Measured false positive on seed 53: 'placement check dxy=0.0113 (tol 0.045) z=0.0326 surf=-0.0021 -> ON PLATE' followed by 'bowl verified on the plate -- settling and stopping' and reward=0.0 -- the bowl was still 3 cm above the plate when the check ran. The failure mode is a REJECTED CORRECT PLACEMENT (the program concludes it has placed the object when it has not) or, via the settle-then-strict pair, a correct placement discarded as a miss",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "767f0d3d71c7eccadec5aa57d156cf94f7f2ff25e3ae10b2b514cdbabc10fbf0",
+  "task": "pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_task",
+  "trigger": "Any code that verifies a placement from a segmentation/depth cloud taken immediately after open_gripper(): the payload has been released but has not landed, so the cloud describes it in flight",
+  "vertical_capability": "transport"
+}

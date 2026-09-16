@@ -1,0 +1,59 @@
+{
+  "api_calls": [
+    "np.zeros_like",
+    "mk.copy",
+    "astype",
+    "astype",
+    "colour",
+    "len",
+    "np.where",
+    "int",
+    "int",
+    "len",
+    "float",
+    "mk.any",
+    "ys.min",
+    "ys.max",
+    "int",
+    "mean",
+    "np.maximum"
+  ],
+  "ast_fingerprint": "24cea97d4d8736cfadb307d3e1366e81c31c076e9c193cafdc56842469bb8030",
+  "checkpoint_id": null,
+  "code": "def appearance(rgb, cand):\n    \"\"\"Body redness and cap achromaticity of one candidate's own mask.\"\"\"\n    mk = cand[\"mask\"] > 0\n    ys = np.where(mk.any(axis=1))[0]\n    y0, y1 = int(ys.min()), int(ys.max())\n    cut = y0 + int(0.30 * (y1 - y0)) + 1          # top 30% of rows = the cap\n    cap = np.zeros_like(mk)\n    cap[y0:cut, :] = mk[y0:cut, :]\n    body = mk.copy()\n    body[y0:cut, :] = False\n    bpx = rgb[body].astype(np.float64)\n    cpx = rgb[cap].astype(np.float64)\n    cand[\"body_red\"] = float((bpx[:, 0] > 1.25 * np.maximum(bpx[:, 1], bpx[:, 2])).mean()) \\\n        if len(bpx) else 0.0\n    cs = colour(cpx)\n    cand[\"cap_sat\"] = cs[1] if cs is not None else 9.0\n    cand[\"cap_val\"] = cs[2] if cs is not None else 0.0\n    cand[\"cap_px\"] = len(cpx)\n    return cand",
+  "code_hash": "a290a1f8dfd530ef721da5004fedee70a2b362f176f6ed88231891aa2b685f48",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Identify a same-class target by a two-region colour signature split from the mask's own image rows (body redness AND cap achromaticity), when no whole-mask scalar has margin",
+  "id": "localize.identify-same-class-by-two-region-body-and-cap-signature",
+  "kind": "skill-code-instance",
+  "observed_effect": "body_red 0.65 and cap_sat 0.00-0.01 for the ketchup vs 0.91-0.94/1.00 maroon and 0.45-0.52/0.50-0.56 dressing; gates BODY_REDMIN 0.35 (0.12 margin vs the can) and CAP_SATMAX 0.15 (0.49 margin) selected the same object on 15/15 seeds with no fallback; a negative probe forcing the maroon bottle scores 0.000 on seeds 51 and 60",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_swap/pick_up_the_ketchup_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "0337b0f745a87f13d0efd159fd8bd2b3360755694b434eac2646240c1011c3e3",
+  "task": "pick_up_the_ketchup_and_place_it_in_the_basket",
+  "task_family": "libero_object_swap",
+  "trigger": "Several bottles share the scene and every prompt inverts the ranking (ketchup bottle: maroon 0.797 vs ketchup 0.738; red bottle 0.492 vs 0.461; sauce tied at 0.750), while the whole-mask descriptors fail: sat - val gives maroon 0.757 vs ketchup 0.267 and body-sat has only a 0.05 margin against the dressing bottle",
+  "vertical_capability": "localize"
+}

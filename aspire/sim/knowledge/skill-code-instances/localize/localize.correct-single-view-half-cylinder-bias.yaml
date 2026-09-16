@@ -1,0 +1,59 @@
+{
+  "api_calls": [
+    "float",
+    "np.abs",
+    "sel.sum",
+    "sel.sum",
+    "max",
+    "np.clip",
+    "slab.mean",
+    "np.abs",
+    "np.array",
+    "float",
+    "float",
+    "np.median",
+    "np.median",
+    "max",
+    "min",
+    "max",
+    "min"
+  ],
+  "ast_fingerprint": "5750620903e36fa63795738e16b804fe2b0f4d65e2e8bdbdf3f71c3cffd3fddf",
+  "checkpoint_id": null,
+  "code": "def bottle_axis(pts, E, zlo, zhi):\n    \"\"\"Axis (xy) of the bottle, corrected for the single-view half-cylinder bias.\n\n    The visible-surface centroid of a rounded body sits ~0.64 r toward the\n    camera, so push the estimate back by that much along the view ray.\n    \"\"\"\n    gz = zlo + 0.38 * (zhi - zlo)\n    sel = np.abs(pts[:, 2] - gz) < 0.020\n    if sel.sum() < 25:\n        sel = np.abs(pts[:, 2] - gz) < 0.035\n    if sel.sum() < 10:\n        return np.array([np.median(pts[:, 0]), np.median(pts[:, 1]), gz]), 0.025\n    slab = pts[sel]\n    u, v, w = E[:3, 0], E[:3, 1], E[:3, 2]\n    r = 0.5 * max(float((slab @ u).max() - (slab @ u).min()),\n                  float((slab @ v).max() - (slab @ v).min()))\n    r = float(np.clip(r, 0.012, 0.045))\n    axis = slab.mean(axis=0) - 0.64 * r * (-w)\n    axis[2] = gz\n    return axis, r",
+  "code_hash": "27957201131fc8b9a42d2b704e74a0c93595ef1c19f8c2cb37117cd4ec06f82c",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Estimate a cylinder's axis xy from a single depth view without the visible-surface bias that pulls a round body toward the camera",
+  "id": "localize.correct-single-view-half-cylinder-bias",
+  "kind": "skill-code-instance",
+  "observed_effect": "Grasps that aimed at the uncorrected centroid missed; at the bias-corrected axis the gripper closed at 0.074 with gap 0.0361-0.0365 on all 15 development seeds",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_swap/pick_up_the_bbq_sauce_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "1c6387c0fc31e80cab8178c2aaf896d577cd9ad1e6f463c9f2b1b7902d7fe32a",
+  "task": "pick_up_the_bbq_sauce_and_place_it_in_the_basket",
+  "task_family": "libero_object_swap",
+  "trigger": "Estimating the grasp axis of a bottle/cylinder from one camera's depth cloud; the visible-surface centroid sits about 0.64 r toward the camera, so a pinch aimed at it misses",
+  "vertical_capability": "localize"
+}

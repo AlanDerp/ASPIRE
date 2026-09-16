@@ -1,0 +1,56 @@
+{
+  "api_calls": [
+    "np.random.default_rng",
+    "range",
+    "fit_circle",
+    "len",
+    "rng.choice",
+    "np.abs",
+    "int",
+    "np.abs",
+    "int",
+    "np.percentile",
+    "len",
+    "fit_circle",
+    "sum",
+    "inl.sum",
+    "np.hypot",
+    "np.hypot"
+  ],
+  "ast_fingerprint": "945de8a92e9d701f7c1b7daa64fd5710ce19a78cf8be15f52f29bbd9d541c2c0",
+  "checkpoint_id": null,
+  "code": "def rim_cloud(P, q=0.88, ransac=400, tol=0.004):\n    \"\"\"rim = the top part of the object; fit a circle robustly (RANSAC-lite).\"\"\"\n    z = P[:, 2]\n    R = P[z >= np.percentile(z, q * 100)]\n    best, bestn = None, 0\n    rng = np.random.default_rng(0)\n    if len(R) < 20:\n        return None\n    for _ in range(ransac):\n        idx = rng.choice(len(R), 3, replace=False)\n        try:\n            c, r = fit_circle(R[idx, 0], R[idx, 1])\n        except Exception:\n            continue\n        if not (0.02 < r < 0.16):\n            continue\n        d = np.abs(np.hypot(R[:, 0] - c[0], R[:, 1] - c[1]) - r)\n        n = int((d < tol).sum())\n        if n > bestn:\n            bestn, best = n, (c, r)\n    if best is None:\n        return None\n    c, r = best\n    inl = np.abs(np.hypot(R[:, 0] - c[0], R[:, 1] - c[1]) - r) < tol\n    c2, r2 = fit_circle(R[inl, 0], R[inl, 1])\n    return c2, r2, int(inl.sum())",
+  "code_hash": "21401aa183c011f97a3b1a2a71f13fb8ce83349ee30d9614921bc53de4fb2281",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64
+    ]
+  },
+  "goal": "Recover a round object true xy centre, and the object-to-object clearance that decides a placement, by circle-fitting its rim instead of averaging its mask",
+  "id": "localize.fit-a-circular-rim-to-audit-the-centre-and-read-the-clearance",
+  "kind": "skill-code-instance",
+  "observed_effect": "On the final keyframes of 15 dev seeds the point-mean and the circle centre differ by 1.2-2.4 cm, and the sign of that difference follows the camera pose, so comparing means across seeds looks like scatter. The fitted radius is a free self-check: it is stable at 0.065-0.067 m for the plate and 0.054 m for the bowl across seeds 57/60/64. The OBB centre is already good (get_oriented_bounding_box_from_3d_points agrees with the circle centre to ~2 mm: seed 57 (0.711,0.210) vs (0.710,0.212), seed 60 (0.720,0.189) vs (0.719,0.191), seed 64 (0.723,0.195) vs (0.723,0.197)), so use the fit to AUDIT the OBB and to read clearance (0.065-0.054 = 1.1 cm of margin), never to replace it",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "scripts/libero/rim_circle_fit.py",
+  "source_code_sha256": "ffcaa0ac2f26246118bf294f64aba80f70306e2f3c4f1c17a77b718424f11860",
+  "task": "pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_task",
+  "trigger": "You need a round object xy to better than ~1 cm (bowl, plate, ramekin, cup, can), your current estimate is a point-mean or median of its SAM3 mask, and the task tolerance is comparable to the bias you are chasing",
+  "vertical_capability": "localize"
+}

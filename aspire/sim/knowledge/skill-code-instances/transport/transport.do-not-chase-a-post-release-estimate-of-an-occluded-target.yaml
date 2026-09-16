@@ -1,0 +1,56 @@
+{
+  "api_calls": [
+    "observe",
+    "bowl_near",
+    "find_plate",
+    "float",
+    "float",
+    "print",
+    "print",
+    "print",
+    "np.percentile",
+    "float",
+    "np.hypot",
+    "np.percentile",
+    "len",
+    "float",
+    "np.hypot"
+  ],
+  "ast_fingerprint": "2161039694691e9f89e442d52b9672856733c8322eed32c4081f71a44d45165e",
+  "checkpoint_id": null,
+  "code": "def placed(plate, ref_xy):\n    \"\"\"Placement check: bowl points near ref_xy resting at plate height.\n\n    The plate is a free body: the descent and the bowl's landing can shove it, so the\n    check re-measures where the plate ACTUALLY is now instead of trusting the pose read\n    before the carry (a bowl dropped on the plate centre of a plate that has since slid\n    2 cm is not on the plate any more).\n    \"\"\"\n    rgb, d, K, E = observe()\n    got = bowl_near(rgb, d, K, E, ref_xy, tol=0.12)\n    if got is None:\n        print(\"  place check: no bowl found near the plate\", flush=True)\n        return False, None\n    c, _, pts = got\n    cur = find_plate(rgb, d, K, E)\n    pcx, pcy, ptop = plate[\"cx\"], plate[\"cy\"], plate[\"top\"]\n    if cur is not None:\n        print(\"  (plate re-segmented after release: (%.3f,%.3f) vs pre-carry \"\n              \"(%.3f,%.3f) - the mask centre is dragged away from the bowl that \"\n              \"occludes it, so the PRE-CARRY pose is used for the check)\"\n              % (cur[\"cx\"], cur[\"cy\"], pcx, pcy), flush=True)\n    zlo = float(np.percentile(pts[:, 2], 2))\n    zext = float(np.percentile(pts[:, 2], 98)) - zlo\n    dist = float(np.hypot(c[0] - pcx, c[1] - pcy))\n    ok = dist < PLACE_OK and (ptop - 0.030) < zlo < (ptop + 0.070)\n    print(\"  place check n=%d centre=(%.3f,%.3f) zlo=%.3f zext=%.3f plate=(%.3f,%.3f) \"\n          \"moved=%+.3f dist=%.3f -> %s\"\n          % (len(pts), c[0], c[1], zlo, zext, pcx, pcy,\n             float(np.hypot(pcx - plate[\"cx\"], pcy - plate[\"cy\"])), dist, ok), flush=True)\n    return ok, c",
+  "code_hash": "e40ac51eb9c826994da33edf2d7ff6789a5685e5b3ec63901bf2e389c94e1a58",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Verify a placement against an unbiased target pose, and refuse a correction derived from an occluded re-segmentation",
+  "id": "transport.do-not-chase-a-post-release-estimate-of-an-occluded-target",
+  "kind": "skill-code-instance",
+  "observed_effect": "Verify the placement against the target pose measured BEFORE the carry (the only unbiased one) and treat any post-release re-segmentation as report-only -- never as control input and never as the pass/fail test. Chasing the biased estimate is actively harmful: a nudge term toward the artefactual shove pushed an already-good placement off centre and tipped the bowl onto the plate rim (seed 56, bowl z-extent 0.054 vs 0.044 flat), taking the sweep to 14/15. With both the nudge and the SHOVE feed-forward DELETED, placement is 15/15 with the bowl flat every seed. The artefact is repeatable, which is exactly what makes it tempting -- repeatability is not evidence of truth when the measurement is occluded by your own payload",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "115be05a29be2ed9beae8588021a6e408e3bf39a98600f4d9b396f6952fbd5f7",
+  "task": "pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "Any post-placement segmentation of a thin or flat target (a plate, a tray) with the just-released payload sitting on or near it. Symptom: a repeatable apparent translation of the target TOWARD the occluder -- here moved=+0.023 m on every seed -- that no physics explains. It is a segmentation artefact: the payload occludes part of the target mask, dragging the centroid away from it",
+  "vertical_capability": "transport"
+}

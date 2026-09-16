@@ -1,0 +1,45 @@
+{
+  "api_calls": [
+    "float",
+    "len",
+    "mean"
+  ],
+  "ast_fingerprint": "d3cf61f90160b0383216778755289e6785d58c2a2f857f0d4e282d7979b630ec",
+  "checkpoint_id": null,
+  "code": "def orange_frac(px):\n    \"\"\"Fraction of mask pixels that are bright orange (warm with green in it).\"\"\"\n    if len(px) == 0:\n        return 0.0\n    R, G, B = px[:, 0], px[:, 1], px[:, 2]\n    return float(((R > ORANGE_R_B * B) & (G > ORANGE_G_B * B) & (R > ORANGE_MIN_R)).mean())",
+  "code_hash": "25b9af64312acbed1174280d6dece9f1925383d47ff84e136c04dcab309eee0c",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Rank same-class candidates by a three-term hue-conjunction brightness fraction instead of a single signed channel difference, when the decoy is the DARK version of the target's hue",
+  "id": "localize.rank-by-a-hue-conjunction-fraction-not-one-channel-difference",
+  "kind": "skill-code-instance",
+  "observed_effect": "A pixel counts as target only if it is warm AND still has green in it AND is bright (R > 1.15*B and G > 1.05*B and R > 120); the fraction of such pixels is 0.206-0.207 on the target vs 0.006 best sibling (milk carton), 0.001-0.002 ketchup, 0.000 dressing bottle - a 34x margin where the channel difference gave 24 percent. The G > 1.05*B term is what makes it ORANGE rather than merely red: a saturated red or a warm brown has large R - B but little green, so it collapses toward 0. On all 15 development seeds exactly 4 candidates passed the geometry screen and the target won with no seed within 0.19 of the boundary",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_swap/pick_up_the_orange_juice_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "23f66d60e867fbc1f7cac85668b569a63c2c266270e06f4634a1a1bd1813a5e8",
+  "task": "pick_up_the_orange_juice_and_place_it_in_the_basket",
+  "task_family": "libero_object_swap",
+  "trigger": "Target is the BRIGHT warm object (orange-tan carton, mean R 90.7 / G 64.9 / B 28.6) and its nearest competitor is the DARK warm one (saturated red ketchup bottle, mean R 58.4 / G 25.5 / B 7.7): a bare R - B separates them by only 12 grey levels (62.1 vs 50.3), and a bare B - R ranks the milk carton first",
+  "vertical_capability": "localize"
+}

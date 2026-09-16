@@ -1,0 +1,49 @@
+{
+  "api_calls": [
+    "bowl_points",
+    "np.median",
+    "float",
+    "math.hypot",
+    "print",
+    "np.percentile",
+    "max",
+    "len"
+  ],
+  "ast_fingerprint": "33bbd861aed4cca50333df43e1b0284f75b0a8077b8ee5ee91d934da9033ddf4",
+  "checkpoint_id": null,
+  "code": "def placed_on_stove(rgb, d, K, E, place_xy, stove_top, r_bowl):\n    \"\"\"Strict placement check: bowl points near the goal XY *and* resting at the\n    stove surface height.  A bowl held up in the gripper, or left on the leaning\n    board, fails the height test.\"\"\"\n    pts = bowl_points(rgb, d, K, E, ref_xy=place_xy, radius=max(0.07, r_bowl + 0.04))\n    if pts is None:\n        return False\n    c = np.median(pts, axis=0)\n    zlo = float(np.percentile(pts[:, 2], 2))\n    dist = math.hypot(c[0] - place_xy[0], c[1] - place_xy[1])\n    print(f\"  place check n={len(pts)} centre=({c[0]:.3f},{c[1]:.3f},{c[2]:.3f}) \"\n          f\"z2={zlo:.3f} dist={dist:.3f} (stove_top={stove_top:.3f})\", flush=True)\n    return dist < 0.07 and (stove_top - 0.03) < zlo < (stove_top + 0.07)",
+  "code_hash": "bb32eb70e65417c563608e8868a740314ed4ecfc2efdc0636789fdd18492c32f",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Confirm a placement from observables that cannot be satisfied while the object is still held",
+  "id": "manipulation.verify-placement-position-and-rest-height",
+  "kind": "skill-code-instance",
+  "observed_effect": "Requires XY within 7 cm AND the 2nd-percentile z inside (surface_z - 0.03, surface_z + 0.07); v1 reported SUCCESS with env reward 0 on 5 seeds, the strict check reports SUCCESS only on the 15 runs the env also scored 1.0",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/put_the_bowl_on_the_stove/fix_code.py",
+  "source_code_sha256": "98c40142fd85d50e2594ea23f384b2f828d23e859478cfef066b7bcc01ac91d2",
+  "task": "put_the_bowl_on_the_stove",
+  "task_family": "libero_goal_swap",
+  "trigger": "Verifying a drop/place from XY proximity alone; an object still held high in the gripper reads as placed",
+  "vertical_capability": "manipulation"
+}

@@ -1,0 +1,50 @@
+{
+  "api_calls": [
+    "segment_sam3_text_prompt",
+    "sorted",
+    "mask_to_world_points",
+    "astype",
+    "np.percentile",
+    "len",
+    "float",
+    "np.linalg.norm",
+    "near.sum",
+    "np.asarray"
+  ],
+  "ast_fingerprint": "9947041570ba4a64d8ba8a4acee95d438bfe416c42d562a1a16420482cd47c53",
+  "checkpoint_id": null,
+  "code": "def bowl_points(rgb, d, K, E, ref_xy=None, radius=0.12, min_h=None):\n    \"\"\"Points of the best bowl mask near `ref_xy`.\n\n    `min_h` rejects a mask that is FLAT in world z.  This matters for every\n    measurement taken over the plate: the plate is a shallow dish that the\n    \"bowl\" prompts happily segment, and its centre coincides with the plate's\n    own centre, so an ungated search for \"a bowl near the plate\" can return the\n    PLATE and report a perfect placement for a bowl that was never carried\n    there (measured on seed 64: the program printed \"BOWL CENTRED ON PLATE\"\n    with a 0.000 m error while the run's last agentview frame shows the plate\n    empty and the bowl still on the table).  The plate's measured z extent is\n    ~0.011 m and the cookie box's ~0.014 m, while the bowl stands 0.044 m\n    upright (0.05-0.07 m on its side), so 0.020 m separates them.\n    \"\"\"\n    for p in BOWL_PROMPTS:\n        masks = segment_sam3_text_prompt(rgb, p)\n        if not masks:\n            continue\n        for m in sorted(masks, key=lambda x: -x[\"score\"])[:4]:\n            pts = mask_to_world_points(m[\"mask\"].astype(np.uint8), d, K, E)\n            if pts is None or len(pts) < 40:\n                continue\n            if min_h is not None:\n                zlo, zhi = np.percentile(pts[:, 2], [2, 98])\n                if float(zhi - zlo) < min_h:\n                    continue\n            if ref_xy is not None:\n                near = np.linalg.norm(pts[:, :2] - np.asarray(ref_xy), axis=1) < radius\n                if near.sum() < 40:\n                    continue\n                pts = pts[near]\n            return pts\n    return None",
+  "code_hash": "1918d32bb0c391440720bbb8b16b0f8139733bec47610bcda027ad291255c474",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      61,
+      62,
+      63,
+      65
+    ]
+  },
+  "goal": "Gate a placement measurement by the shape of what it found, because the SUPPORT the program is aiming at is often segmentable by the same prompt as the payload and reads back as a perfect landing.",
+  "id": "transport.a-landing-check-hijacked-by-the-support-reads-perfect-and-fails",
+  "kind": "skill-code-instance",
+  "observed_effect": "The false success is exact and silent: seed 64 printed BOWL CENTRED ON PLATE with dist_to_plate_centre = 0.000 and z2 = -0.004 while the run last agentview frame shows the plate EMPTY. The servo reading equalled the plate centre on exactly the two runs that lost the placement (seeds 64 and 57) and sat 5-12 mm away on every run that passed. Gate: FLAT_REJECT = 0.020 against the measured z-extents (plate 0.011 m, cookie box 0.014 m, bowl 0.044 m), applied as continue when percentile(pts z 98) - percentile(pts z 2) < min_h. With the landing gate the false success becomes a retry. Critical counter-evidence: do NOT gate the CARRY SERVO the same way - during the carry the bowl is partly behind the fingers, and a gated pick chose a taller composite mask (bowl over plate) that read err = 0.005 at the first iteration, so the servo stopped early and released 21 mm off-centre (seed 65, reward 0), while the ungated pick on the same code read err = 0.046 and corrected over two hops (reward 1.0). The gate belongs on the landing check only.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "c7bff1c73d36906ddf09b7346523cbc7f1a352bee00767cd4955365fe4068d68",
+  "task": "pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "Any find-object-X-near-point-p measurement where another flatter object of a similar class sits at p - above all a placement check or a carry servo whose target is a support surface. The plate is a shallow dish and answers the metal bowl prompt.",
+  "vertical_capability": "transport"
+}

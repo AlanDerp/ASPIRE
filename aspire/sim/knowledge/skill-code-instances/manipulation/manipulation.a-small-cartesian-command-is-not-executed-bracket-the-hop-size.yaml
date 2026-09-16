@@ -1,0 +1,52 @@
+{
+  "api_calls": [
+    "np.array",
+    "tcp",
+    "float",
+    "range",
+    "np.linalg.norm",
+    "goto_pose",
+    "tcp",
+    "float",
+    "np.linalg.norm",
+    "min"
+  ],
+  "ast_fingerprint": "42fed796c730ff2d23402b9e3127f8465456d83fd39589a3f21ed1aca4f9709c",
+  "checkpoint_id": null,
+  "code": "def hop_to(px, py, pz, q, step=0.100, eps=0.008, budget=14, stall=2):\n    \"\"\"Ladder a Cartesian move in measured-TCP space, <=`step` per command.\n\n    Two measured facts from the traces drive this:\n      * A SMALL commanded step is not realised.  Commanding 0.020 m moved the measured TCP\n        only 0.0079 m per hop (the joint controller stops inside its 0.01 rad tolerance),\n        so the 0.16 m descent to the pinch burned 24 hops; a 0.045 m command realised\n        0.033 m and a 0.10 m command realised the full 0.10 m.  Big steps, few hops.\n      * Stop on lack of progress TOWARD the target, not on raw motion.  At a kinematic\n        limit the arm oscillates +-3 mm between two IK branches: each hop still moves\n        ~0.0065 m, so a \"did it move\" test never fires (seed-51 trace: 13 hops and 18 s\n        spent hovering at tcp z = 0.224).  Distance-to-target shrinking by <2 mm for two\n        consecutive hops is the real stall.\n\n    The episode step budget is also finite (~4000 control steps ~= 108 hops of ~37 steps\n    each): 109 hops truncated the episode and the trial scored 0 however good the motion\n    was.  Keep the ladder short.\n    \"\"\"\n    tgt = np.array([px, py, pz], dtype=np.float64)\n    c = tcp()\n    dn = float(np.linalg.norm(tgt - c))\n    bad = 0\n    for _ in range(budget):\n        if dn <= eps:\n            break\n        goto_pose(c + (tgt - c) * (min(step, dn) / dn), q)\n        HOPS[0] += 1\n        c = tcp()\n        n2 = float(np.linalg.norm(tgt - c))\n        if dn - n2 < 0.002:\n            bad += 1\n            if bad >= stall:\n                break\n        else:\n            bad = 0\n        dn = n2\n    return c",
+  "code_hash": "e048ea907e5b4802bdd1ac771252f1e0860c6f88d5c1679b5e5783efe07069d8",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Make a long Cartesian move actually arrive, when both a single large command and a very small one fail to track",
+  "id": "manipulation.a-small-cartesian-command-is-not-executed-bracket-the-hop-size",
+  "kind": "skill-code-instance",
+  "observed_effect": "Ladder every long Cartesian move in MEASURED-TCP space with a step size inside a realised bracket. Two measured facts bound the hop size. (1) Below the bracket a command is not executed at all: 0.020 m moved the TCP only 0.0079 m, 0.045 -> 0.033, 0.10 -> 0.10, so USE 0.05-0.12 m commands. This is the counterpart to the widely-quoted <=30 mm hopping rule: small hops are safe only because you re-measure every hop, and a ladder built from tiny commands crawls or exhausts the episode. (2) Stop on lack of progress TOWARD THE TARGET, not on raw motion: at a kinematic limit the arm oscillates +-3 mm, so every hop still 'moves' ~0.0065 m and a did-it-move test never fires. The budget is finite too: ~4000 control steps ~= 108 hops of ~37 steps each. Evidence: hops per trial 109 -> 32-39, the two Truncated:True seeds (51, 52) became normal terminations, 15/15 dev seeds pass. The pre-fix single 0.5 m lunge from home stalled ~25 cm short, which killed 10/15 dev seeds",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "587ba2e4de08376abea7b7624300afcff49d68b1dd292cea75a078ff32923b1f",
+  "task": "pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_task",
+  "trigger": "Any long Cartesian move (cross-workspace carry, descent, approach) on the Franka/LIBERO arm: goto_pose lands far short of the target, a fine-grained descent crawls or burns the episode, the arm hovers or oscillates near a kinematic limit, or the trial ends with Truncated: True",
+  "vertical_capability": "manipulation"
+}

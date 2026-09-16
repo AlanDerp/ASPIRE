@@ -1,0 +1,60 @@
+{
+  "api_calls": [
+    "segment_sam3_text_prompt",
+    "len",
+    "sorted",
+    "mask_to_world_points",
+    "np.percentile",
+    "extent_xy",
+    "any",
+    "found.append",
+    "astype",
+    "np.median",
+    "len",
+    "len",
+    "len",
+    "max",
+    "max",
+    "min",
+    "math.hypot",
+    "float",
+    "float"
+  ],
+  "ast_fingerprint": "ca699a0c00b6e16e27833bdedf065d1cddc55270089d7fb2a5e7043273669124",
+  "checkpoint_id": null,
+  "code": "def find_containers(rgb, d, K, E):\n    \"\"\"Bowl-sized open containers sitting on the table.\n\n    A container has depth (z-extent >= 0.030 rejects the flat plate at 0.024)\n    and a bounded footprint at least 0.088 m across (rejects the 0.082 m\n    ramekin, keeps the 0.101 m bowls).  Anything already lifted off the table\n    (z_hi > 0.12) is rejected so a bowl in the gripper is never re-detected as\n    a fresh candidate.\n    \"\"\"\n    found = []\n    tries = 0\n    for p in BOWL_PROMPTS:\n        if len(found) >= 2:\n            break\n        masks = segment_sam3_text_prompt(rgb, p)\n        if not masks:\n            continue\n        for m in sorted(masks, key=lambda x: -x[\"score\"])[:5]:\n            if len(found) >= 2 or tries >= 8:\n                break\n            tries += 1\n            pts = mask_to_world_points(m[\"mask\"].astype(np.uint8), d, K, E)\n            if pts is None or len(pts) < 200 or len(pts) > 30000:\n                continue\n            zlo, zhi = np.percentile(pts[:, 2], [2, 98])\n            if zhi - zlo < 0.030 or zhi > 0.12:\n                continue\n            sx, sy = extent_xy(pts)\n            if max(sx, sy) < 0.088 or max(sx, sy) > 0.16 or min(sx, sy) < 0.055:\n                continue\n            cxy = np.median(pts, axis=0)[:2]\n            if any(math.hypot(cxy[0] - f[1][0], cxy[1] - f[1][1]) < 0.05 for f in found):\n                continue\n            found.append((pts, (float(cxy[0]), float(cxy[1])), p))\n    return found",
+  "code_hash": "29c3a43996b4dedb3efced167c8a2e8b4673edd741b1cd0301c91ac43b92c5ee",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Fit object discovery inside a tight episode horizon measured in API calls",
+  "id": "manipulation.bound-the-perception-budget-per-prompt",
+  "kind": "skill-code-instance",
+  "observed_effect": "Cap the masks considered per prompt (top 5 by score), break out of the prompt loop on the first feasible hit (never keep scanning for a 'better' one), and bound the total attempts. Combined with dropping padding get_observation() settle calls (the climb back to carry height is itself the settling time) and keeping transport interpolation to 3 waypoints instead of 4: the same seed-51 episode cost 154 API calls before (mask_to_world_points 89, segment_sam3_text_prompt 17) and 70-72 after (18 and 9), with identical success. This is what makes a second carry attempt affordable within the horizon",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "cf5a005ea411163788a8bbc9b0024475a87752e8fcc4dbc15dafb699fdff0d3a",
+  "task": "pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "The episode horizon is ~4000 sim steps ~= 150-170 API calls and mask_to_world_points (one call per candidate mask) dominates it; a finder that loops over 5 prompts x 8 masks costs up to 40 calls for one object, leaving no budget for a retry",
+  "vertical_capability": "manipulation"
+}

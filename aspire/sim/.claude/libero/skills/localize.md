@@ -60,8 +60,58 @@ List prompts in priority order — first hit wins.
 
 | Object | Working Prompts | Suite/Task | Notes |
 |---|---|---|---|
+| patterned metal bowl | `metal bowl` (0.95), `silver bowl` (0.92), `bowl` (0.91) | libero_goal_swap / put_the_bowl_on_top_of_the_cabinet | `plate` (0.91) is a *different* object (red-rimmed plate) — never use a bare `bowl` prompt without checking the box |
+| wooden cabinet | `cabinet` (0.25–0.48), `wooden cabinet`, `drawer` (0.12), `shelf` | same | Low score but usable; the mask mixes the top face with the sloped front slats — always reduce it with the z-plateau pattern below |
+| wine bottle / stove (distractors) | `wine bottle` (0.93), `stove` (0.90) | same | Useful to know they are present so a loose prompt does not steal them |
+| top drawer handle (bar) | `handle` | libero_goal_swap / open_the_top_drawer_and_put_the_bowl_inside | Side approach (axis −y, fingers closing along world z); used with a closed-loop pull, not a fixed displacement |
+| metal bowl in an open drawer | `metal bowl` | same | **The top-scoring mask is the drawer, not the bowl** — always screen the top ~12 masks by geometry (see "Screen SAM3 Candidates by Geometry" below) |
+| cream cheese box (flat slab) | `cream cheese`, `butter`, `box` | libero_goal_swap / put_the_cream_cheese_in_the_bowl | 7.6 × 4.0 × 1.77 cm slab. Screen on geometry, not score: `40 ≤ n ≤ 5000`, z-extent ≤ 0.035 m, `0.01 ≤ min(ext)`, `max(ext) ≤ 0.10`, `z_hi ≤ 0.06` for a box still on the table — and lift the z screen for a box that has moved (see "Lift the Height Screen" below). A bare `box` prompt also fires on the arm |
+| metal bowl (empty, on the table) | `metal bowl`, `bowl`, `silver bowl` | same | Top-3 masks by score, then require a container's *shape*: `200 ≤ n ≤ 20000`, z-extent ≥ 0.020 m (a bowl has depth), `max(ext) ≤ 0.20` m. Rejects the table/wall masks that score comparably |
+| butter box (flat slab) | `butter box` (0.354), then `butter` (0.067), `box`, `carton` | libero_object_swap / pick_up_the_butter_and_place_it_in_the_basket | 7.5 × 3.9 × 1.6 cm. The product word does **not** ground and ranks a sibling first (`butter stick` puts the chocolate-pudding box at 0.108 above the butter's 0.090) — see "Prompt the Packaging Word" below. Geometry alone cannot separate the two boxes (7.5×3.9×1.6 vs 8.3×5.0×2.9 cm), so rank by the warm-colour fraction instead |
+| chocolate pudding box | `brown box` (0.578), then `chocolate pudding` (0.002), `pudding` (0.006), `box` (0.426) | libero_object_swap / pick_up_the_chocolate_pudding_and_place_it_in_the_basket | 8.5 × 5.5 × 3 cm. The product name does **not** ground; a colour+shape descriptor does — see the variant under "Prompt the Packaging Word" below. A bare `box` also fires on the orange-juice carton and the basket, so the descriptor is only usable together with the geometry screen on the top 3 candidates |
+| woven basket (goal container) | `basket` (top-1), `wicker basket`, `woven basket` | libero_object_swap / pick_up_the_butter_and_place_it_in_the_basket + pick_up_the_chocolate_pudding_and_place_it_in_the_basket | The basket's mouth centre is **not** its cloud median — use the top-rim percentile box (see "Take a Container's Mouth Centre From Its Top Rim" below). Its interior floor is a depth hole on both tasks, so the release height must come from the rim |
+| stove control (articulated post/lever) | `black knob` (0.41), `knob`, `stove knob` | libero_goal_swap / turn_on_the_stove | ~200 masks come back but the **top-scoring one is always the control**, and depth inside its mask is fully valid, so no geometry screening is needed. The cloud still needs *splitting*: pinch the raised band (`z > zlo + 0.55·(zhi−zlo)`), not the object's OBB centre — the wide base dominates it |
+| bbq sauce bottle (tall, capped) | `bottle`, `sauce bottle`, `sauce`, `bbq sauce` — **for candidates only, never for ranking** | libero_object_swap / pick_up_the_bbq_sauce_and_place_it_in_the_basket | No prompt identifies it. Three bottles are on the table and a whole-class prompt prefers the wrong one every time (`bottle` 0.957 decoy vs 0.945; `bbq sauce` 0.129–0.15 decoy vs 0.002–0.147). Its neutral-grey cap, the obvious "it must be the sauce" cue, belongs to the **decoy**. Rank the grouped candidates by the intrinsic colour signature instead (`sat - val`: sauce 0.744–0.773 vs decoy 0.159–0.253) — see "Rank same-class distractors per *physical object*" below. Body ≈ 3.2 cm across, ~14 cm tall |
+| soup can (either instance) | `can` (0.92–0.94), `tin can` (0.88–0.92), `metal can` (0.88), `food can` (0.87), `soup can` (0.80–0.83), `can of alphabet soup` (0.62–0.77) | libero_object_swap / pick_up_the_alphabet_soup_and_place_it_in_the_basket | **Every one of these returns *both* cans**, and the ranking is by apparent size, so it carries no identity information (`can of alphabet soup` and `can of tomato sauce` both prefer the same wrong can). Use them to *find candidates* only. The goal can is the one with the **blue** label — `mean(B) − mean(R)` = +1.0 vs −14.2. 6.1 cm diameter, 7.8 cm tall |
+| alphabet soup / tomato sauce (as words) | **none** — `alphabet soup` (0.094), `tomato sauce` (0.033), `soup` (0.018), `vegetable soup` (0.006) | same | The product words do not ground at all. A bare `alphabet soup` scores highest on the **milk carton** (0.58 under `milk carton`), which is the tell that the prompt has not grounded |
+| cream cheese slab | `blue box` (0.494, 0.248–0.498 across seeds), then `cream cheese` (0.019), `cheese box` (0.111), `box`, `carton` | libero_object_swap / pick_up_the_cream_cheese_and_place_it_in_the_basket | Product and packaging words both fail — `cheese box` ranks the brown **butter** slab (0.111) above the target (0.104). The colour+shape descriptor is what grounds it; put it **first** in the prompt list, since the first prompt yielding a candidate wins. It also fires on the blue orange-juice carton, so keep the geometry screen as the outer gate. 7.8 × 4.0 × 1.8 cm |
+| milk carton | `milk carton` (0.385–**0.469** across seeds), then `juice box` (0.922, **tied**), `box` (0.805, **tied**), `carton` (0.754, tied) | libero_object_swap / pick_up_the_milk_and_place_it_in_the_basket (and as a distractor on alphabet soup) | The **only** prompt that leans the right way, and only by **0.047–0.080** (0.469 vs 0.404 / 0.449 vs 0.369 / 0.385 vs 0.338) — far too small to ship as a selector. Every *packaging* word ties **exactly** on the milk brick and its orange-juice twin (`juice box` 0.922/0.922, `box` 0.805/0.805), which inverts the usual "use the packaging word" advice. On the alphabet-soup scene this is also the object a bare `alphabet soup` prompt lands on (0.58), a useful tell that a different prompt has not grounded |
+| ketchup bottle | `grey cap` (0.867 on the cap mask), `bottle cap` (0.840); **not** `ketchup`/`ketchup bottle`/`tomato ketchup`/`red bottle` | libero_object_swap / pick_up_the_ketchup_and_place_it_in_the_basket | Every product word **inverts** the ranking: `ketchup bottle` scores the maroon decoy 0.797 above the ketchup's 0.738, `red bottle` 0.492 vs 0.461, `sauce` tied at 0.750. Not shipped — a cap-colour prompt is exactly the assumption the bbq-sauce task shows to be unreliable — but as a *second signal* it is strong. Ship the measured two-region signature instead (see below) |
+| orange-juice carton | `juice box` (0.922 on the target, 0.406 on the milk carton), `orange juice carton` (0.809), `orange juice`, `carton`, `box` | libero_object_swap / pick_up_the_orange_juice_and_place_it_in_the_basket | 2.7 × 5.0 × 13.4 cm. **The cleanest counter-example to "a packaging word that grounds identifies the object."** `juice box` grounds strongly here, but on the *milk* task the identical prompt ties 0.922 / 0.922 on these same two cartons — so grounding is not identity, and a grounding prompt can still be a coin flip between siblings. Ship it to *find candidates*, rank by the bright-orange fraction (below) |
+| salad dressing bottle (tall, dark-green cap) | **none** — `salad dressing` (0.154), `dressing` (0.235), `salad dressing bottle` (0.664); `bottle` / `sauce bottle` return it at 0.914–0.949 but **always behind a sibling** | libero_object_swap / pick_up_the_salad_dressing_and_place_it_in_the_basket | Product words do **not** ground: `salad dressing` and `dressing` both place the target and a sibling within **0.001** of each other, i.e. they are ranking by apparent size, and `salad dressing bottle` grounds two siblings equally. Three tall bottles share the scene (target with a green cap; a ketchup-style bottle with a pale cap at `(0.773, 0.027)`; a dark bottle with a neutral-grey cap at `(0.497, −0.237)`), and the best sibling scores **0.953–0.957** against the target's **0.906–0.949** — the raw prompt ranking is **inverted on 15/15 seeds**. Use `bottle` to *find candidates* only, then rank by the cap band's signed green difference (below). Note the bbq-sauce row's warning holds again: the neutral-grey cap is the **decoy** there too |
 
 ---
+
+## Check *Which* Anchor Actually Varies Before Optimising for Variation
+
+**Trigger**: deciding where to spend robustness effort on a new task in this suite. The instinct is to
+harden perception against object-pose variation. Measure first — in `libero_object_swap` **the
+manipulated object does not move at all across seeds; only the container does.**
+
+Measured: the tomato-sauce can sits at `cx=0.482, cy=-0.241, base=0.013, top=0.081` on **all 15**
+development seeds, identical to the millimetre. The alphabet-soup sibling's can is likewise fixed at
+`(0.402, -0.083)` across all 15 of its seeds. The **basket**, on both tasks, takes 15 *distinct*
+values (x 0.657–0.684, y 0.245–0.271).
+
+```python
+can = pick_target(find_cans())
+print("  target can cx=%.3f cy=%.3f warm=%.1f" % (can["cx"], can["cy"], can["warm"]), flush=True)
+basket_xy, _ = find_basket_clear()                       # this DOES move
+print("  basket xy=%s" % np.round(basket_xy, 3), flush=True)
+```
+
+**Why it matters**: "generalization across seeds" in this suite means *container-position*
+generalization. Effort spent making object identity or object geometry seed-robust is mostly wasted,
+while effort spent on **container localisation and release accuracy** is where the held-out failures
+actually come from — on the same task the release residual ranged 0.013–0.104 m and was the only
+quantified risk to held-out seeds. Print both anchors every seed and compare across the sweep; a fixed
+pose shows up immediately, and a print is cheaper than a robustness mechanism. Source:
+`outputs/libero_fix_loop/libero_object_swap/pick_up_the_tomato_sauce_and_place_it_in_the_basket/fix_code.py`
+— `run`; 2026-09-14.
+
+**Scope caveat**: established on two `libero_object_swap` tasks. Treat it as a hypothesis to check in
+one sweep (two prints, 15 seeds) on any other suite, not as a fact to assume — the same discipline the
+rest of this file applies to descriptors.
 
 ## Disambiguation: Two Similar Objects in Scene
 
@@ -97,6 +147,926 @@ def localize_smallest_bbox_mask(rgb, prompts, max_cy=None):
 
 **Key**: `area_pct` in trace dicts truncates to 99.00 for all masks. Compute area from `box` coordinates instead.
 
+### In a `_task` suite the relation comes from the RUNTIME LANGUAGE — the task name lies
+
+**Trigger**: the suite identifier ends in `_task` (`libero_spatial_task`, `libero_goal_task`,
+`libero_object_task`) and the scene holds more than one candidate for the relation named by the task
+identifier.
+
+The `_task` suites **remap the language instruction**. The task identifier and the BDDL file name keep
+one relation; `env.handle.task_language` carries the goal the simulator actually rewards. Read the
+string at runtime and drive the selector from *it* — never from the identifier you were dispatched
+with, and never from the file name:
+
+```python
+language = str(getattr(env.handle, "task_language", ""))
+# "Pick the akita black bowl next to the ramekin and place it on the plate"
+#   class pool = attribute prompt ("black bowl": 0.777/0.773 vs 0.287 for the look-alike)
+#   reference  = the SMALLEST on-table bowl-like candidate that is not in the pool
+#   target     = the pool member NEAREST that reference  (NOT nearest the goal)
+ramekin = min(rest, key=lambda c: max(c["ext"][0], c["ext"][1]))
+target  = min(pool, key=lambda c: float(np.linalg.norm(c["c"] - ramekin["c"])))
+```
+
+**Evidence**: for `pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate` in
+`libero_spatial_task` the runtime instruction reads **"…next to the ramekin…"** on all 15 development
+seeds, while the task identifier says *plate*. On seed 51 the akita nearest the **ramekin**
+`(0.490, 0.310)` was carried, placed and scored **reward 1.0**, and the akita nearest the *plate*
+`(0.659, 0.325)` was never touched; the shipped revision scores **15/15**. The remap is **per-suite**:
+the same identifier in `libero_spatial_swap` really does mean "next to the plate" (see the class-screen
+section below, which resolves it against the goal) — so the runtime string is the only reliable
+source. Source:
+`outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate/fix_code.py`
+— `pick_ramekin_and_target` lines 264–292, language read in `run()` at line 466; 2026-09-16.
+
+**The remap is not a synonym swap — it can invert, negate, and change the *support*.** Across all ten
+`libero_spatial_task` tasks, **not one** identifier's implied relation matched its runtime instruction:
+
+| task identifier (`libero_spatial_task`) | runtime `env.handle.task_language` |
+|---|---|
+| `…next_to_the_plate…` | "…next to the **ramekin**…" |
+| `…from_table_center…` | "…next to the **plate**…" |
+| `…in_the_top_drawer_of_the_wooden_cabinet…` | "…**on the top of** the wooden cabinet…" |
+| `…next_to_the_cookie_box…` | "…**on the stove**…" |
+| `…between_the_plate_and_the_ramekin…` | "…**not** between the plate and the ramekin…" |
+| `…on_the_cookie_box…` | "…**on the top of** the cabinet…" |
+| `…next_to_the_ramekin…` | "…next to the **cookie box**…" |
+| `…on_the_ramekin…` | "…**on the cookie box**…" |
+| `…on_the_stove…` | "…**on the top of** the cabinet…" |
+| `…on_the_wooden_cabinet…` | "…**on the stove**…" |
+
+Note the `cookie_box` rows: the **same product word** appears in three identifiers and remaps to three
+*different* roles — the **stove** and the **cabinet top** as supports, and here the **cookie box** as
+the *reference object* in a task whose identifier says `ramekin`. So the identifier's noun is not even
+a stable key to the relation — treat the whole identifier as opaque, not just the preposition.
+
+Note the `between_the_plate_and_the_ramekin` row: the relation is **negated** — "not between" — so a
+selector that keys on the identifier's preposition picks precisely the wrong bowl, and there is no way
+to infer the negation from the identifier at all. The same remap changes *which support* is named
+(`top drawer` → *top of the cabinet*; `cookie box` → *stove*; `on_the_cookie_box` → *top of the
+cabinet*), so the reference object must also come from the string.
+
+**The remap is not injective, and it can swap two identifiers outright** — two of these ten facts are
+worth carrying into any `_task` work:
+
+* **Two identifiers share one instruction.** `…on_the_cookie_box…` and `…on_the_stove…` both read
+  *"…on the top of the cabinet…"*, and `…next_to_the_cookie_box…` and `…on_the_wooden_cabinet…` both
+  read *"…on the stove…"*. So a runtime instruction is **not** a key back to a task, and an instance or
+  finding recorded against "the stove task" is ambiguous unless the identifier is stored with it.
+* **Two identifiers are effectively swapped.** `…on_the_stove…` runs the *cabinet-top* instruction and
+  `…on_the_wooden_cabinet…` runs the *stove* instruction. The identifier's support is therefore not
+  merely wrong, it can be the *other task's* support — a selector that resolves "the support the
+  identifier names" will confidently carry from the wrong piece of furniture, which is why the support
+  must be resolved from the runtime string via its own footprint (see "The instruction names a
+  *support*" above).
+
+Practical rule for a `_task` suite: parse the runtime string for the relation **and** the reference,
+print it on every seed, and treat the identifier as an opaque dispatch key that carries no goal
+information. Sources: the ten `outputs/libero_fix_loop/libero_spatial_task/*/fix_code.py`, their
+`findings.md` and their dev-seed logs, all 2026-09-16 (the last three rows from tasks 8/9/10, which
+completed after this table was first written). On the sixth, `segment_sam3_text_prompt(rgb,
+"cookie box")` scored **0.003** — the identifier's product word does not merely name the wrong
+support, it does not ground at all.
+
+### Screen the class FIRST, then apply the instruction's spatial relation
+
+**Trigger**: the instruction names a spatial relation ("the bowl **next to the plate**") and the
+scene holds two instances of an *identical mesh* plus a lighter look-alike decoy. Ranking by the
+relation alone is then a coin flip, because the decoy and the true target can sit at the same
+distance from the goal object.
+
+```python
+def black_class_pool(cands):
+    """Keep only the target CLASS: the attribute prompt separates the meshes from the decoy;
+    the measured diameter is a redundant back-up if the attribute prompt fails outright."""
+    if not cands:
+        return []
+    best = max(c["black"] for c in cands)
+    pool = [c for c in cands if c["black"] >= BLACK_CLASS_FRAC * best] if best > 0.3 else []
+    if not pool:                                     # attribute prompt failed entirely
+        big = [c for c in cands if max(c["e"][0], c["e"][1]) >= BIG_BOWL_DIAM]
+        pool = big if big else cands                 # fall back to size, then to all
+    return pool
+
+def pick_target(cands, goal_xy):
+    pool = black_class_pool(cands)                   # class first ...
+    if not pool:
+        return None
+    for c in cands:
+        c["dist"] = math.hypot(c["c"][0] - goal_xy[0], c["c"][1] - goal_xy[1])
+    return sorted(pool, key=lambda c: c["dist"])[0]  # ... then the spatial relation
+```
+
+Two traps this avoids. First, **the product words in the instruction do not ground**: on
+`pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate` the phrase `akita black bowl`
+scored 0.09 at best, while the generic `black bowl` prompt scored 0.81 on the true meshes and 0.28
+on the look-alike dish — prompt the *attribute*, not the product name (same lesson as "Prompt the
+Packaging Word … Not the Product Word" below). Second, note which object the relation is applied
+*to*: here the relation's job is to choose between two equal-score twins, so it must run on the
+class-filtered pool, never on the raw candidate list.
+
+**Why it works + evidence**: on that task seed 51 the twins scored 0.809 / 0.809 at `(0.663, 0.322)`
+and `(0.493, 0.308)`, and the lighter dish scored 0.283; the decoy sat 0.301–0.333 m from the plate
+against the true twin's 0.259–0.309 m — **within 2 mm** on seed 51, so a bare nearest-object rule
+picks either one. The class screen followed by the relation selected the correct akita twin on
+**all 15** development seeds (51–65). Source:
+`outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate/fix_code.py`
+— `black_class_pool`, `pick_target_bowl`, `bowl_candidates`; 2026-09-15.
+
+### …and when *no* prompt separates them, resolve the relation against ALL the objects it names
+
+The rule above assumes an attribute prompt can carve out the target class. When it cannot — the
+instruction names only a **relation**, and the candidates are the same object kind — the relation
+itself becomes the selector, and it must be resolved against every reference the instruction names,
+not just the most obvious one:
+
+```python
+def pick_goal_bowl(bowls, plate, ramekin):
+    """Instruction: "the bowl between the plate and the ramekin" -> nearest the MIDPOINT of
+    BOTH named references, not nearest to whichever one you happened to localize."""
+    cx, cy = 0.5 * (plate[0] + ramekin[0]), 0.5 * (plate[1] + ramekin[1])
+    return min(bowls, key=lambda b: math.hypot(b[0] - cx, b[1] - cy)), (cx, cy)
+
+# A named container that no prompt grounds can still be identified by its geometry:
+ramekin = sorted(cands, key=lambda c: max(c["e"][0], c["e"][1]))[0]   # smallest bowl-like object
+bowls   = [c for c in cands if c is not ramekin]
+```
+
+**Why it works + evidence**: on
+`libero_spatial_swap/pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate`
+SAM3 grounded **all three** round objects for every bowl prompt tried — `bowl` 0.906–0.930,
+`metal bowl` 0.914–0.941, `small bowl` 0.926–0.949 — while the word `ramekin` scored ~0.001 and only
+`white bowl` / `cup` grounded it at 0.106–0.125. So the vocabulary separates *nothing* here, and the
+target had to come from the relation. The margin between the goal bowl and the decoy under the
+midpoint rule was 0.036–0.15 m across seeds 51–65 (seed 57: 0.092 vs 0.244) — never close — so the
+relation is stable exactly where the prompt is not. Add a roundness screen (`min/max` horizontal
+extent ≥ 0.70) to the candidate geometry: a spurious long blob at `(0.100, −0.036)`,
+`ext = (0.077, 0.145, 0.110)`, otherwise passes the size filters. Source:
+`outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate/fix_code.py`
+— `pick_goal_bowl`, `bowl_candidates`, `run`; 2026-09-15.
+
+### The instruction names a *support* — select by its footprint, never by height or score
+
+**Trigger**: the instruction is support-relative — "the bowl **on the stove**", "on the cookie box", "on
+the ramekin" — and the scene contains a same-class look-alike that is **also elevated**. Then the usual
+fallbacks all fail together:
+
+```
+prompt score:   decoy 0.891–0.926   vs   target 0.855–0.922     # the DECOY wins on most seeds
+base z:         decoy 0.224         vs   target 0.026           # decoy is on the cabinet top
+```
+
+"The bowl that is not on the table" and "the bowl with the largest base z" both select the wrong
+object, because **height alone cannot express "on the stove"**.
+
+```python
+def pick_on_stove(cands, stove, table_z=None):
+    if not cands:
+        return None
+    if stove is not None:
+        lo, hi = stove["lo"], stove["hi"]
+        pool = [c for c in cands
+                if lo[0] - FOOT_PAD <= c["cx"] <= hi[0] + FOOT_PAD
+                and lo[1] - FOOT_PAD <= c["cy"] <= hi[1] + FOOT_PAD]
+        if pool:
+            return min(pool, key=lambda c: abs(c["base"] - stove["top"]))
+        print("  no bowl inside the stove footprint", flush=True)
+    if table_z is not None:
+        raised = [c for c in cands if c["base"] > table_z + 0.008]
+        if raised:
+            return min(raised, key=lambda c: c["base"])
+    return max(cands, key=lambda c: c["n"])
+```
+
+**Both tests are load-bearing.** The footprint test alone accepts anything that happens to sit on the
+support; the `abs(base − support_top)` test alone is satisfied by an object resting on the *table*
+inside that footprint, and would never accept the elevated decoy at all. `FOOT_PAD = 0.05` is slack
+for an object overhanging the edge — the decoys sat 0.16 m and 0.30 m outside the padded footprint on
+every seed, so the pad buys tolerance without admitting anything.
+
+Note the third element: `z` for the grasp is measured from the **object's own base**, not the table, so
+the same code grasps a bowl on the table and one 3.7 cm up on a raised support with no change.
+
+**Evidence**: selected the correct object on **15/15** development seeds; every seed's printed candidate
+list shows the decoy (base 0.224) rejected and the target (base 0.026) chosen. Source:
+`outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate/fix_code.py`
+— `pick_on_stove` lines 249–270, called from `run` line 511; 2026-09-15.
+
+#### Anchor the relation to the *named support's own measurement* — never to a scene-level estimate
+
+The footprint test above needs a `support_top` to compare against. **Where that number comes from is
+what decides the whole episode.** On `libero_spatial_swap/pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate`
+the same-class decoy sits on the table and the target on the ramekin, and the two are separated by
+bottom-z alone:
+
+```python
+def key(b):
+    on_ramekin = 1 if b["lo"][2] > ramekin_top - ON_RAMEKIN_SLACK else 0   # SLACK ~ 0.012
+    d_ram = math.hypot(b["cx"] - ramekin["cx"], b["cy"] - ramekin["cy"])
+    return (-on_ramekin, d_ram)          # support-relative, NOT a table estimate
+```
+
+A first attempt instead derived `table_z = min(lo[2] over all candidates)`. **A dark side object whose
+mask bottom-z runs *below* the table poisons that min** — the wooden cabinet here reads `zlo = −0.049`,
+which dragged the estimated "table" 6 cm down, marked **both** bowls elevated, and sent every grasp of
+the episode to the decoy. The scene-level statistic is not merely noisier than the support's own cloud;
+it is *falsifiable by a distractor that is in no way related to the relation you are resolving*.
+
+Two further points, both measured:
+
+- The **distance tie-break is not decoration.** Once an earlier failed attempt has knocked the object
+  down, nothing is elevated any more and `on_ramekin` reads 0 for every candidate; the in-plane distance
+  to the support centre is then the only term that decides. It was also the deciding term on the 13/15
+  seeds where the mask bleed below flipped `on_ramekin` to 0 (decoy 0.203–0.244 m from the ramekin
+  centre vs 0.046–0.062 m for the stacked bowl).
+- **Score and footprint do not separate same-class twins.** Seed 51: `bowl` scored 0.879 for the decoy
+  and 0.715 for the target; footprints 0.102 vs 0.095. Ranking by either is a coin flip.
+
+**Evidence**: correct target on **15/15** seeds in both sweeps, including the 13 where only the distance
+term decided. Source:
+`outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate/fix_code.py`
+— `pick_target_bowl` lines 272–307 (key at 295–298); 2026-09-15.
+
+#### …and when the support lookup fails, the raised candidate to keep follows the support the task *names*
+
+The support-relative selection above needs a `support` object. What should the fallback do when the
+support could not be localized at all? The tempting answer is "keep the raised candidate" — but there
+can be **more than one raised candidate, on different supports**, and then the *direction* of the
+fallback decides the object:
+
+```
+libero_spatial_swap/pick_up_the_black_bowl_on_the_wooden_cabinet...:
+  target  bowl base 0.221   on the wooden cabinet (0.216 m tall)   <- the instruction's support
+  decoy   bowl base 0.026   on the stove slab     (0.020 m tall)   <- identical bowl, 0.028 score margin
+  max(raised, key=base) -> the TARGET      min(raised, key=base) -> the DECOY
+libero_spatial_swap/pick_up_the_black_bowl_on_the_stove...:
+  the same scene, but the instruction names the LOW support, so the direction inverts
+```
+
+So **the fallback is a property of the support the instruction names, not a constant** — and a sibling
+task's default must not be inherited. Note the failure mode this creates in review: copying
+`min(raised, key=base)` from the stove task into this one passes every test on the stove task and
+silently returns the decoy here. Write the direction explicitly, print which branch fired, and note
+which support the task names:
+
+```python
+if table_z is not None:
+    # The instruction names the TALL support ("on the wooden cabinet"), so if the cabinet
+    # lookup fails the raised candidate to keep is the HIGHEST one: the lowest raised
+    # candidate here is the identical decoy on the 0.020 m stove slab.
+    raised = [c for c in cands if c["base"] > table_z + 0.008]
+    if raised:
+        return max(raised, key=lambda c: c["base"])
+```
+
+**Evidence**: the primary footprint path localized the cabinet on **15/15** seeds (score ≥ 0.836,
+`ext = (0.22–0.25, 0.25–0.26, 0.207)`) and selected the target (base 0.221) over the decoy (base 0.026,
+outside the footprint) on 15/15; SAM3 score cannot do it at all (0.926 vs 0.898). The fallback itself is
+a latent-bug fix and did not fire on any seed, which is exactly why it is worth recording — it is a
+wrong-object trap that no seed would have exposed. Source:
+`outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_on_the_wooden_cabinet_and_place_it_on_the_plate/fix_code.py`
+— `find_cabinet` lines 205–234, `pick_on_cabinet` 265–292; 2026-09-15.
+
+### Screen the *support* by its own geometry — its prompt fires on the other furniture too
+
+Having decided to select *by* the support, the support lookup itself must be reliable. On the same
+scene, `stove` scored the real slab at 0.70–0.86 — but the 0.21 m-tall drawer cabinet **also** answered
+`stove` (0.20–0.25) and `wooden cabinet` (0.80), and the stove's own burner disc came back as a smaller
+`stove`/`plate` mask. Taking the top score there is luck, not identification.
+
+```python
+for prompt in STOVE_PROMPTS:                      # ("stove", "burner", "stovetop")
+    for m in sorted(segment_sam3_text_prompt(rgb, prompt), key=lambda x: -float(x["score"]))[:6]:
+        pts = mask_to_world_points(m["mask"].astype(np.uint8), d, K, E)
+        if pts is None or len(pts) < 200:
+            continue
+        lo, hi = np.percentile(pts, 2, axis=0), np.percentile(pts, 98, axis=0)
+        w, dp, h = hi - lo
+        if h > 0.10:                    # the cabinet is 0.21 m tall -> rejected
+            continue
+        if float(lo[2]) > 0.020:        # resting on the table
+            continue
+        if max(w, dp) < 0.10:           # a slab, not a fragment or the burner
+            continue
+        return dict(lo=lo, hi=hi, top=float(np.percentile(pts[:, 2], 95)), ...)
+```
+
+Three gates, each with a measured margin: **height** (stove 0.028 vs cabinet 0.209), **base level**
+(stove −0.008 vs the table at −0.011), **width** (stove 0.176–0.182 vs the burner's 0.090 fragment).
+The same shape as "Screen SAM3 Candidates by Geometry, Not by Score" below, applied to furniture: pick
+gates whose margins sit *between* the competing objects. Take the support's **top** from the 95th
+percentile of its own points (`top = 0.020` here) so the grasp height and release drop derive from the
+support rather than the table.
+
+**Evidence**: returned the true slab on **15/15** seeds (seed 51: `stove=(0.400,−0.106) top=0.020
+ext=(0.182,0.116,0.029)`, extents 0.176–0.182 × 0.119–0.139 elsewhere); the cabinet was never
+selected. Source: same `fix_code.py` — `find_stove` lines 190–219; 2026-09-15.
+
+### A *stacked* object's mask bleeds through its support — clip the cloud at the support's measured top
+
+**Trigger**: the instruction names an object *on* (or *in*) a support, and the object's mask bottom-z
+comes out **at or below the level of the surface it is supposedly standing on**. SAM3 merges same-class
+neighbours — a ramekin is bowl-class, a plate is bowl-class — so the mask of the supported object runs
+down through the support and out onto the table. On
+`libero_spatial_swap/pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate` this happened on
+**13 of 15** seeds: measured `zlo = −0.005` (table level) against `zlo = +0.028` (the ramekin's rim) on
+the one natively clean seed.
+
+The symptoms are **always downstream and never look like a perception bug**:
+
+```
+in-plane median centre dragged toward the support/table points
+  -> the wall pinch is aimed 1-2 cm off and the fingers land ON the object and shove it
+     (seed 52: bowl jumped (0.434,0.212) -> (0.403,0.286) on the first pinch)
+b_lo under-reports the underside by ~3.5 cm
+  -> tcp_to_bottom = gz - b_lo is ~3.5 cm too large
+  -> the object is RELEASED 3.5 cm above the goal surface: dropped, not set down
+     (landed 0.030-0.043 m off vs 0.011-0.025 m on the seeds whose mask was clean)
+```
+
+```python
+# support = the named support object's own cloud (the ramekin)
+sup = float(np.percentile(support["pts"][:, 2], 90))
+d_sup = math.hypot(goal_obj["cx"] - support["cx"], goal_obj["cy"] - support["cy"])
+obj = goal_obj["pts"]
+if d_sup < 0.09 and goal_obj["lo"][2] < sup - 0.004:      # bleed-through detected
+    cut = obj[obj[:, 2] > sup - 0.004]
+    if len(cut) >= MIN_PTS:
+        obj = cut
+        print(f"  stacked bowl: clipped cloud at support top {sup:.3f}", flush=True)
+cx, cy, lo, hi, obj = cloud_geom(obj)   # centre + underside now measured, not inferred
+```
+
+**This is not a heuristic threshold, it is the measurement.** The object's real underside *is* the
+support's rim, so the clip restores the true centre *and* the true underside at once, and the release
+height error drops out automatically because `tcp_to_bottom` is derived from the corrected `b_lo`. The
+`d_sup < 0.09` guard is what keeps the clip off a same-class object that merely happens to share the
+scene (the decoy bowl sat 0.203–0.244 m from the ramekin centre on every seed).
+
+**Evidence**: 3659 → 2856 points on seed 51; after the clip every one of the 15 seeds reads
+`zlo = +0.027..+0.029` instead of `−0.005`, and with the servo below the sweep is **15/15** (the two
+failing seeds 51 and 61 flipped 0.000 → 1.000). Source:
+`outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate/fix_code.py`
+— `run` lines 717–727; 2026-09-15.
+
+### A mask that is only *part* of the object has no valid centre — gate a free-space read-back against an exact geometric offset
+
+**Trigger**: you measure a *held* payload in free space (to re-derive its hang, or the offset that
+turns the goal point into a release column) and feed the result straight into a control target. The
+window you segment in has a floor, and if that floor is not clear of the payload the mask comes back as
+a thin **arc** — the part of the payload visible above the floor — whose bounding box is a full radius
+off the payload's axis. Nothing about an arc looks wrong: it is a plausible blob with a plausible
+centre, and it is the *only* thing measured, so there is nothing to compare it against.
+
+```
+seed 59 repeat: air offset=(0.007,-0.049)   vs   pinch offset=(0.000,+0.051)
+                -> sign of the wall offset flipped, release_xy 5 cm past the plate
+                -> release_xy=(0.714,0.259) for a plate centred at (0.721,0.210)
+```
+
+Two independent guards, and they are cheap:
+
+```python
+off_pinch = np.asarray(grasp["off"], dtype=float)[:2]   # EXACT by construction: the tool was
+off = off_pinch                                         # commanded to the wall at a measured radius
+hb = held_bowl(rgb, d, K, E, cur[:2], grip_z - 0.11, 0.13)   # floor BELOW the payload's base
+if hb is not None:
+    off_air = np.clip(np.array([hb["c"][0] - cur[0], hb["c"][1] - cur[1]]), -0.08, 0.08)
+    if float(np.linalg.norm(off_air - off_pinch)) < 0.020:   # ADOPT only where they AGREE
+        off = off_air
+    h_cand = grip_z - float(hb["lo"][2])
+    if 0.002 < h_cand < 0.090:
+        hang = h_cand
+```
+
+1. **Put the window floor below the payload's own base** (`grip_z − 0.11` for a payload whose base
+   hangs ~0.05 below the grip site, not `grip_z − 0.09` which sat just under its rim). This removes
+   the arc in the first place.
+2. **When an exact estimate of the same quantity already exists, adopt the measurement only inside an
+   agreement band.** A radial wall pinch gives one: the tool was commanded to the wall at a *measured*
+   radius, so `grasp["off"]` is exact by construction and is a free reference for a noisy read-back.
+   Where the two disagree, the **mask** is wrong, not the grasp — keep the exact value. The band here
+   is 20 mm, ~2σ of the read-back's own noise; on every good reading the gate is a no-op
+   (`d = 0.003–0.007`).
+
+Generalise the second rule past payloads: **whenever two independent estimates of one quantity are
+available, and one of them is exact by construction, use the other only where they agree — never blend
+them and never prefer the perception measurement because it is fresher.** A disagreement is itself the
+signal, and it costs one subtraction to compute.
+
+**Evidence**: seed 59's repeat put `release_xy` 5 cm past the plate from a sign-flipped arc centre; the
+agreement gate rejects exactly that reading and is a no-op on the good ones. Source:
+`outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate/fix_code.py`
+— `carry_and_place`, free-space block, `held_bowl` window; 2026-09-16. Related: the *inverse*
+contamination — a carried mask that absorbs the **gripper** — is
+`knowledge/skill-code-instances/localize/localize.avoid-held-object-mask-contamination.yaml`.
+
+### When neither score nor geometry separates them, rank by a colour descriptor of the mask
+
+**Trigger**: the text prompt does not ground at all — the top score is below ~0.4 and two candidates sit
+within a few percent of each other — *and* the geometric screen does not separate them either, because
+the two objects are the same kind of thing (here: nine of the ten objects in the object suite are "a
+box"). Such a scene is not solvable by a better prompt alone, so the last observable that distinguishes
+the target is its **appearance**: the colour of its packaging.
+
+```python
+px = rgb[mask.astype(bool)].astype(np.float64)      # mask = this candidate's mask
+warm = 0.0
+if len(px):
+    warm = float(((px[:, 0] > 1.4 * px[:, 1]) & (px[:, 0] > 1.4 * px[:, 2])
+                  & (px[:, 0] > 90)).mean())
+# collect EVERY candidate that survives the geometric screen, then:
+warm_c = [k for k in cands if k["warm"] >= WARM_MIN]
+pool = warm_c if warm_c else cands
+pool.sort(key=lambda k: (-k["warm"], -k["score"]))
+return pool[0]
+```
+
+`warm` is the fraction of mask pixels that are saturated red — red channel more than 1.4× both other
+channels and above 90. It is a *descriptor of the target*, used exactly the way a SAM3 prompt is: no
+ground truth is read, and the pixel test is a property of the observation. Keep the geometric screen as
+the outer gate (it rejects the tall/wide distractors cheaply) and use the colour descriptor only to rank
+what survives it — here it also re-ranks the *right* candidate to the top even when a different prompt
+ranked it second.
+
+**Why it works + evidence**: on `libero_object_swap/pick_up_the_butter_and_place_it_in_the_basket` the
+butter's warm fraction measured 0.392–0.418 across all 15 development seeds against 0.033–0.034 for the
+chocolate-pudding box — a >10× margin against a `WARM_MIN = 0.15` threshold that **no seed ever came
+within 0.2 of**. Compare with the score margin on the same object: 0.090 vs 0.108, i.e. the wrong
+ordering. Source: `outputs/libero_fix_loop/libero_object_swap/pick_up_the_butter_and_place_it_in_the_basket/fix_code.py`
+— `find_box`; 2026-09-14.
+
+### Rank same-class distractors per *physical object* by an intrinsic colour signature
+
+**Trigger**: the scene holds two or more objects of the *same class* — several bottles, several boxes —
+and the task names exactly one. This is a stricter failure than the one above: the prompt does not
+merely rank badly, it ranks the **wrong object first on every phrasing**, because a whole-class prompt
+prefers the bigger, brighter instance. On
+`libero_object_swap/pick_up_the_bbq_sauce_and_place_it_in_the_basket` the amber decoy bottle scored
+0.129–0.15 on `bbq sauce` against the true sauce's 0.002–0.147, 0.238–0.348 vs 0.006–0.381 on `ketchup`,
+and 0.957 vs 0.945 on `bottle`. **Prompt score is not an identity signal when two objects share a class.**
+
+Two changes make the colour descriptor do the work:
+
+1. **Group candidates per physical object before ranking.** SAM3 returns the same bottle under several
+   prompts; unioning the masks that share a centroid recovers *one* object's full mask and stops a
+   single bottle from occupying two ranking slots. **The merge radius matters more than it looks** —
+   the 2 cm used here was later found to be too small (a cap and a shoulder fragment each sit within
+   2 cm of their own bottle, so one bottle became 10 groups); see "Prune candidate groups
+   largest-mask-first" below, which supersedes this radius.
+2. **Rank by an intrinsic signature, not a threshold.** Use `sat - val` of the group's *median* body
+   colour, so a dark near-fully-saturated target beats a lighter, brighter one.
+
+```python
+def mask_colour(rgb, mask):                    # -> (median_rgb, sat, val)
+    px = rgb[mask > 0].astype(np.float64)
+    if len(px) < 50:
+        return None
+    med = np.median(px, axis=0); mx = float(med.max())
+    if mx <= 1e-6:
+        return None
+    return med, float((mx - float(med.min())) / mx), mx / 255.0
+
+# groups: candidates bucketed by centroid within 2 cm, unioning their masks
+for g in groups:
+    med, sat, val = mask_colour(rgb, g["union"])
+    g["rank"] = sat - val
+best = max(groups, key=lambda g: g["rank"])
+if best["colour"] is None or best["colour"][1] < 0.85:      # signature unavailable
+    best = max(groups, key=lambda g: g["best"]["score"])    # fall back to prompt rank
+```
+
+Keep an explicit **fallback gate** (`sat < 0.85`) so a scene where the signature is unavailable degrades
+to the prompt ranking rather than to `max()` over an unusable list.
+
+**Why it works + evidence**: on the bbq_sauce task the decoy's `sat - val` was 0.159–0.253 while the true
+sauce measured 0.744–0.773; the worst runner-up over seeds 51–65 was 0.479, i.e. a margin **≥ 0.28 on
+every** development seed. Switching the selector took the task from **0/15 to 15/15**. The selector uses
+no position information, which matters because `libero_object_swap` is position-generalization only: the
+appearance signature is a portable identity key, and the observed position cluster (x ∈ [0.483, 0.501])
+is not load-bearing. Source:
+`outputs/libero_fix_loop/libero_object_swap/pick_up_the_bbq_sauce_and_place_it_in_the_basket/fix_code.py`
+— `find_bbq`, `bottle_candidates`, `mask_colour`; 2026-09-14.
+
+Prefer this when the script must **choose among** same-class objects; use the `warm`-fraction threshold
+above when the descriptor only has to **admit or reject** one target.
+
+#### Variant — a *signed channel difference* needs no tuned constant
+
+`sat - val` above is one way to build the signature. A cleaner one, when the distinguishing feature is a
+label printed on otherwise similar packaging, is a **signed difference of two channel means over the
+candidate's own mask**:
+
+```python
+px = rgb[mask.astype(bool)].astype(np.float64)              # this candidate's own mask
+if len(px) < 50:
+    continue
+descriptor = float(px[:, 2].mean() - px[:, 0].mean())        # B - R for a blue label
+# collect EVERY candidate that survives the geometric screen, then take the extreme:
+target = max(cands, key=lambda k: k["descriptor"])
+```
+
+Pick the channel pair from the target's packaging — `B − R` for a blue label, `R − max(G, B)` for a red
+one — and let the sign carry the decision. Because it is a *difference* of two means over the same
+pixels, the scene's lighting level cancels; because it is *signed*, there is no absolute threshold to
+tune and no seed on which the constant happens to land near the boundary.
+
+**Choosing between the two forms**: use the signed difference when one channel's level is stable across
+the candidates (it is the safer default — no constant); use the thresholded fraction when a single
+specular highlight could swing a mean (a fraction over many pixels resists one bright outlier better).
+
+**Why it works + evidence**: on
+`libero_object_swap/pick_up_the_alphabet_soup_and_place_it_in_the_basket` two soup cans of **identical
+geometry** (6.1 cm diameter, 7.8 cm tall) share the scene, and no prompt separates them —
+`can of alphabet soup` (0.773 / 0.621) and `can of tomato sauce` (0.641 / 0.436) both rank the *same*
+wrong can first because the score tracks apparent size, and a bare `alphabet soup` (0.094) lands on the
+milk carton. `blueness = mean(B) − mean(R)` separated **+1.0 (target) vs −14.2 (distractor) on all 15
+development seeds**, no overlap, no constant. Single-can reward probes confirmed the identity
+independently: placing only the can at `(0.402, −0.083)` scored 1.000, placing only the can at
+`(0.752, 0.027)` scored 0.000. Source:
+`outputs/libero_fix_loop/libero_object_swap/pick_up_the_alphabet_soup_and_place_it_in_the_basket/fix_code.py`
+— `find_cans`, `pick_target`; 2026-09-14.
+
+#### Admit by hue *before* ranking — a neutral non-object can hold the extreme of the colour axis
+
+The signed-difference variant above takes `max(distance, key=...)` over every candidate that survives
+the geometric screen. That is unsafe whenever SAM3 also returns a **bright neutral** mask of a
+non-object — the basket liner, a wall, the table edge. Such a mask has no hue, so it can sit at the
+extreme of *any* axis that measures "how much of one channel is present", and a single-stage ranking
+then returns it instead of the target.
+
+**Fix: two stages — admit by hue, then rank by the difference.**
+
+```python
+# stage 1 -- admit: the target's packaging is *chromatic in the right direction*
+warm = [c for c in cands if c["R"] - c["B"] > WARM_MIN]     # rejects neutral grey masks
+pool = warm if warm else cands                              # never rank an empty list
+# stage 2 -- rank: the signed channel difference, maximised
+target = max(pool, key=lambda c: c["B"] - c["R"])
+```
+
+**Why two stages**: the descriptor that *identifies* the target (white label content, i.e. a higher `B`)
+is also the descriptor a bright grey distractor maximises. The admission removes every neutral mask on a
+property the *class* has and the distractor lacks; only then does the `B − R` ranking measure "how much
+white is on a red label". Note the admission need not be the class's *defining* property — it only has
+to be a property the distractor lacks.
+
+**Why it works + evidence**: on `libero_object_swap/pick_up_the_milk_and_place_it_in_the_basket` the
+scene holds two bricks whose measured extents agree to the millimetre (milk 14.3 × 5.9 × 4.4 cm vs
+orange juice 14.2 × 5.4 × 3.0 cm), the whole-class prompts tie **exactly** (`juice box` 0.922 / 0.922,
+`box` 0.805 / 0.805, `carton` 0.754) and the product prompt leans right by only 0.047–0.080. SAM3 also
+returns the basket liner as a tall "carton" candidate: 300 points, z-extent 0.140, **`R − B` = 10.2**,
+per-pixel min channel 104, x-width 0.289 m. Since the milk's `B − R` is −39.6 and the juice's is −62.9,
+a bare `max(B − R)` returns the grey liner. The two-stage form — `WARM_MIN = 20` then `max(B − R)` —
+selected the milk brick with a **≥ 22.7 grey-level margin (milk −39.5…−40.0 vs juice −62.7…−63.0) on all
+15 development seeds**, exactly 2 candidates every seed and no seed within 20 levels of flipping, and
+the liner never appeared as a candidate on any seed. Source:
+`outputs/libero_fix_loop/libero_object_swap/pick_up_the_milk_and_place_it_in_the_basket/fix_code.py`
+— `pick_milk` (admission/ranking pair), `find_cartons` (geometry screen); 2026-09-14.
+
+**This supersedes the bare-`max(blueness)` form recorded for the alphabet-soup task above.** That
+selector was correct *on that scene* only because no neutral mask outranked the target there; it is not
+the general form. When reusing a colour rank on a new scene, first check what the *most extreme*
+candidate is — if it is grey or white, the ranking needs an admission stage in front of it.
+
+#### When the decoy is the *dark* version of the target's hue, use a hue *conjunction* fraction
+
+A single signed channel difference has one failure mode the two variants above do not cover: **the
+decoy shares the target's hue and differs only in brightness.** A saturate-and-dark red has almost as
+much `R − B` as a bright orange-tan, so the difference separates them but thinly — and if the decoy is
+the *darker* one, a brightness-blind axis favours it.
+
+**Fix: make the descriptor a conjunction of channel *ratios* plus a brightness floor**, i.e. a
+*fraction* over the mask rather than a difference of means:
+
+```python
+def orange_frac(px):
+    """Fraction of mask pixels that are bright orange (warm WITH green in it)."""
+    if len(px) == 0:
+        return 0.0
+    R, G, B = px[:, 0], px[:, 1], px[:, 2]
+    return float(((R > ORANGE_R_B * B) & (G > ORANGE_G_B * B) & (R > ORANGE_MIN_R)).mean())
+# 1.15                 1.05                   120
+```
+
+Each term does a distinct job, and all three are needed:
+
+- `R > 1.15 · B` — the hue is warm.
+- `G > 1.05 · B` — the warm hue still has green in it, which is what makes it **orange** rather than
+  merely **red**. This is the term that discards the decoy: a saturated red (R 58 / G 25 / B 8) and a
+  warm brown both have a large `R − B` but little green, so they collapse toward 0.
+- `R > 120` — a brightness floor, calibrated from the target's *label* pixels (its mean mask R is 90.7,
+  but the label runs above 120 and those pixels are the ~21% the fraction counts).
+
+**Why a fraction beats a difference here**: the two are not independent — the fraction is the
+difference plus a threshold — but the fraction is *scale-free* and the difference is not. On this
+scene the target's `R − B` is 62 against the decoy's 50 (a **24 %** separation, which any lighting
+change could close), while the fractions are 0.207 against 0.001 (a **3400 %** separation), because the
+decoy's dark pixels fall out of the numerator entirely rather than merely scoring lower.
+
+**Why it works + evidence**: on
+`libero_object_swap/pick_up_the_orange_juice_and_place_it_in_the_basket` the scene holds four tall
+siblings that all pass a geometry screen — the target (2.7 × 5.0 × 13.4 cm), a **milk carton**
+(2.8 × 5.7 × 14.3 cm — a 9 mm height difference, so geometry cannot screen it), a ketchup bottle and a
+dressing bottle. The measured fractions were target **0.206–0.207**, milk carton **0.006**, ketchup
+0.001–0.002, dressing bottle 0.000, on **all 15 development seeds** — a 34× margin with no seed within
+0.19 of the boundary. Bare `R − B` would have separated the target from the ketchup by 12 grey levels
+only, and bare `B − R` would have ranked the *milk* carton first. Source:
+`outputs/libero_fix_loop/libero_object_swap/pick_up_the_orange_juice_and_place_it_in_the_basket/fix_code.py`
+— `orange_frac` (the three-term predicate), `pick_orange_juice` (the admit-then-rank pair); 2026-09-14.
+
+**Choosing among the descriptor families so far**: distinguish the decoy first. Is it the *dark*
+version of the target's hue (→ this conjunction fraction), a *neutral* non-object at the extreme of a
+single axis (→ admit by hue, then rank), or a same-hue sibling differing in *saturation* rather than
+value (→ the two-region split)? The `sat − val` scalar covers none of these.
+
+#### Calibrate the descriptor to *this* target — none of these signatures is universal
+
+A descriptor that worked on one task can invert on the next. Measured across the completed
+object_swap tasks, on targets that are all "a small package on a table":
+
+| Task | Discriminating signature | Result there |
+|---|---|---|
+| butter | warm fraction, red channel × **1.4** | target 0.392–0.418 vs decoy 0.033 — works |
+| bbq sauce | `sat − val` of the median body colour | target 0.744–0.773 vs decoy 0.159 — works |
+| alphabet soup | `mean(B) − mean(R)` (signed) | target +1.0 vs decoy −14.2 — works |
+| cream cheese | blue fraction, blue channel × **1.2** | target 0.395–0.446 vs decoy 0.062 — works |
+| cream cheese, **reusing bbq sauce's `sat − val`** | `sat − val` | target **−0.065** vs decoy **+0.35** — **ranks the decoy first** |
+| ketchup, **reusing bbq sauce's `sat − val`** | `sat − val` | maroon **0.757** vs ketchup 0.267 — **ranks the decoy first** |
+| ketchup, body saturation alone | body `sat` | ketchup 0.553–0.579 vs dressing 0.473–0.505 — margin **0.05**, unusable |
+| milk | `mean(B) − mean(R)` (signed), **after** a `R − B > 20` hue admission | target −39.5…−40.0 vs juice −62.7…−63.0 — works, **≥ 22.7 grey levels** |
+| milk, **bare `max(B − R)` with no admission** | `mean(B) − mean(R)` over *all* candidates | the **basket liner** wins (`R − B` = 10.2, x-width 0.289 m) — returns a non-object |
+| orange juice | **bright-orange** pixel fraction (`R > 1.15 B` **and** `G > 1.05 B` **and** `R > 120`) | target 0.206–0.207 vs milk carton 0.006 / ketchup 0.001 — works, **34×** |
+| orange juice, signed channel difference alone | `R − B` | target 62.1 vs ketchup 50.3 — only **12 grey levels**; the decoy is the *dark* version of the same hue, so the difference nearly closes |
+| orange juice, **reusing milk's `B − R`** | `mean(B) − mean(R)` | **`B − R` ranks the milk carton first** |
+| tomato sauce | `mean(R) − mean(B)` — the alphabet-soup key with the **sign inverted** | +13.9 on all 15 seeds, against the sibling's −14.2 for *this same can* — so the inversion cross-validates the asset. **Correct but NOT load-bearing here**: only one can-shaped candidate survived the geometry screen, so nothing needed ranking |
+| salad dressing | **cap band** signed green difference, `median(G) − max(median(R), median(B))` over the top 25 % of the mask's image rows | target **+21.0** on all 15 seeds vs best sibling **≤ −1.0** — works, **≥ 22 grey levels**, no seed within 20 of flipping. A **third sign again** — the discriminating channel is *green*, not red or blue |
+
+**`sat − val` has now failed on two of the three tasks that tried it.** It is not a general
+same-class key — treat it as a single-instance curiosity from the bbq-sauce task. The rule that
+survives is the *method*: **derive the channel, the multiplier and the sign from a measurement of the
+target itself, then confirm the decoy sits far outside it.** The bbq-sauce key only works for a
+strongly-*saturated* target; the cream-cheese package is a *desaturated* blue (median RGB
+`[63, 68, 87]`) and the ketchup is the **less** saturated of two red bottles, so in both cases the sign
+flips. Three practical consequences:
+
+- **Calibrate the multiplier, don't copy it.** A 1.4× red-channel test that isolates a warm label will
+  *reject a desaturated one*; the cream-cheese run needed **1.2×**. Measure the target's median first.
+- **Report the margin, not the threshold.** The durable quantity is the target's *minimum* against the
+  decoy's *maximum* (here 0.395 vs 0.074 — a 5.3× gap), not the `BLUE_MIN = 0.20` constant that happens
+  to sit between them. That is also the number that tells you whether the next task can reuse it.
+- **When no single scalar has margin, split the mask into regions.** See the two-region variant below —
+  on the ketchup task every whole-mask scalar failed and only a body+cap split produced separation.
+- **Ask whether the descriptor is load-bearing before shipping it as a fix.** A calibrated descriptor
+  can be *correct and unnecessary*: on the tomato-sauce task `mean(R) − mean(B)` measured +13.9 on all
+  15 seeds (the sibling's key with the sign inverted, correctly identifying the can that had been the
+  *decoy* in the alphabet-soup scene) — yet only **one** can survived the geometry screen, so nothing
+  needed ranking and the descriptor made no difference to the outcome. Say so, rather than presenting a
+  colour fix that did not do the work; the honest version is what makes the cross-task sign table usable.
+
+#### When no whole-mask scalar separates them, split the mask into regions by image row
+
+**Trigger**: several objects of the target's class, no prompt ranks the target first, *and* the
+whole-mask descriptors above either pick the wrong sibling or have no usable margin. Typically the
+target is neither the most saturated nor the largest instance — it is distinguished by a *part* of
+itself (a cap, a lid, a label band).
+
+```python
+def appearance(rgb, cand):
+    """Body redness and cap achromaticity of one candidate's own mask."""
+    mk = cand["mask"] > 0
+    ys = np.where(mk.any(axis=1))[0]
+    y0, y1 = int(ys.min()), int(ys.max())
+    cut = y0 + int(0.30 * (y1 - y0)) + 1          # top 30% of rows = the cap
+    cap = np.zeros_like(mk); cap[y0:cut, :] = mk[y0:cut, :]
+    body = mk.copy();        body[y0:cut, :] = False
+    bpx = rgb[body].astype(np.float64)
+    cpx = rgb[cap].astype(np.float64)
+    cand["body_red"] = float((bpx[:, 0] > 1.25 * np.maximum(bpx[:, 1], bpx[:, 2])).mean()) \
+        if len(bpx) else 0.0
+    cs = colour(cpx)
+    cand["cap_sat"] = cs[1] if cs is not None else 9.0
+    cand["cap_val"] = cs[2] if cs is not None else 0.0
+    return cand
+
+# select: BOTH halves are load-bearing
+pick = [c for c in cands if c["body_red"] >= BODY_REDMIN and c["cap_sat"] <= CAP_SATMAX]
+best = max(pick, key=lambda c: (c["cap_val"], -c["cap_sat"])) if pick \
+    else max(cands, key=lambda c: c["score"])          # explicit fallback
+```
+
+The split is a **segment of the mask by image row** — no world-frame calibration — so it transfers
+across camera poses. And the two halves must be **ANDed**: a sub-region test alone is not a screen.
+`cap_sat <= 0.15` on its own also admitted a bottle-shaped fragment of the **wicker basket**
+(`cap_sat 0.00–0.01, cap_val 0.66` — brighter than the ketchup's 0.36) on seeds 52 and 55; only the
+complementary whole-object gate `body_red >= 0.35` rejected it.
+
+**Why it works + evidence**: on `libero_object_swap/pick_up_the_ketchup_and_place_it_in_the_basket`
+five phrasings all invert the ranking (`ketchup bottle` maroon 0.797 vs ketchup 0.738; `tomato ketchup`
+0.361 vs 0.348; `red bottle` 0.492 vs 0.461; `ketchup` 0.586 vs 0.547; `sauce` tied at 0.750), so
+`max(score)` would have grasped the maroon bottle on **15/15** seeds. Measured: body_red 0.65 /
+cap_sat 0.00–0.01 for the ketchup, against 0.91–0.94 / 1.00 for the maroon bottle and 0.45–0.52 /
+0.50–0.56 for the dressing bottle. `BODY_REDMIN = 0.35` has a 0.12 margin against the soup can and
+`CAP_SATMAX = 0.15` has 0.49 against the dressing bottle. The selector picked the same object on all 15
+development seeds and never fell back; a **negative probe** forcing the maroon bottle scored **0.000**
+on seeds 51 and 60, so the rule is load-bearing. Source:
+`outputs/libero_fix_loop/libero_object_swap/pick_up_the_ketchup_and_place_it_in_the_basket/fix_code.py`
+— `appearance`, `find_ketchup`; 2026-09-14.
+
+##### Variant — when the cap *is* the colour, take the cap band's own signed channel difference
+
+The ketchup variant above used the cap's **achromaticity** (a *saturation/valence* statistic). When the
+discriminating part is a cap that is **chromatic in its own right** — a green cap among pale and grey
+ones — the same region split carries a different statistic: a signed channel difference of the band's
+median colour.
+
+```python
+def cap_signature(rgb, cand):
+    """Signed green difference of the candidate's cap band (top 25% of its mask rows)."""
+    mk = cand["mask"] > 0
+    ys = np.where(mk.any(axis=1))[0]
+    y0, y1 = int(ys.min()), int(ys.max())
+    cut = y0 + int(0.25 * (y1 - y0)) + 1          # top band = the cap
+    cap = np.zeros_like(mk)
+    cap[y0:cut, :] = mk[y0:cut, :]
+    cpx = rgb[cap].astype(np.float64)
+    if len(cpx) < 30:                             # too few pixels to trust a median
+        cand["cap_green"] = -999.0
+        return cand
+    med = np.median(cpx, axis=0)
+    cand["cap_green"] = float(med[1] - max(med[0], med[2]))   # signed, self-normalising
+    return cand
+
+green = [c for c in cands if c["cap_green"] >= CAP_GREEN_MIN]   # 12.0 grey levels
+best = max(green, key=lambda c: c["cap_green"]) if green \
+    else max(cands, key=lambda c: c["score"])                   # explicit fallback
+```
+
+Two properties carry it, and both are why it transfers: the descriptor is a **difference of two
+channel medians over the candidate's own pixels**, so the scene's absolute illumination cancels and
+there is no tuned constant beyond the admission threshold; and the region is selected by **image row
+inside the mask**, so it needs no world-frame calibration. Keep the same-class geometry screen (tall,
+narrow) as the *outer* gate so a coloured non-bottle cannot win the rank.
+
+**Why it works + evidence**: on `libero_object_swap/pick_up_the_salad_dressing_and_place_it_in_the_basket`
+three tall bottles share the scene and no prompt ranks the target first — the target's best score is
+**below** a sibling's on **15/15** seeds (0.906–0.949 vs 0.953–0.957). Measured: `cap_green` **+21.0**
+for the dressing against **≤ −1.0** for the best sibling, a ≥ 22 grey-level margin with no seed within
+20 of flipping. A **negative probe** forcing `max(score)` grasped the sibling at `(0.497, −0.237)` and
+placed it *cleanly* in the basket (release tcp `[0.600, 0.259, 0.233]` against a rim of 0.142, program
+printed `placed`, no error raised) and still scored **0.000** on seeds 51 and 52 — so the zero is the
+goal predicate rejecting the wrong **object**. That is the shape of a genuinely identity-sensitive task,
+and the reason the identity rank is load-bearing rather than cosmetic. Source:
+`outputs/libero_fix_loop/libero_object_swap/pick_up_the_salad_dressing_and_place_it_in_the_basket/fix_code.py`
+— `cap_signature`, `find_dressing`; 2026-09-14.
+
+**How to choose between the three region variants.** They are the same idea with different statistics,
+and the choice follows from what the cap *is*: ketchup — the cap is **achromatic** and the body carries
+the colour, so AND a body-colour gate with a cap-achromaticity test; salad dressing — the cap **is** the
+colour and the bodies are near-identical, so rank on the cap band's own signed channel difference.
+Split the mask first, measure both halves, and only then pick the statistic. In all three cases the
+sub-region test alone is not a screen — pair it with a whole-object gate.
+
+#### Prune candidate groups largest-mask-first with a ~4 cm exclusion radius
+
+**Trigger**: any localization that unions several prompts. SAM3 also returns **partial** masks of the
+same object — its cap, its shoulder — whose centroids sit 2–3 cm from the whole object's, while two
+distinct objects are ≥ 5 cm apart.
+
+```python
+kept = []
+for g in sorted(groups, key=lambda d: -int(d["mask"].sum())):     # largest mask first
+    if all(float(np.linalg.norm(g["xy"] - k["xy"])) > 0.040 for k in kept):
+        kept.append(g)
+return kept
+```
+
+Sort **largest-first** so the whole object is always the one that survives, and use **~4 cm**, not the
+2 cm centroid-merge that a first pass would suggest — on the ketchup scene a 2 cm radius yielded **10
+"objects" for 3 real bottles**, because a bottle's cap and shoulder fragments each sit within 2 cm of
+it. Pruning largest-first at 0.040 m leaves exactly 3, stable across all 15 development seeds.
+Source: `outputs/libero_fix_loop/libero_object_swap/pick_up_the_ketchup_and_place_it_in_the_basket/fix_code.py`
+— `bottle_candidates`; 2026-09-14.
+
+#### Keep the geometry screen as the *outer* gate, never inside the colour rank
+
+A colour word alone is not a screen — `blue box` also fires on an orange-juice carton that is genuinely
+blue (fraction 0.30). Screen on geometry first, then rank what survives by colour; reversing the order
+lets a tall blue object win:
+
+```python
+if not (BOX_MIN_SIDE <= dx <= BOX_MAX_SIDE and BOX_MIN_SIDE <= dy <= BOX_MAX_SIDE):
+    continue
+if dz > BOX_MAX_HEIGHT or zr[1] > BOX_MAX_TOP_Z:      # 0.060, 0.070 m
+    continue
+```
+
+with `BOX_MIN_SIDE = 0.020, BOX_MAX_SIDE = 0.120`. On the cream-cheese task this took the `blue box`
+candidate list from ~200 masks to 2–3, all flat slabs, and the colour rank then had only the true
+target and the brown decoy to separate. Each half is insufficient on its own: the screen admits the
+brown slab (within 5 mm of the target on every dimension), and the colour word admits the carton.
+
+**Why it works + evidence**: the ranking key was load-bearing, not belt-and-braces. Re-running with the
+descriptive prompt removed (`SLAB_PROMPTS = ["box", "carton"]`) on seeds 51 and 60 put the **brown
+decoy first on raw score** (`box` 0.680 vs 0.633, and 0.652 vs 0.633); the blue fraction re-ranked the
+cream cheese to the top and both seeds still scored 1.0. Source:
+`outputs/libero_fix_loop/libero_object_swap/pick_up_the_cream_cheese_and_place_it_in_the_basket/fix_code.py`
+— `find_slab`; 2026-09-14.
+
+---
+
+### The *reference* object has no usable prompt at all — find it geometrically, screened by table level
+
+Some scenes do not present a hard disambiguation; they present a reference object that **cannot be
+segmented by any prompt**. On
+`libero_spatial_swap/pick_up_the_black_bowl_next_to_the_ramekin_and_place_it_on_the_plate` the
+instruction's reference is the **ramekin**, and `ramekin` scores **~0.001 scene-wide** — the colour and
+packaging tricks above have nothing to rank. The scene also holds two same-class akita bowls plus a
+bowl-sized stove crank that answers `black bowl` at 0.087.
+
+The reference is then found by **shape, size and where it stands**, and the target by its relation to
+that reference:
+
+```python
+RING_Z_TABLE = 0.02          # a reference standing on the table has its ring near z = 0
+cands = bowl_candidates(rgb, d, K, E)              # shape + size + table-level gates
+ram, tgt = pick_reference_and_target(cands, world_cloud(d, K, E))
+# reference = the SMALLEST on-table bowl-like candidate (the ramekin, not a bowl)
+# target    = the akita whose class score is high AND which is NEAREST that reference
+```
+
+Two screens do the work. The **table-level ring gate** (`RING_Z_TABLE`) is what rejects the stove
+crank — it is bowl-sized and bowl-shaped but does not stand on the table. The **"smallest candidate"**
+heuristic is what separates the reference from the target without a prompt: on every development seed
+the ramekin is geometrically the smallest bowl-like object, and the relation (`nearest to the
+reference`) then picks akita A at 0.133 m over akita B at 0.264 m.
+
+This is the mirror of "The instruction names a *support* — select by its footprint": there the support
+*is* segmentable and the object needs the relation; here the reference is *not* segmentable and has to
+be identified structurally before the relation can be applied at all.
+
+**Evidence**: the correct reference and target on every development seed; together with the in-air hang
+measurement (`grasp.md`) the shipped revision scores 13/15. Source:
+`outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_next_to_the_ramekin_and_place_it_on_the_plate/fix_code.py`
+— `bowl_candidates` line 131, `black_class_pool` 170, `pick_reference_and_target` 209–246,
+`ring_height` 195; 2026-09-15.
+
+---
+
+## Prompt the Packaging Word (or a Colour+Shape Descriptor), Not the Product Word
+
+**Trigger**: a product word (`butter`, `cheese`, `pudding`) returns hundreds of masks with a top score
+below ~0.15 and no usable ranking — often ranking a distractor first or second. The object's *packaging*
+is a much stronger visual token than the product itself, which is a homogeneous blob when seen from
+above.
+
+```python
+BUTTER_PROMPTS = ["butter box", "butter", "box", "carton"]
+```
+
+Lead the prompt list with the packaging word and keep the product word as a later fallback — the first
+prompt that yields any candidate wins, so the list order is the whole intervention. This is a *prompt
+registry* fix, not a filter: it changes which candidates exist before any screening happens, and it
+pairs with the colour-descriptor ranking above (which then re-orders those candidates).
+
+**Why it works + evidence**: on `libero_object_swap/pick_up_the_butter_and_place_it_in_the_basket` seed 51
+the same object scores `butter` 0.067, `butter stick` 0.108, `stick of butter` 0.050, `farm fresh butter`
+0.011, **`butter box` 0.354** — a 3–5× jump for the packaging word. Note that a *higher* score is not by
+itself sufficient: `butter box` still ranks the chocolate-pudding box at 0.340, which is why the colour
+descriptor above is needed on top of it. The generalizable move is the *prompt-shape* rule; the specific
+strings belong in the registry. Source: same `fix_code.py` — `BUTTER_PROMPTS`; 2026-09-14.
+
+**Caveat — a high score proves the prompt *grounded*, not that it *identifies*.** These are different
+properties and the second is the one you need. The sharpest evidence is the same prompt on two tasks:
+`juice box` scores **0.922** on the orange-juice carton (a clean, well-grounded prompt, far above the
+0.354 that `butter box` manages on butter) — but on the *milk* task the same string scores
+**0.922 / 0.922**, tied exactly on the target and its sibling carton. A grounding prompt can therefore
+be a coin flip between two siblings, and the better it grounds the *class*, the more surely it will tie
+across instances of that class. Use the packaging word to make candidates *appear*; use a measured
+colour descriptor to decide *which* candidate. Source:
+`outputs/libero_fix_loop/libero_object_swap/pick_up_the_orange_juice_and_place_it_in_the_basket/fix_code.py`
+and `.../pick_up_the_milk_and_place_it_in_the_basket/fix_code.py`; 2026-09-14.
+
+**Variant — when the product word returns *nothing* usable, describe the packaging's colour and shape.**
+This is the stronger form of the same rule, and it bites hardest on objects whose product name is a
+*colour* the object also is. The packaging word may not exist as a token at all, so the fix is to name
+what the camera sees:
+
+```python
+PUD_PROMPTS = ["<colour> <shape>", "<product name>", "<short name>", "box"]   # here: "brown box" first
+MAX_CAND = 3        # evaluate only the top 3 masks per prompt - SAM3 returns ~200
+```
+
+On `libero_object_swap/pick_up_the_chocolate_pudding_and_place_it_in_the_basket` the product name is
+near-useless — `chocolate pudding` **0.002**, `pudding` 0.006 — while `brown box` scores **0.578** on
+exactly the pudding mask on all 15 development seeds. Two cautions that generalize: a bare `box`
+prompt scores a healthy 0.426 but fires on *several* objects at once (here the pudding **and** the
+orange-juice carton), so a colour+shape descriptor is only usable **together with** the geometric
+screen (small, flat, resting on the table) applied to the top few candidates — and capping the
+candidate count at 3 is what keeps the search cheap. Source:
+`outputs/libero_fix_loop/libero_object_swap/pick_up_the_chocolate_pudding_and_place_it_in_the_basket/fix_code.py`
+— `find_pudding`; 2026-09-14.
+
 ---
 
 ## Base-Object Anchored Localization
@@ -131,6 +1101,697 @@ def localize_above_object(rgb, depth, K, E, base_prompts, min_z=0.04, max_z=0.20
 
 **Why:** Finding a unique base object first gives a stable anchor when the target object has
 unreliable SAM3 segmentation due to similar objects nearby.
+
+---
+
+## Flat-Surface Localization by Densest Upper Z-Plateau
+
+**Trigger**: finding the top face of a boxy support (cabinet, stove, rack) whose SAM3 mask is noisy
+and mixes the top face with sloped sides, so `pts[:, 2].max()` lands on a sparse edge/reflection
+outlier instead of the real surface.
+
+```python
+zs = pts[:, 2]
+hist, edges = np.histogram(zs, bins=50)
+lo = len(hist) // 3
+idx = int(np.argmax(hist[lo:])) + lo        # densest bin in the upper third
+z_bin = 0.5 * (edges[idx] + edges[idx + 1])
+sel = np.abs(zs - z_bin) < 0.02
+if sel.sum() < 20:
+    sel = zs >= np.percentile(zs, 90)
+top = pts[sel]
+z_top = float(np.median(top[:, 2]))
+tx = 0.5 * (np.percentile(top[:, 0], 5) + np.percentile(top[:, 0], 95))
+ty = 0.5 * (np.percentile(top[:, 1], 5) + np.percentile(top[:, 1], 95))
+```
+
+**Why it works + evidence**: on `libero_goal_swap/put_the_bowl_on_top_of_the_cabinet` the cabinet
+mask's raw `z_max` is 0.299 with only 24 points above 0.256, while the true top face is a 6275-point
+plateau at z≈0.215; `z_max - 0.05` bands pick up almost nothing. The density histogram recovers
+5900–8000 in-band points on every development seed and gives a stable `z_top = 0.215–0.216` across
+all 15. Feed this `z_top` to the transit-height rule in [transport.md](transport.md). Source:
+`outputs/libero_fix_loop/libero_goal_swap/put_the_bowl_on_top_of_the_cabinet/fix_code.py` lines
+106–123; 2026-09-14.
+
+---
+
+## Never Re-Localize an Object While It Is in the Gripper
+
+**Trigger**: a SAM3 text prompt whose object word is *also true of the robot's own hardware* —
+`"metal bowl"`, `"silver …"`, `"steel …"` — applied while that object is held in the gripper.
+
+```python
+# WRONG while carrying: the mask also picks up the gripper's metal fingers
+#   held = localize(rgb, d, K, E, ["metal bowl"], ref_xy=tcp_xy(), radius=0.12)
+#   off  = centroid(held) - tcp_xy()          # under-reads the true offset
+# RIGHT: take the measurement from the observation made BEFORE the pinch
+#   off = np.clip(np.array([bx - tcp[0], by - tcp[1]]), -0.08, 0.08)
+# keep the carried measurement as a diagnostic print only - never gate control on it
+```
+
+**Why it works + evidence**: on `libero_goal_swap/put_the_bowl_on_the_stove` the held bowl's
+`"metal bowl"` mask has n = 3550 points against 2683 for the same bowl free on the table, and the
+extra points are the fingers: the measured centroid offset came out `(-0.016,+0.018)` where the
+true offset was `(-0.049,+0.000)` — a 3.3 cm error dragged toward the wrist. Compensating with that
+wrong offset moved the whole descent column to x = 0.572 instead of 0.556, straight into a leaning
+plank stack, and the bowl was released in mid-air (seeds 59/61, reward 0). Measuring before the
+pinch fixes both. Generalizes to any "material word that is also a material the robot is made of"
+prompt — verify the mask's point count against a pre-grasp measurement before trusting it. Source:
+`outputs/libero_fix_loop/libero_goal_swap/put_the_bowl_on_the_stove/fix_code.py` — `bowl_points`
+plus the offset block in `attempt()`; 2026-09-14.
+
+**Refinement — the true offset is the measured outer radius.** Confirmed a third time on a third
+suite task (`libero_goal_swap/put_the_bowl_on_the_plate`), and the number is stable enough to use as
+a sanity check rather than just a warning: for a `metal bowl` radial wall pinch the true
+bowl-centre-to-TCP offset is **exactly the measured outer radius** (±0.049 m here, reproduced on
+15/15 seeds), whereas the carried-mask centroid under-reads it (seed 51 gave `(+0.033,−0.003)`
+against a true `(+0.049,+0.000)` — 1.6 cm toward the wrist). So when a wall pinch is the grasp, you
+can *predict* the release compensation from the object's radius and use the pre-pinch measurement
+only to confirm the sign and the axis. Source:
+`outputs/libero_fix_loop/libero_goal_swap/put_the_bowl_on_the_plate/fix_code.py` — `attempt`;
+2026-09-14.
+
+**Generalization — this is not about material words; *no* prompt survives the gripper.** The two cases
+above involve prompts whose words are also true of the hardware, which makes the contamination
+intuitive. But the effect appears with an ordinary colour+shape prompt too, and it is severe: on
+`libero_object_swap/pick_up_the_chocolate_pudding_and_place_it_in_the_basket` the held box's `brown
+box` top score collapses from **0.578 to 0.134** because the fingers join the mask, and the post-lift
+re-localization returned `held=False` on **15/15** development seeds. Gating a grasp on it would have
+aborted every episode. It is also expensive: that check burned **52 of the program's 160 API calls**
+(trace steps 60–111), and the task's episode horizon is ~160 calls, so the retry path would have died
+with `ValueError: executing action in terminated episode`. Removing it, and reading the **measured
+gripper gap** instead (0.0459–0.0461 m holding vs ~0.001–0.005 m empty; see [grasp.md](grasp.md)),
+took the program from 160 to 62 calls with 15/15 still at reward 1.000. **Rule: never ask SAM3 about an
+object that is inside the gripper — verify with the gap, and if a carried pose is genuinely needed,
+take it from the pre-pinch observation.** Source: same `fix_code.py` — `attempt`; 2026-09-14.
+
+**When a held-object pose *is* needed, gate it on physical sanity — not on score.** Centring the
+carried object over a target genuinely needs a live measurement, and the segmenter may answer with a
+**phantom mask at the object's previous resting place** — plausible shape, mediocre but not obviously
+wrong score. On
+`libero_spatial_swap/pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate`
+the phantom measured `score = 0.85–0.86` for a mask **4 cm off in z** from where the bowl was actually
+being held, so no score threshold separates it.
+
+Test the mask against the **grip geometry** instead:
+
+```python
+def is_trustworthy(cd, expect_z=None):
+    # cd has keys "z_lo", "z_hi", "score" from the screened candidate.
+    if not (0.004 <= cd["z_lo"] <= 0.42
+            and 0.025 <= (cd["z_hi"] - cd["z_lo"]) <= 0.090):
+        return False
+    if expect_z is not None:
+        # The object is in the fingers: its underside must be where the grip
+        # geometry puts it (tcp_z - bottom_gap).
+        return abs(cd["z_lo"] - expect_z) <= 0.035
+    return cd["score"] >= 0.30
+```
+
+Called as `bowl_near(place_xy, max_d=0.20, trusted=True,
+expect_z=float(tcp()[2]) - grip["bottom_gap"])`.
+
+**The asymmetry is the load-bearing part: apply the depth check *only* while the object is held, and
+leave the score-only path as the default for free-space measurements.** A legitimate in-drawer or
+pre-grasp measurement can fall outside the expected-depth band — the band is derived from the grip, so
+free space has no such expectation. Applying the gate to the free-space measurement *regressed* seed 52
+(offset `[0.039,0.006] → [-0.008,0.024]`, carry to x = 0.728 wedged the descent). Applied where it
+belongs, it rejected the phantom masks on seeds 51 and 56 (`c=(0.680,-0.028) z_lo=0.009 score=0.86
+REJECT`, `c=(0.679,-0.028) z_lo=0.005 score=0.08 REJECT`), converting two silent 4 cm throws into
+honest misses while leaving the 12 passing seeds unchanged. Source:
+`outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate/fix_code.py`
+— `is_trustworthy` lines 109–128, called from `bowl_near` line 137 and the centring loop lines
+291–292; 2026-09-15.
+
+**Generalization — the *carried object* corrupts the container's mask too, so measure the container
+first.** The rule above is stated for the held object. It applies just as hard to the **placement
+target**, because the arm and the object it is carrying occlude whatever you are about to put it into.
+Measure the container **once, at the start, with the arm at home**, and pass that xy into the release:
+
+```python
+basket_xy, _ = find_basket()      # arm at home, view clear   -> (0.664, 0.265)
+can = pick_target(find_cans())
+grasp(can, quat)                  # only now does the arm occlude the basket
+place(basket_xy, quat)            # reuse the pre-grasp xy; never re-segment inside
+```
+
+The magnitude is not marginal: on
+`libero_object_swap/pick_up_the_alphabet_soup_and_place_it_in_the_basket` re-running
+`segment_sam3_text_prompt(rgb, "basket")` while carrying moved the basket mask centroid from
+`(0.664, 0.265)` to `(0.751, 0.258)` — an **8.7 cm** error in x, most of the container's half-width and
+larger than the goal predicate's ±9 cm site-local y tolerance. The seed-51 release column missed the
+basket entirely and scored 0.000; reusing the pre-grasp measurement put all 15 seeds within 2.2 cm and
+scored 1.000. Source:
+`outputs/libero_fix_loop/libero_object_swap/pick_up_the_alphabet_soup_and_place_it_in_the_basket/fix_code.py`
+— `find_basket_clear`, `run`, `place`; 2026-09-14.
+
+**Generalization — re-localize everything *movable* at the top of every attempt.** The
+"measure the container once" rule above is about a **static** target and does not extend to objects
+the robot itself can displace. Inside a retry loop, a partially successful attempt moves the object,
+so candidates captured before that attempt aim at where the object *used to be*:
+
+```python
+for n in range(MAX_ITERS):
+    # Re-observe and re-localize on EVERY attempt: after a failed release the object has
+    # moved (or tipped), and frozen candidates would send the next pinch to its OLD pose.
+    rgb, d, K, E = observe()
+    cs = bowl_candidates(rgb, d, K, E)
+    ...
+    goal, _ = pick_goal_bowl(bowls, plate, ramekin)   # fresh each iteration
+```
+
+The two rules reconcile cleanly: the **container** is measured once (it does not move, and measuring
+it early also avoids the occlusion problem above), while every **movable** object — the target, its
+look-alikes, any reference object the relation uses — is re-measured each iteration. That keeps a
+spatial relation like "between the plate and the ramekin" stable while letting the target's own pose
+track reality.
+
+**Why it works + evidence**: on
+`libero_spatial_swap/pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate`
+the initial program measured the bowls once and then re-ran its goal-bowl choice against those frozen
+objects. Seed 57 printed a **byte-identical** bowl position `(0.580, 0.217)` on all five attempts
+even though the bowl had been carried to `(0.688, 0.037)` — so attempts 1–4 all pinched empty space
+and the run burned 4 of its 5 attempts. Those `air grasp` results were an artefact of the stale
+candidates, **not** evidence about those pinches. After the fix, seed 58 shows the recovery the
+refresh enables: attempt 0 released at `miss=0.0003` but the bowl scattered, and attempt 1
+re-localized it at `(0.611, 0.138)` and placed it at 0.011 m. Source:
+`outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate/fix_code.py`
+— `run`; 2026-09-15.
+
+**The diagnostic signature of a stale-pose retry: an *identical* air gap on every attempt.** This is
+worth recognising on sight, because it is easy to misread as "the grasp parameters are wrong" and tune
+blindly. Confirmed independently on
+`libero_spatial_swap/pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate`: **every** v1
+fallback pinch logged `air (gap=0.0012)` no matter how it was parameterised, while a real hold on that
+bowl reads `gap = 0.0074–0.0083`. A gap pinned to the closed-on-air value (≈0.001) across attempts that
+*differ in their parameters* cannot be telling you about the parameters — the fingers are not arriving
+where the object is. Re-localise and match by proximity to the remembered pose before each attempt;
+after the fix every retry held. The diagnostic generalises: **when a tuning change produces no change
+in the measured signal, the input to that signal is stale.** Source:
+`outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate/fix_code.py`
+— `pick_target`, `near_bowl`, and the retry loop in `run`; 2026-09-15.
+
+---
+
+## Track a Moved Object by Position Continuity, Not by Class Prompt
+
+**Trigger**: re-localizing an object *after* you have moved it. Once it comes to rest beside the
+goal object its mask merges with the goal's and it drops out of the class prompt's top-k — so a
+candidate-list lookup hands back an untouched look-alike twin, and a search window anchored at the
+object's **original** position finds nothing at all. Both failure modes are silent: one returns a
+confident wrong pose, the other reports the object missing from a scene it is plainly visible in.
+
+```python
+def find_tracked_bowl(rgb, d, K, E, anchor_xy):
+    """Re-find the object being worked on by *position continuity*: widen a window around the
+    last-seen anchor.  The class-prompt candidate list is deliberately NOT used here -- once the
+    object sits next to the goal its mask merges with the goal and drops out, so the list would
+    hand back an untouched twin instead."""
+    anchor_xy = np.asarray(anchor_xy, dtype=float).reshape(-1)[:2]
+    for radius in (0.10, 0.20, 0.35):                # widen only as far as needed
+        pts = bowl_points_near(rgb, d, K, E, anchor_xy, radius=radius)
+        if pts is None or len(pts) < 40:
+            continue
+        bx, by, b_lo, b_hi, pts = bowl_geometry(pts)
+        if math.hypot(bx - anchor_xy[0], by - anchor_xy[1]) > radius:
+            continue                                 # a hit outside the window is a different object
+        return {"c": np.array([bx, by, 0.5 * (b_lo + b_hi)]), "pts": pts}
+    return None
+```
+
+The second half of the pattern is the anchor update: after every release, set the anchor to where
+the object **actually landed**, not to where it was released. That measured landing can also be fed
+back as a closed-loop correction — take the residual out of the next release:
+
+```python
+lpts = bowl_points_near(rgb3, d3, K3, E3, release_xy, radius=0.20)   # measure, in a window around
+if lpts is not None and len(lpts) >= 40:                              # the release point -- never
+    lx, ly, _, _, _ = bowl_geometry(lpts)                             # via the class-prompt list
+    if np.hypot(lx - release_xy[0], ly - release_xy[1]) < 0.20:
+        landed = np.array([lx, ly])
+if landed is not None:
+    shift = shift - (np.asarray(landed) - np.asarray(place)[:2])
+    anchor = np.asarray(landed)                  # move the tracking anchor forward
+```
+
+**Why it works + evidence**: on
+`libero_spatial_swap/pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate` the carried
+bowl is set down 0.28 m from where it started; a fixed window around the original spot printed
+`BOWL LOST` on **every** post-move localization and the run aborted, and a class-prompt re-lookup
+returned the untouched twin at `(0.493, 0.307)`, producing a bogus landing error of `(-0.229,
++0.288)` whose correction derailed the rest of the episode. With position continuity the anchor
+follows the bowl and all 15 development seeds scored 1.0 (the closed-loop term was never needed to
+rescue a run on those seeds, but it keeps the release honest). Source:
+`outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate/fix_code.py`
+— `find_tracked_bowl`, `bowl_points_near`, `main`; 2026-09-15. Companion rule while the object is
+*still held*: "Never Re-Localize an Object While It Is in the Gripper" above.
+
+### The relation is invalidated by your OWN action — lock identity to the last measured position
+
+The two subsections under "Disambiguation" above use the language relation to *select* among
+look-alikes. That is correct for the **first** pick and wrong for every pick after it. When the task
+names one of several identical objects by a spatial relation — "the bowl next to the cookie box" — a
+failed attempt *carries the target away*, and the relation then points at a **different object**: the
+look-alike it left behind is now the nearest one.
+
+The symptom is distinctive and easy to misread as a placement bug: **the retry grasps the look-alike,
+places it perfectly, and still scores 0.** Seed 55's log after attempt 0 reads
+`container[0] xy=(0.698,0.196) dist_to_box=0.171` — the look-alike, while the real target sat on the
+plate at `(0.470,-0.144) dist_to_box=0.329`. Seed 51 did exactly this: attempt 1 grasped the other
+bowl, placed it well, reward 0.
+
+Resolve identity by **proximity to the last measured position**, and demote the relation to a seed and
+a fallback:
+
+```python
+def select_target(rgb, d, K, E, anchor=None):
+    cands = find_candidates(rgb, d, K, E)
+    if not cands:
+        return None, None
+    if anchor is not None:                      # identity lock wins over the relation
+        cands.sort(key=lambda c: math.hypot(c[1][0] - anchor[0], c[1][1] - anchor[1]))
+        d0 = math.hypot(cands[0][1][0] - anchor[0], cands[0][1][1] - anchor[1])
+        if d0 < 0.30:                           # ~3x the inter-instance spacing
+            return cands[0], None
+        # else: anchor lost -> fall back to the language relation
+    anchor_obj = find_anchor_object(rgb, d, K, E)   # the box, the plate, ...
+    cands.sort(key=lambda c: math.hypot(c[1][0] - anchor_obj[0], c[1][1] - anchor_obj[1]))
+    return cands[0], anchor_obj
+```
+
+The lock is only as good as its update, and the update belongs to the **attempt function**: it must
+*return* the measured landing position (or the old position if the object never moved) so the caller
+threads it into the next call. A one-shot anchor set before the loop does not survive the first carry.
+
+Pick the tolerance from the scene's inter-instance spacing — `0.30 m` here is roughly 3× the gap
+between the two bowls, which is slack enough to absorb a landing error yet far too tight to jump to a
+twin. **Evidence**: with the lock all 15 development seeds succeeded, each on its **first** attempt.
+Source:
+`outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate/fix_code.py`
+— `select_target` lines 595–625, anchor seeded at 657 and returned by `attempt`; 2026-09-15.
+
+**Guard the lock with the class pool — a raw proximity lock can capture a DIFFERENT object.** The
+snippet above sorts the *whole* candidate list by anchor distance, which is only safe while the target
+is still the nearest thing to the anchor. Once the target has been carried away, the nearest candidate
+is whatever it was resting on. On
+`libero_spatial_task/pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate` seed 51 the
+lock matched the **ramekin** at `(0.466, 0.201)` — `0.112 m` from the anchor, well inside the `0.30 m`
+tolerance — and the loop picked it up. Re-derive the class pool first and use the anchor only to break
+ties *inside* it:
+
+```python
+ramekin, derived = pick_ramekin_and_target(cands, akitas)   # class first, then the relation
+near = [c for c in akitas if float(np.linalg.norm(c["c"] - anchor)) < 0.35]
+if near:
+    return ramekin, min(near, key=lambda c: float(np.linalg.norm(c["c"] - anchor)))
+return ramekin, derived        # no pool member within tolerance -> anchor is stale, re-derive
+```
+
+**Why**: the lock's job is to keep you on the *same instance*, never to promote a different class into
+the role of target. A different-class object is not a near-miss of the identity lock; it is a wrong
+object. **Evidence**: with the pool-confined lock the wrong-object carry is removed and the shipped
+revision scores **15/15** on dev seeds 51–65. Source:
+`outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate/fix_code.py`
+— `choose_target` lines 295–306; 2026-09-16.
+
+---
+
+## Screen SAM3 Candidates by Geometry, Not by Score
+
+**Trigger**: text-prompted segmentation of an object that shares colour or texture with a fixture in
+the scene (a metal bowl inside a dark drawer, a plate on a table). `max(masks, key=score)` returns
+the fixture.
+
+```python
+for m in sorted(masks, key=lambda mm: -mm["score"])[:12]:
+    pts = mask_to_world_points(np.asarray(m["mask"]).astype(np.uint8), depth, K, E)
+    if pts is None or len(pts) < 40:
+        continue
+    c = np.median(pts, axis=0)
+    keep = pts[np.linalg.norm(pts[:, :2] - c[:2], axis=1) < 0.075]   # trim to a cylinder
+    z_hi = np.percentile(keep[:, 2], [2, 98])
+    if z_hi[1] > 0.13 or (z_hi[1] - z_hi[0]) < 0.030:   # not low enough / not tall enough
+        continue                                         # reject: it is not the object
+    break
+```
+
+Two geometric filters do the work: a **cylinder trim** around the mask's own median (drops sparse
+stragglers that stretch the cloud), and a **height band** that the real object must sit inside. Tune
+`0.13` / `0.030` per scene from the object's known height — they are the whole discriminator.
+
+**Why it works + evidence**: on `libero_goal_swap/open_the_top_drawer_and_put_the_bowl_inside` the
+top-scoring mask reported `rim 0.129` where the true bowl rim is `0.039`, and grasps aimed from it
+closed on air (`gap = 0.0010`). After screening, the same seed grasped on the first depth
+(`gap = 0.0066`, lift `0.0059`). Source:
+`outputs/libero_fix_loop/libero_goal_swap/open_the_top_drawer_and_put_the_bowl_inside/fix_code.py` —
+`bowl_cloud`; 2026-09-14.
+
+**A *base-height* gate is what rejects partial masks — a size screen cannot.** A class prompt
+(`can`, `box`, `bottle`) also returns **fragments of larger objects**: a carton's top face, a bottle's
+upper half. Their extents are centimetres-small, so they sit *inside* the target's size band and pass
+any width/depth/height screen built from object dimensions. What distinguishes them is not their size
+but **where they start**: a fragment of a taller object begins well above the table, so its cloud's low
+percentile is not the table surface.
+
+```python
+lo = np.percentile(pts, 2, axis=0); hi = np.percentile(pts, 98, axis=0)
+width, depth, height = hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]
+if not (0.045 <= width <= 0.090 and 0.045 <= depth <= 0.090):
+    continue
+if not (0.045 <= height <= 0.110):                 # squat: a can, not a carton or a bottle
+    continue
+if min(width, depth) / max(width, depth) < 0.70:   # roughly circular footprint
+    continue
+if height > 1.9 * max(width, depth):               # barrel aspect
+    continue
+if float(lo[2]) > 0.035:                           # resting on the table, not a fragment
+    continue
+```
+
+The three added ratios matter as much as the base gate, and each is measured from the observation
+alone — no world-frame calibration. **Why it works + evidence**: on
+`libero_object_swap/pick_up_the_tomato_sauce_and_place_it_in_the_basket` the naive screen from the
+sibling task left **the orange-juice carton as the largest candidate** (n=2883) together with its own
+top-face mask (base z 0.087), a milk-carton top fragment (base z 0.091), a bottle with a 0.57 footprint
+ratio and two neutral grey fragments — 5–8 candidates for one real object. With the three added gates
+the candidate set is **exactly 1 on all 15 development seeds**. This is load-bearing at *reward* level,
+not just cleanliness: substituting the naive screen back in selected the carton, grasped it and placed
+it — **reward 0.000** on seed 51. Source:
+`outputs/libero_fix_loop/libero_object_swap/pick_up_the_tomato_sauce_and_place_it_in_the_basket/fix_code.py`
+— `find_cans`; 2026-09-14.
+
+#### Pick the gates by *physical feasibility*, and never fall back to ranking by score or point count
+
+The sections above screen candidates to *reject* decoys. This is the case where screening must also
+choose the winner — and the score ranking is actively wrong. On
+`libero_spatial_swap/pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate` the
+object the language names, the cookie box, scored **0.05–0.12** — below the plate (0.70) and both
+bowls (0.94) — so `max(masks, key=score)` could never return it.
+
+The fix is not a better score threshold but a **conjunction of hard gates whose margins sit between
+the competing objects**, with **first-pass-wins** as the selection rule:
+
+```python
+# find the RED box: the FIRST mask that passes wins, with hard colour MARGINS, not score
+for prompt in BOX_PROMPTS:
+    for m in sorted(segment_sam3_text_prompt(rgb, prompt), key=lambda x: -x["score"])[:4]:
+        pts = mask_to_world_points(m["mask"].astype(np.uint8), d, K, E)
+        if pts is None or not (100 <= len(pts) <= 20000):
+            continue
+        zlo, zhi = np.percentile(pts[:, 2], [2, 98])
+        if zhi - zlo > 0.035 or zhi > 0.10:            # flat, on the table
+            continue
+        sx, sy = extent_xy(pts)
+        if max(sx, sy) > 0.11 or min(sx, sy) < 0.025:  # box 0.078 vs plate 0.135
+            continue
+        col = median_rgb(rgb, m["mask"])
+        if col[0] < 60 or (col[0] - col[2]) < 35 or (col[0] - col[1]) < 18:
+            continue                                   # box R-B 53 vs plate R-B 20
+        return (float(np.median(pts[:, 0])), float(np.median(pts[:, 1])))
+```
+
+Three rules generalise:
+
+1. **Choose margins that sit *between* the two objects, not at one of them.** The plate is a *white*
+   disc with thin red rings, so a permissive `R-B >= 20` red screen admits it alongside the box
+   (`R-B 53`). The gate must be `R-B >= 35` and `R-G >= 18` — numbers picked so the plate fails twice
+   over. A threshold that merely *admits* the target is not a discriminator.
+2. **Add a footprint window, not just a footprint cap.** `0.078` (box) vs `0.135` m (plate) separates
+   them, but only if the screen also has a *lower* bound; a cap alone still admits fragments.
+3. **Ranking by point count is the same mistake as ranking by score.** The plate carries more points
+   than the box, so any "most points wins" tiebreak returns the plate — and here it returned
+   literally the wrong *object*: a plate finder written as "largest cloud" returned a **bowl**
+   (4470 points vs the plate's 2421). It was replaced by flatness (`z-extent` 0.024 plate vs 0.044
+   bowl) plus a warm colour cast, again first-pass-wins.
+
+**Evidence**: seeds 61/62/65 localised the "box" at the plate's own position — `(0.399,-0.144)`,
+`(0.396,-0.124)`, `(0.386,-0.128)`, extent `(0.13,0.12)`, rgb `[128,110,108]` — before the margin
+change, and at the true box `(0.73–0.75, 0.01–0.04)`, extent `(0.078,0.058)`, rgb `[95,67,42]` after.
+Source:
+`outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate/fix_code.py`
+— `find_box` lines 213–255, `find_plate` 258–289; 2026-09-15.
+
+---
+
+## Take an Object's Centre From Its Visible Top Face, Not From the Whole Mask
+
+**Trigger**: a small boxy object whose mask covers a *front* face as well as the top. The perspective
+bias drags the whole-cloud median toward the camera, and on a 5 cm-wide object that error is most of the
+grasp tolerance.
+
+```python
+zhi = float(np.percentile(pts[:, 2], 98))
+top = pts[pts[:, 2] > zhi - 0.012]          # the flat upper face only
+c, tsp = span_of(top)                       # midpoint of the top face's percentile box
+
+def span_of(pts, lo=3.0, hi=97.0):
+    """Midpoint and size of the percentile box of a cloud's xy projection."""
+    p = np.percentile(pts[:, :2], [lo, hi], axis=0)
+    return 0.5 * (p[0] + p[1]), (p[1] - p[0])
+```
+
+Use the **midpoint of a percentile box**, not the mean: a lumpy or ragged mask edge cannot drag a
+percentile the way it drags a mean. Return the size too — it is the object's footprint and doubles as the
+gate for `size`-based screens.
+
+**Why it works + evidence**: on `libero_object_swap/pick_up_the_chocolate_pudding_and_place_it_in_the_basket`
+seed 51 the whole-cloud median gave `cx = 0.7176` while the top face's percentile-box midpoint gave
+`0.7025` — a **1.5 cm** difference, and the top-face centre is what all 15 development seeds grasped from.
+Source: `outputs/libero_fix_loop/libero_object_swap/pick_up_the_chocolate_pudding_and_place_it_in_the_basket/fix_code.py`
+— `span_of`, `find_pudding`; 2026-09-14.
+
+**Third confirmation, and a free correctness check on the yaw.** On
+`libero_object_swap/pick_up_the_cream_cheese_and_place_it_in_the_basket` the whole-cloud median gave
+`(0.492, −0.235)` against a top-face midpoint of `(0.478, −0.236)` — 1.4 cm apart. The top-face cloud
+must also be what feeds the **short-axis yaw** derivation: the visible front face adds in-plane spread
+and rotates the eigenvector, so a yaw taken from the whole mask is wrong. The resulting yaw measured
+177.6–179.7° on all 15 seeds, and the pinch gap that followed (0.0420–0.0422 m) matched the slab's
+4.0 cm short side — so the measured grip gap doubles as an independent check that the yaw was right.
+Source:
+`outputs/libero_fix_loop/libero_object_swap/pick_up_the_cream_cheese_and_place_it_in_the_basket/fix_code.py`
+— `span_of`, `slab_yaw`, `find_slab`; 2026-09-14.
+
+---
+
+## Take a Container's Mouth Centre From Its Top Rim, Not From the Cloud Median
+
+**Trigger**: localizing the opening of an open-topped container (basket, bin, crate) by SAM3 where the
+*near* wall is far more visible than the far wall. Point density is then biased toward the camera, so the
+cloud median sits outside the mouth.
+
+```python
+zhi = float(np.percentile(pts[:, 2], 98))
+rim = pts[pts[:, 2] > zhi - 0.030]              # the container's OWN top rim ring
+(cx, cy), _ = span_of(rim)                      # midpoint of the rim's percentile box
+```
+
+The rim ring is the only part of a container whose geometry is both visible and *about the opening*, so
+select it by height first and take its percentile-box midpoint. Pair with the release rule in
+[transport.md](transport.md) — "Release Below the Rim of a Tall Container Whose Floor Cannot Be Measured"
+when the floor is unmeasurable, or the kinematic-floor release when the floor is unreachable.
+
+**Why it works + evidence**: on `libero_object_swap/pick_up_the_chocolate_pudding_and_place_it_in_the_basket`
+seed 51 the whole-cloud median xy was `(0.664, 0.264)` while the rim midpoint is `(0.599, 0.263)` — **6.5 cm**
+apart. An independent top-down raster of the basket cloud showed the interior opening spanning `x ∈ [0.54,
+0.65], y ∈ [0.21, 0.31]`, whose centre `(0.595, 0.26)` matches the rim midpoint and *not* the median. All
+15 development seeds released at the rim midpoint and scored 1.0. Source: same `fix_code.py` —
+`find_basket`; 2026-09-14.
+
+**Variant — a *closed-walled* open container has no rim ring to select; use the extent midpoint.**
+For a solid bowl or cup the height-selected band is one annulus whose far side is hidden, so it
+carries the same near-wall bias as the whole cloud. There the robust centre is the
+**2/98-percentile extent midpoint** of the whole cloud, after a median trim for gross outliers:
+
+```python
+def bowl_geometry(pts):
+    """Robust centre: 2/98-percentile *extent midpoint*, not the median."""
+    c = np.median(pts, axis=0)                      # trim gross outliers only
+    m = (np.abs(pts[:, 0] - c[0]) < 0.075) & (np.abs(pts[:, 1] - c[1]) < 0.075)
+    if m.sum() >= 40:
+        pts = pts[m]
+    xlo, xhi = np.percentile(pts[:, 0], [2, 98])
+    ylo, yhi = np.percentile(pts[:, 1], [2, 98])
+    return (float(0.5 * (xlo + xhi)), float(0.5 * (ylo + yhi)),
+            float(np.percentile(pts[:, 2], 2)), float(np.percentile(pts[:, 2], 98)), pts)
+```
+
+This matters most when the centre feeds a **radial wall pinch** (see [grasp.md](grasp.md)): the
+pinch is commanded at `centre + Rw`, so a centre that is 2 cm toward the camera puts the finger
+*inside* the mouth, where closing shoves the object sideways instead of gripping it. On
+`libero_spatial_swap/pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate` seed 51 the
+whole-cloud median read x=0.640 against an extent midpoint of 0.659 and a true centre of 0.663 — a
+systematic ~2 cm near-wall bias from the bowl's far inner wall. The median-based pinch failed; the
+extent-midpoint pinch held, and all 15 development seeds then rested within 0.007 m of the commanded
+point with a symmetric `z=[0.003, 0.048]` (a clean rest, not a tilt). Source:
+`outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate/fix_code.py`
+— `bowl_geometry`; 2026-09-15.
+
+#### Prefer the *oriented bounding box* centre over any cloud statistic — and re-derive it *after* the clip
+
+Every fix to the median above replaces one cloud statistic with a better cloud statistic. There is a
+cheaper and more robust option available in the API: the centre of the object's **oriented bounding box**.
+
+```python
+obb      = get_oriented_bounding_box_from_3d_points(pts)
+_, _, _, _, _, _ = obb                              # geometry fields as returned by the library
+centre   = obb[:3, 3] if obb.shape == (4, 4) else np.mean(obb, axis=0)
+obb_center_xy = (float(centre[0]), float(centre[1]))
+```
+
+An OBB fits the *extent* of the visible surface along its own axes, so the near-wall density bias that
+moves a median cannot move it — the OBB of a half-visible bowl is still centred near the bowl's axis,
+whereas the median is pulled toward the dense near wall by construction. Measured on
+`libero_spatial_swap/pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate` seed 51:
+whole-cloud median `x = 0.721`, OBB centre `x = 0.744` — **23 mm apart** on a 5 cm-wide target, and the
+OBB centre is the one the pinch held from. Source:
+`outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate/fix_code.py`
+— `obb_center_xy`, `bowl_points`; 2026-09-15.
+
+**Order matters: clip first, then fit the OBB.** Fitting the OBB to the raw mask reads a *composite*
+box — for a bowl standing on a cookie box the mask bleeds through the support (see the section above,
+"A *stacked* object's mask bleeds through its support"), so the raw OBB centre sits between the bowl and
+the box. Call `get_oriented_bounding_box_from_3d_points` on the cloud *after* the support clip, never
+before; the two rules compose in that order and only in that order.
+
+---
+
+## Fit a Circular Object's Rim — the Radius Is a Free Self-Check, and It Reads the Clearance
+
+**Trigger**: you need a *round* object's xy to better than ~1 cm (bowl, plate, ramekin, cup, can), your
+estimate is a point-mean or median of its SAM3 mask, and the tolerance you are fighting is the same
+order as the error you are chasing. Also use it to answer "does A fit inside/on B?" — a question no
+single-object measurement can answer.
+
+A point-mean of a mask is weighted by pixel density, so for a bowl seen at ~45° the visible near wall
+dominates and the centre is pulled toward it. That bias is **1–2.5 cm and changes sign with the camera
+pose**, which is indistinguishable from scatter if you only ever compare *means* — which is exactly how
+an aim bias survives a whole sweep unnoticed. Fitting the **top band** of the cloud to a circle removes
+it, because the rim is a geometric locus, not a density:
+
+```python
+def fit_circle(x, y):                      # algebraic (Kasa) least-squares circle
+    A = np.stack([x, y, np.ones_like(x)], axis=1)
+    sol, *_ = np.linalg.lstsq(A, x * x + y * y, rcond=None)
+    cx, cy = sol[0] / 2, sol[1] / 2
+    return np.array([cx, cy]), float(np.sqrt(sol[2] + cx * cx + cy * cy))
+
+# rim = top band only; RANSAC-lite over 3-point fits keeps an occluded or partial rim from
+# dragging the circle.  0.02 < r < 0.16 is the sanity band for tabletop objects.
+```
+
+**The fitted radius is the self-check.** Because the rim of a given object is a fixed size, a plausible
+radius proves the fit locked the real rim rather than a fragment — measured **plate r = 0.065–0.067 m**
+and **bowl r = 0.054 m**, identical across seeds 57/60/64. Print it; a fit that returns a wandering
+radius is not a fit. Two objects' radii difference *is* the placement margin (0.065 − 0.054 = **1.1 cm**
+of slack before the bowl's rim rides the plate's), which is the number that explains why a 2 cm landing
+offset is fatal on that task and a 5 mm one is not.
+
+**Do not replace the OBB with it.** On the same frames the point-mean and the circle centre differ by
+**1.2–2.4 cm**, but `get_oriented_bounding_box_from_3d_points` already agrees with the circle centre to
+~2 mm (seed 57 `(0.711,0.210)` vs `(0.710,0.212)`; 60 `(0.720,0.189)` vs `(0.719,0.191)`; 64
+`(0.723,0.195)` vs `(0.723,0.197)`) — the OBB is the estimator, the circle fit is the *audit*. Use the
+fit when you need an independent check of the centre or a clearance; keep taking the centre from the OBB.
+
+**Executed source**: `scripts/libero/rim_circle_fit.py` (offline probe over saved keyframes; SAM3 over
+HTTP + numpy, no simulator API) — `fit_circle` lines 30–36, `rim_cloud` 38–63. Copied verbatim
+(md5 `fe4b7bc4883aa01eac5830120387c4e5`) from the task's debug root, where it produced the numbers
+above; 2026-09-16.
+
+---
+
+## Correct a Cylinder's Axis for the Single-View Half-Cylinder Bias
+
+**Trigger**: estimating the grasp axis of a bottle or other round-bodied object from **one** camera's
+depth cloud. What the camera sees of a cylinder is a *half* cylinder, so the visible-surface centroid
+sits roughly `0.64 r` toward the camera from the true axis. On a 2–4 cm body that is a large fraction of
+the grasp tolerance, and a pinch aimed at the raw centroid closes on air or skates off the side.
+
+```python
+slab = pts[np.abs(pts[:, 2] - gz) < 0.020]        # thin z slab at the intended grasp height
+u, v, w = E[:3, 0], E[:3, 1], E[:3, 2]            # camera axes expressed in world
+r = 0.5 * max(float((slab @ u).max() - (slab @ u).min()),
+              float((slab @ v).max() - (slab @ v).min()))
+r = float(np.clip(r, 0.012, 0.045))
+axis = slab.mean(axis=0) - 0.64 * r * (-w)        # push back, away from the camera
+```
+
+Take `r` from the **lateral silhouette extents**: the width of the slab perpendicular to the view
+direction is unbiased, whereas any measure taken along the view ray is not. Then displace the centroid by
+`0.64 r` along `-w` — away from the camera, since `w` points from the camera into the scene.
+
+**Why it works + evidence**: on `libero_object_swap/pick_up_the_bbq_sauce_and_place_it_in_the_basket`
+grasping at the uncorrected centroid missed; at the bias-corrected axis the gripper closed at TCP
+z = 0.074 with a measured gap of 0.0361–0.0365 m on **all 15 development seeds**. Source:
+`outputs/libero_fix_loop/libero_object_swap/pick_up_the_bbq_sauce_and_place_it_in_the_basket/fix_code.py`
+— `bottle_axis`; 2026-09-14.
+
+Companion to "Take an Object's Centre From Its Visible Top Face, Not From the Whole Mask" above: that one
+removes the bias **vertically** (top face rather than whole mask), this one removes it **laterally** (view
+ray rather than silhouette). Both are the same rule — the visible surface is not the object.
+
+---
+
+## Lift the Height Screen When Verifying an Object That Moved to a New Height
+
+**Trigger**: verifying a placement where the object's final height differs from its initial height —
+table → drawer, table → shelf, table → raised platform. A localization screen tuned to the *pick*
+height rejects the object at its new height.
+
+```python
+pts = bowl_cloud(get_observation(), z_top=0.32)    # NOT the table-top screen (z_top=0.13)
+c = pts.mean(axis=0)
+return bool(c[1] < drawer_face - 0.02 and c[2] > 0.08)
+```
+
+**Why it works + evidence**: on `libero_goal_swap/open_the_top_drawer_and_put_the_bowl_inside` the
+`z_top=0.13` screen rejected the bowl sitting correctly in the drawer (its cloud is at z 0.20–0.25)
+and instead accepted a spurious mask at `[0.258, 0.205, 0.021]` — costing a second attempt and then
+the episode horizon. The lifted screen accepts the true placement. Source: same `fix_code.py` —
+`bowl_inside_drawer`; 2026-09-14.
+
+**Related — the segmented cloud's height is a clean post-placement success detector.** For a
+container whose rim sits below the surrounding fixture, the 98th-percentile z of the object's cloud
+separated outcomes cleanly: ≤ 0.254 m on all successes vs ≥ 0.267 m on all failures (13/13 dev
+replays). NOTE: this test was validated **offline** and is not in the shipped program, and using it
+as a *retry* trigger is dangerous on a placement task — a successful placement is exactly the case
+with episode budget left over, so a false negative spends it re-grasping an object that is already
+in place. Use it as a readout, not as a control gate.
+
+---
+
+## Perception Costs No Sim Steps — Re-Localise Freely Inside a Control Loop
+
+**Trigger**: a closed-loop push, drag, or approach whose contact collapses over a long move, under a
+tight episode horizon. The instinct is to avoid re-observing because "perception is expensive" — in
+this harness it is *free*.
+
+```python
+def object_now():                      # costs 0 sim steps
+    rgb, d, K, E = observe()
+    pts, _, _ = find(rgb, d, K, E, PROMPTS)
+    c = np.median(pts, axis=0)
+    r = float(np.percentile(np.linalg.norm(pts[:, :2] - c[:2], axis=1), 98))
+    return c, r                        # 98th percentile, NOT the 90th
+
+for k in range(12):
+    c, r = object_now()
+    if c[1] + r >= TARGET_YMIN + 0.010:
+        break
+    slide(...)
+```
+
+`get_observation`, `segment_sam3_text_prompt`, `segment_sam3_point_prompt` and
+`mask_to_world_points` do **not** advance the sim clock — only `move_to_joints` / `goto_pose` /
+`close_gripper` do. So a 12-iteration re-localisation loop costs 12 arm commands, not 12 episodes, and
+closing the loop is almost always cheaper than planning open-loop and being wrong. This pairs with
+the episode-horizon budget in [manipulation.md](manipulation.md).
+
+**Why it works + evidence**: on `libero_goal_swap/push_the_plate_to_the_front_of_the_stove` seed 51 a
+12-iteration closed-loop drag kept a valid object estimate for all 12 iterations (re-measured at
+0.450–0.472, −0.072 … −0.067) while the open-loop version ran out of horizon. Note the footing: that
+task reached **0/15 development seeds** — the loop held its estimate, the task still did not solve.
+Source: `outputs/libero_fix_loop/libero_goal_swap/push_the_plate_to_the_front_of_the_stove/fix_code.py`
+— `plate_now`, lines 98–114; 2026-09-14.
 
 ---
 

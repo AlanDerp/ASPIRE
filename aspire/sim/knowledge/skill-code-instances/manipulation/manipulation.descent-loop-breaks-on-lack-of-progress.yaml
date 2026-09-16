@@ -1,0 +1,50 @@
+{
+  "api_calls": [
+    "hop_to",
+    "range",
+    "achieved_tcp",
+    "np.array",
+    "move_tcp",
+    "achieved_tcp",
+    "achieved_tcp",
+    "print",
+    "max"
+  ],
+  "ast_fingerprint": "ceff61b5ef6757c0355a0925ed3b62861f9c839ced6716c7eaa11fe71072f4f1",
+  "checkpoint_id": null,
+  "code": "def lower_onto(px, py, z_lo, step=0.025, max_iter=18):\n    \"\"\"Hop to (px, py), then lower toward z_lo, stopping at the floor.\n\n    The lateral move is laddered so the TCP really arrives over the target.\n    The vertical loop stops on *lack of progress*, never on a fixed\n    command-vs-measured gap (see the module docstring).\n    \"\"\"\n    hop_to(px, py, tag=\" (place)\")\n    for _ in range(max_iter):\n        cur = achieved_tcp()\n        if cur[2] <= z_lo + 0.004:\n            break\n        tgt = np.array([cur[0], cur[1], max(z_lo, cur[2] - step)])\n        move_tcp(tgt, TOPDOWN, tol=0.020, retries=0)\n        now = achieved_tcp()\n        if now[2] >= cur[2] - 0.004:     # no downward progress -> floor\n            print(f\"  place floor at cmd {tgt[2]:.3f} meas {now[2]:.3f}\",\n                  flush=True)\n            break\n    return achieved_tcp()[2]",
+  "code_hash": "10c4db79a70c820d32ca5593b70b1e3cbdab630ac1ce6f5044229cba9a748219",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Terminate a placement descent loop instead of burning the episode on a target the arm cannot reach",
+  "id": "manipulation.descent-loop-breaks-on-lack-of-progress",
+  "kind": "skill-code-instance",
+  "observed_effect": "Breaking on LACK OF PROGRESS plus an iteration cap instead of a fixed gap; before the fix the loop ran until ValueError('executing action in terminated episode') inside move_to_joints and the episode was lost, after it every development seed logs 'place floor at cmd 0.374 meas 0.385' and exits the loop immediately",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/put_the_wine_bottle_on_the_rack/fix_code.py",
+  "source_code_sha256": "ca2e22ca24fe2e22ac771d267458e21fbca4c16e66c71772433271168076dd41",
+  "task": "put_the_wine_bottle_on_the_rack",
+  "task_family": "libero_goal_swap",
+  "trigger": "A descent loop that breaks on a FIXED command-vs-measured gap; at the arm's kinematic floor the measured z stops falling, so the gap is pinned at exactly one step, the test never fires, and the loop re-issues the same command",
+  "vertical_capability": "manipulation"
+}

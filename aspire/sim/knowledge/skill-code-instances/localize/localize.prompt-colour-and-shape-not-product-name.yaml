@@ -1,0 +1,60 @@
+{
+  "api_calls": [
+    "segment_sam3_text_prompt",
+    "sorted",
+    "mask_to_world_points",
+    "float",
+    "float",
+    "span_of",
+    "span_of",
+    "float",
+    "astype",
+    "np.percentile",
+    "np.percentile",
+    "max",
+    "len",
+    "len",
+    "max",
+    "len",
+    "np.asarray",
+    "len",
+    "float"
+  ],
+  "ast_fingerprint": "552021cabf180af1cbfef0a240b5d55ecd5e2075c5e5f8a3ddbd15e045f92185",
+  "checkpoint_id": null,
+  "code": "def find_pudding(rgb, d, K, E, relax=False):\n    \"\"\"Localize the pudding: dict(center, top_z, base_z, top_pts, prompt) or None.\"\"\"\n    z_max = 0.11 if relax else 0.060              # lifted screen for a moved object\n    size_max = 0.16 if relax else 0.13\n    prompts = PUD_PROMPTS if relax else PUD_PROMPTS[:2]\n    for prompt in prompts:\n        masks = segment_sam3_text_prompt(rgb, prompt)\n        if not masks:\n            continue\n        cand = None\n        for m in sorted(masks, key=lambda mm: -float(mm[\"score\"]))[:MAX_CAND]:\n            pts = mask_to_world_points(np.asarray(m[\"mask\"]).astype(np.uint8), d, K, E)\n            if pts is None or len(pts) < 120:\n                continue\n            zlo = float(np.percentile(pts[:, 2], 2))\n            zhi = float(np.percentile(pts[:, 2], 98))\n            _, size = span_of(pts, 2.0, 98.0)\n            # on the table, flat, and small - rejects the juice carton and the basket\n            if zhi > z_max or not (0.012 < (zhi - zlo) < 0.060):\n                continue\n            if max(size) > size_max:\n                continue\n            # the top face is the flat upper part of the cloud and carries the footprint\n            top = pts[pts[:, 2] > zhi - 0.012]\n            if len(top) < 60:\n                continue\n            c, tsp = span_of(top)\n            if max(tsp) > 0.5 * size_max + 0.04 or len(top) < 0.10 * len(pts):\n                continue\n            score = float(m[\"score\"])\n            if cand is None or score > cand[\"score\"]:\n                cand = {\"score\": score, \"center\": c, \"top_z\": zhi, \"base_z\": zlo,\n                        \"pts\": pts, \"top_pts\": top, \"prompt\": prompt}\n        if cand is not None:\n            return cand\n    return None",
+  "code_hash": "883eadb88903f026995d2fede5fb376fd6a7396cc4558385fda9217ae0232742",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Ground a grocery object whose natural product-name prompt returns hundreds of masks with an unusable top score",
+  "id": "localize.prompt-colour-and-shape-not-product-name",
+  "kind": "skill-code-instance",
+  "observed_effect": "Leading the prompt list with a colour+shape descriptor puts the right mask top-1: brown box scores 0.578 on exactly the pudding mask on all 15 development seeds, against chocolate pudding 0.002, pudding 0.006, and bare box 0.426 which also fires on the orange-juice carton; the 0.578 score only becomes usable because a geometry screen (small, flat, on the table) is applied to the top 3 candidates",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_swap/pick_up_the_chocolate_pudding_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "ba3599192bfc3b5e16c4b71b5617626de6a949d4a68d1a09d20f30401ffec68a",
+  "task": "pick_up_the_chocolate_pudding_and_place_it_in_the_basket",
+  "task_family": "libero_object_swap",
+  "trigger": "The product name (chocolate pudding) returns ~200 masks with top score 0.002, so max(score) ranking is meaningless even though the correct mask is in the list",
+  "vertical_capability": "localize"
+}

@@ -1,0 +1,54 @@
+{
+  "api_calls": [
+    "find_containers",
+    "find_box",
+    "cont.sort",
+    "enumerate",
+    "cont.sort",
+    "math.hypot",
+    "print",
+    "print",
+    "print",
+    "print",
+    "math.hypot",
+    "math.hypot",
+    "math.hypot"
+  ],
+  "ast_fingerprint": "7b578fd7187e4d9e976d3519035fd4942568e4b18578b2cbc6e3b0ca329fc167",
+  "checkpoint_id": null,
+  "code": "def select_target(rgb, d, K, E, anchor=None):\n    \"\"\"Locate the bowl named by the language.\n\n    First pick: the bowl closest to the cookie box (the language's relation -\n    at seed 51 that is the bowl touching the box at 0.086 m against 0.175 m for\n    its look-alike).  Afterwards: the bowl closest to `anchor`, the position\n    where the target was last measured.  The anchor is what keeps hold of the\n    SAME bowl - once the target has been carried away from the box the relation\n    itself flips to the other bowl, so re-deriving identity from the box after\n    a failed attempt grabs the wrong one.\n    \"\"\"\n    cont = find_containers(rgb, d, K, E)\n    if not cont:\n        return None, None\n    if anchor is not None:\n        cont.sort(key=lambda c: math.hypot(c[1][0] - anchor[0], c[1][1] - anchor[1]))\n        d0 = math.hypot(cont[0][1][0] - anchor[0], cont[0][1][1] - anchor[1])\n        if d0 < 0.30:\n            print(f\"  target locked to anchor ({anchor[0]:.3f},{anchor[1]:.3f}) \"\n                  f\"-> ({cont[0][1][0]:.3f},{cont[0][1][1]:.3f}) d={d0:.3f}\", flush=True)\n            return cont[0], None\n        print(f\"  anchor lost (nearest {d0:.3f}); re-deriving from the box\", flush=True)\n    box = find_box(rgb, d, K, E)\n    if box is None:\n        print(\"  WARNING: cookie box not found; using the first container\", flush=True)\n        return cont[0], box\n    cont.sort(key=lambda c: math.hypot(c[1][0] - box[0], c[1][1] - box[1]))\n    for i, c in enumerate(cont):\n        print(f\"  container[{i}] prompt={c[2]!r} xy=({c[1][0]:.3f},{c[1][1]:.3f}) \"\n              f\"dist_to_box={math.hypot(c[1][0]-box[0], c[1][1]-box[1]):.3f}\", flush=True)\n    return cont[0], box",
+  "code_hash": "f5f71bde4e73b2f7c46f9175002534a25c43d7b1c00351199a43fae4835fbba8",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Keep targeting the same instance of several visually identical objects after a failed attempt has moved it",
+  "id": "localize.anchor-a-relational-targets-identity-to-its-last-position",
+  "kind": "skill-code-instance",
+  "observed_effect": "Identity is locked to the object's LAST MEASURED POSITION (accept the nearest candidate within ~0.30 m, about 3x the inter-instance spacing) and the language relation is used only as the initial seed and as the fallback if the anchor is lost. The attempt function must RETURN the measured landing position as the next anchor so the lock follows the object. Seed 55's log after attempt 0 shows the look-alike selected at dist_to_box=0.171 while the real target sat on the plate at 0.329. With the lock all 15 seeds succeed on the FIRST attempt",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "cf5a005ea411163788a8bbc9b0024475a87752e8fcc4dbc15dafb699fdff0d3a",
+  "task": "pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "The task names one of several visually identical objects by a spatial relation ('the bowl next to the cookie box'); after a failed attempt carries the target away the relation is INVALIDATED BY THE PROGRAM'S OWN ACTION, because the remaining look-alike becomes the nearest one. Symptom: a retry grasps the look-alike, places it perfectly, and still scores 0",
+  "vertical_capability": "localize"
+}

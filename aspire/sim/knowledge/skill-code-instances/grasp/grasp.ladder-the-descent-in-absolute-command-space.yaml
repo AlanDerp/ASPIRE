@@ -1,0 +1,58 @@
+{
+  "api_calls": [
+    "max",
+    "float",
+    "range",
+    "tcp",
+    "goto_pose",
+    "max",
+    "float",
+    "float",
+    "np.array",
+    "tcp",
+    "goto_pose",
+    "print",
+    "np.array",
+    "print",
+    "tcp",
+    "tcp"
+  ],
+  "ast_fingerprint": "f7df3c68633febbad89081402b110b1855d30af0ce939647c3be976e9e72a19a",
+  "checkpoint_id": null,
+  "code": "def descend_to(px, py, z_goal, quat, step=0.020, tag=\"\", iters=28):\n    \"\"\"Stepped descent; breaks as soon as a step stops making progress.\n\n    The ladder is ABSOLUTE (`zcmd -= step`), never relative to the measured z:\n    the arm tracks `goto_pose` with a constant ~1.3 cm vertical lag, so a\n    relative ladder nets only ~0.7 cm of real descent per command and runs out\n    of iterations well above the object.  Breaking on LACK OF PROGRESS (rather\n    than on a fixed command-vs-measured gap) is what stops the loop re-issuing\n    the same command forever at the floor.\n    \"\"\"\n    zcmd = max(z_goal, float(tcp()[2]) + 0.02)\n    try:\n        goto_pose(np.array([px, py, zcmd]), quat)\n    except Exception:\n        pass\n    prev = float(tcp()[2])\n    for _ in range(iters):\n        zcmd = max(z_goal, zcmd - step)\n        try:\n            goto_pose(np.array([px, py, zcmd]), quat)\n        except Exception as ex:\n            print(\"  %s descent ik fail at %.3f: %s\" % (tag, zcmd, ex), flush=True)\n            break\n        now = float(tcp()[2])\n        if now > prev - 0.003:\n            print(\"  %s floor at cmd %.3f meas %.3f\" % (tag, zcmd, now), flush=True)\n            break\n        prev = now\n        if zcmd <= z_goal + 1e-9:\n            break\n    return tcp()",
+  "code_hash": "4d803f0abf00e37482e7a9038788e36a65be4a7489f4a6c1fc61611933ed0296",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Ladder a stepped Cartesian descent in ABSOLUTE command space (zcmd -= step), never relative to the measured pose, or the loop silently exhausts its budget above the object",
+  "id": "grasp.ladder-the-descent-in-absolute-command-space",
+  "kind": "skill-code-instance",
+  "observed_effect": "Subtracting the step from the previous COMMAND rather than from the measured z nets the full step per command instead of step minus the tracking lag. On seed 51 the arm tracked each goto_pose with a constant 1.27-1.34 cm vertical lag (cmd 0.278 -> meas 0.2914, cmd 0.271 -> meas 0.2841, cmd 0.264 -> meas 0.2768), so the relative ladder travelled only ~0.007 m per 0.020 m command and the 18-iteration budget expired at z 0.161-0.165 with the bottle top at 0.148 and the true floor at 0.122-0.123. Every yaw candidate was then rejected by the relative height gate and the program raised 'could not grasp the dressing'. With the absolute ladder (plus break-on-no-progress and a budget of 28) every seed logs 'floor at cmd 0.088-0.089 meas 0.122-0.123', closes at 0.122-0.123, and takes the task from 0/15 to 15/15. This is NOT the kinematic floor: the floor pattern stops on genuine loss of progress and prints its diagnostic, this one stalls on budget exhaustion and prints nothing. It also CORRECTS the relative form promoted from bbq_sauce (grasp.position-dependent-kinematic-floor-lateral-drift), where the same relative ladder happened to reach its floor inside 18 iterations",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_swap/pick_up_the_salad_dressing_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "b7f7851370df8d88830bb45f6f2fe0847a633a921e80ced1dec72e6fc7db449e",
+  "task": "pick_up_the_salad_dressing_and_place_it_in_the_basket",
+  "task_family": "libero_object_swap",
+  "trigger": "A stepped grasp descent whose step is computed from the measured pose (zcmd = measured_z - step) while the arm tracks goto_pose with a constant vertical lag. Symptom: the pads stop 1-4 cm above the object top, no error is raised, the IK does not fail, and the floor diagnostic NEVER prints - the descent did not hit a floor, it ran out of loop iterations",
+  "vertical_capability": "grasp"
+}

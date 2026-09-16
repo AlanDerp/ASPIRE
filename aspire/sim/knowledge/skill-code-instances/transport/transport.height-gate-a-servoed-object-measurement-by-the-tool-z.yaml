@@ -1,0 +1,55 @@
+{
+  "api_calls": [
+    "np.asarray",
+    "float",
+    "segment_sam3_text_prompt",
+    "sorted",
+    "mask_to_world_points",
+    "np.median",
+    "np.array",
+    "astype",
+    "len",
+    "len",
+    "float",
+    "float",
+    "np.linalg.norm"
+  ],
+  "ast_fingerprint": "ae75712aa72028d6833eda7973f5d49011591dc35d2733372ee8e6e8245718ba",
+  "checkpoint_id": null,
+  "code": "def held_bowl_xy(rgb, d, K, E, near_xy, z_tcp, radius=0.13):\n    \"\"\"World XY of the HELD bowl, measured from its own cloud near `near_xy`.\n\n    The window is NOT enough on its own: the decoy bowl of the same class lies\n    on the table ~0.2 m away, and once the tool is carried toward the plate the\n    window catches the decoy's near edge and the median lands between the two\n    (measured: servo locked onto the decoy at (0.690,0.220) and dragged the held\n    bowl to y = -0.075, releasing it 0.13 m off target).  A carried object is\n    the only bowl-shaped cloud up at carry height, so gate on height relative to\n    the CURRENT tool z - that excludes everything resting on the table without\n    needing a table estimate.\n    \"\"\"\n    near_xy = np.asarray(near_xy, dtype=float)[:2]\n    z_floor = float(z_tcp) - 0.20\n    for p in HELD_PROMPTS:\n        masks = segment_sam3_text_prompt(rgb, p)\n        if not masks:\n            continue\n        for m in sorted(masks, key=lambda x: -x[\"score\"])[:4]:\n            pts = mask_to_world_points(m[\"mask\"].astype(np.uint8), d, K, E)\n            if pts is None or len(pts) < 60:\n                continue\n            sel = pts[(np.linalg.norm(pts[:, :2] - near_xy, axis=1) < radius) &\n                      (pts[:, 2] > z_floor)]\n            if len(sel) < 60:\n                continue\n            c = np.median(sel, axis=0)\n            return np.array([float(c[0]), float(c[1])])\n    return None",
+  "code_hash": "237aef4404df23c1de8e1c4a71d25db644814e80e37f10ed2c856adbebaf3296",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Measure a carried object through a window that is gated in height relative to the current tool z, so a same-class object resting on the table can never be mistaken for the payload.",
+  "id": "transport.height-gate-a-servoed-object-measurement-by-the-tool-z",
+  "kind": "skill-code-instance",
+  "observed_effect": "Without the gate the servo locked onto the same-class decoy: the measurement window caught the decoy near edge once the tool was carried toward the plate, the median landed between the two bowls (servo[1..4] bowl=(0.690,0.220)), and the servo dragged the held bowl to y=-0.075 and released it 0.134 m off target - reward 0.000 on seed 51 in the first fix iteration. With z_floor = z_tcp - 0.20 the carried object is the only bowl-shaped cloud up at carry height, so the gate excludes everything resting on the table without needing any table estimate, and the servo converges to 0.003 m or better in 2 iterations with a final landing distance of 0.010-0.021 m on 14/15 seeds.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "77ec15f937f15971bd9a23af198a42977e68a5b9ad401d17198e017e8a32f25e",
+  "task": "pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "Any on-the-fly measurement of the object in the gripper while the tool is carried over a scene that contains another instance of the same class (a decoy bowl on the table). A window taken only in XY around the tool or the previous estimate will catch the decoy near edge as soon as the payload approaches the goal.",
+  "vertical_capability": "transport"
+}

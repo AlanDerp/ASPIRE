@@ -1,0 +1,56 @@
+{
+  "api_calls": [
+    "range",
+    "observe",
+    "tcp_xy",
+    "measure_bowl",
+    "float",
+    "print",
+    "np.array",
+    "goto_pose",
+    "print",
+    "np.linalg.norm",
+    "min",
+    "reachable",
+    "print",
+    "np.asarray",
+    "max"
+  ],
+  "ast_fingerprint": "095b07014bbad6fa906df53b1bfd638beaa03468df7f5707b7db4dbb264548cb",
+  "checkpoint_id": null,
+  "code": "def servo_bowl_over(place, z, quat, max_iter=5, tol=0.006, hop=0.030):\n    \"\"\"Hop the tool axis until the HELD bowl's measured centre sits over `place`.\n\n    This is the closed loop that makes the release accurate.  Two things are\n    being corrected at once and neither is knowable in advance: the tool axis\n    does not attain commanded lateral poses (seed 51 stalled ~6 cm short while\n    goto_pose reported success), and the bowl's hang from a radial wall pinch\n    changes with every grasp (measured +0.040 m on one grasp, +0.085 m on the\n    next, on the same bowl).  Servoing on the bowl's own measured XY is\n    independent of both.\n\n    The measuring window is centred on the previous estimate rather than on the\n    tool axis, so the bowl is not clipped by the window edge and the median is\n    not biased toward whichever side happens to fall inside it.\n    \"\"\"\n    est = None\n    for k in range(max_iter):\n        rgb, d, K, E = observe()\n        cur = tcp_xy()\n        m = measure_bowl(rgb, d, K, E, cur if est is None else est,\n                         radius=0.13 if est is None else 0.10)\n        if m is None:\n            print(f\"    servo[{k}]: bowl not measurable\", flush=True)\n            return est\n        est = m[0]\n        err = np.asarray(place, dtype=float)[:2] - est\n        n = float(np.linalg.norm(err))\n        print(f\"    servo[{k}] bowl=({est[0]:.3f},{est[1]:.3f}) err={n:.3f}\", flush=True)\n        if n < tol:\n            return est\n        step = err * min(1.0, hop / max(n, 1e-6))\n        nxt = np.array([cur[0] + step[0], cur[1] + step[1], z])\n        if not reachable(nxt, quat):\n            print(\"    servo hop unreachable\", flush=True)\n            return est\n        goto_pose(nxt, quat)\n    return est",
+  "code_hash": "fa4b1d7cd710b136f1d3d871bdfe05fe2b9095ac80fba8681edc4d71bab3f200",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Put a held, off-axis object own centre over a goal XY without knowing how far it hangs from the tool",
+  "id": "transport.servo-on-the-held-objects-own-cloud",
+  "kind": "skill-code-instance",
+  "observed_effect": "Hop the tool at most 3 cm per step until the HELD object own measured centre is within tol (0.006 m) of the goal, re-estimating from a window centred on the PREVIOUS ESTIMATE (not on the tool axis, so the object is not clipped by the window edge and its median stays unbiased), and never command an unreachable hop. After the servo the descent must start from the re-read tcp_xy() -- where the tool actually is -- not from the originally commanded release point. Wrong release offsets measured +0.040 m on one grasp and +0.085 m on the next on the SAME bowl, so no constant or pre-grasp-derived offset can work. All 15 seeds flipped 0.000 -> 1.000, converging in 2 steps to <=0.002 m residual and landing 0.010-0.015 m from the plate centre",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "cf5a005ea411163788a8bbc9b0024475a87752e8fcc4dbc15dafb699fdff0d3a",
+  "task": "pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "The object must be released at a specific XY but is held off the tool axis (radial/side pinch), so releases land 3-10 cm off with a bias that looks constant but CHANGES WITH EVERY GRASP; any offset computed from the COMMANDED pre-grasp pose is wrong because a commanded pose is not an attained one -- goto_pose reports success while the tool axis stalls several centimetres short laterally",
+  "vertical_capability": "transport"
+}

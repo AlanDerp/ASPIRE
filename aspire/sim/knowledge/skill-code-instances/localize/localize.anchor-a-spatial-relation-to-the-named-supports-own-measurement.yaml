@@ -1,0 +1,47 @@
+{
+  "api_calls": [
+    "sorted",
+    "math.hypot",
+    "print",
+    "int",
+    "math.hypot"
+  ],
+  "ast_fingerprint": "e29386c5a11276456c3c78cbe185e85e07e2a9b3e54bf06685c8112ba23d45d8",
+  "checkpoint_id": null,
+  "code": "def pick_target_bowl(bowls, ramekin, ramekin_top):\n    \"\"\"The bowl sitting ON the ramekin.\n\n    \"On the ramekin\" is a *physical* relation and the two bowls are the same\n    class and the same size, so neither SAM3 score nor image size separates\n    them.  What separates them is where their own cloud bottoms out: the\n    stacked bowl is held up by the ramekin's rim, so its lowest visible points\n    sit AT the ramekin's rim height, while the decoy's cloud runs to the table,\n    a good 3 cm lower.\n\n    The reference is the ramekin's own measured rim - NOT a table estimate.\n    A table estimate that takes a `min` over all candidates is fooled by any\n    dark side object whose mask bottom-z runs below the table (the wooden\n    cabinet here reads zlo = -0.049 and drags a min-based \"table\" 6 cm down,\n    which then marks the decoy bowl \"elevated\" as well and sends the whole\n    episode's grasps to the wrong bowl).\n\n    Primary key  : bottom-z at/above the ramekin's rim (supported by it).\n    Tie-break    : in-plane distance to the ramekin centre - this is what\n                   carries the choice once an earlier failed attempt has\n                   knocked the bowl down onto the table and nothing is\n                   elevated any more.\n    \"\"\"\n    def key(b):\n        on_ramekin = 1 if b[\"lo\"][2] > ramekin_top - ON_RAMEKIN_SLACK else 0\n        d_ram = math.hypot(b[\"cx\"] - ramekin[\"cx\"], b[\"cy\"] - ramekin[\"cy\"])\n        return (-on_ramekin, d_ram)\n\n    ranked = sorted(bowls, key=key)\n    for b in ranked:\n        print(f\"    bowl ({b['cx']:.3f},{b['cy']:.3f}) zlo={b['lo'][2]:+.3f} \"\n              f\"zhi={b['hi'][2]:+.3f} fp={b['footprint']:.3f} score={b['score']:.3f} \"\n              f\"on_ramekin={int(b['lo'][2] > ramekin_top - ON_RAMEKIN_SLACK)} \"\n              f\"d_ramekin={math.hypot(b['cx']-ramekin['cx'], b['cy']-ramekin['cy']):.3f}\",\n              flush=True)\n    return ranked[0], ranked",
+  "code_hash": "dd97be007f805070f059bd786fa0d2518aefd52a26fa12a6c28161b6fe930457",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Resolve a same-class ambiguous reference by the physical relation to the NAMED support, measured on that support own cloud, and never against a scene-level quantity a distractor can poison.",
+  "id": "localize.anchor-a-spatial-relation-to-the-named-supports-own-measurement",
+  "kind": "skill-code-instance",
+  "observed_effect": "Primary key is the object own bottom-z at or above the named support own measured rim (ON_RAMEKIN_SLACK 0.012), with the in-plane distance to the support centre as the tie-break. On 15/15 seeds in both sweeps the selection was correct - including the 13 seeds where the mask bleed flipped the on_support term to 0 and the distance term alone decided (decoy 0.203-0.244 m from the ramekin centre versus 0.046-0.062 m for the stacked bowl). Counterexample recorded in the docstring: a first attempt used table_z = min(lo[2]) over all candidates and the dark wooden cabinet, whose mask bottom-z reads -0.049, dragged that table estimate 6 cm down, marked BOTH bowls elevated and sent every grasp of the episode to the decoy.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "77ec15f937f15971bd9a23af198a42977e68a5b9ad401d17198e017e8a32f25e",
+  "task": "pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "Two same-class objects, one named by a spatial relation to a support (the bowl on the ramekin). SAM3 score and image footprint both fail to separate them, and an earlier failed attempt may have knocked the target down so that no candidate is elevated any more.",
+  "vertical_capability": "localize"
+}

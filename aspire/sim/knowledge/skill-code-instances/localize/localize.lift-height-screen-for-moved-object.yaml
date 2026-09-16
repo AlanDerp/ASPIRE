@@ -1,0 +1,41 @@
+{
+  "api_calls": [
+    "bowl_cloud",
+    "pts.mean",
+    "_log",
+    "bool",
+    "get_observation",
+    "tolist",
+    "np.round"
+  ],
+  "ast_fingerprint": "57c5687d70b453015a2b68017bf4d5e0614f797c34f006f2ea9d217f7af8a717",
+  "checkpoint_id": null,
+  "code": "def bowl_inside_drawer(drawer_face):\n    \"\"\"True if the segmented bowl now sits behind the drawer front panel.\"\"\"\n    # the bowl is now up at drawer height, so the table-top z screen is lifted\n    pts = bowl_cloud(get_observation(), z_top=0.32)\n    if pts is None:\n        return False\n    c = pts.mean(axis=0)\n    _log(\"  verify bowl at\", np.round(c, 3).tolist(), \"face %.3f\" % drawer_face)\n    return bool(c[1] < drawer_face - 0.02 and c[2] > 0.08)",
+  "code_hash": "5859ba5f8dab3a85c7c1120f53037052bbc781da995db99b3b6b2389b5d2ac3e",
+  "development_outcomes": {
+    "successes": [
+      54,
+      56,
+      58,
+      60,
+      61,
+      62,
+      63,
+      64
+    ]
+  },
+  "goal": "Verify an object that ended at a different height from where it started",
+  "id": "localize.lift-height-screen-for-moved-object",
+  "kind": "skill-code-instance",
+  "observed_effect": "The table-top screen (z_top=0.13) rejected the bowl sitting in the drawer (cloud z 0.20-0.25) and accepted a spurious mask at [0.258,0.205,0.021], costing a second attempt and then the episode horizon; re-segmenting with z_top=0.32 accepts the true placement",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/open_the_top_drawer_and_put_the_bowl_inside/fix_code.py",
+  "source_code_sha256": "915b19eea818af63d807130d9c50d952d8866e9b3223e0b0fbbfd9ba9ebec3af",
+  "task": "open_the_top_drawer_and_put_the_bowl_inside",
+  "task_family": "libero_goal_swap",
+  "trigger": "Verifying a placement into a container (table -> drawer/shelf) using a localization screen tuned to the object's original height",
+  "vertical_capability": "localize"
+}

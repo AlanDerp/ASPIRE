@@ -1,0 +1,40 @@
+{
+  "api_calls": [],
+  "ast_fingerprint": "21bd18f9a00a962b3ca9bdae1f843d3bc27da9e6c0427c3685eaefa32e98d708",
+  "checkpoint_id": null,
+  "code": "BUTTER_PROMPTS = [\"butter box\", \"butter\", \"box\", \"carton\"]",
+  "code_hash": "33f4d7da6a9366f63550baebb08428bf5038e01104b490a6489ed558c4bf80f0",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Get a weak product-word prompt to ground on the packaged target at all",
+  "id": "localize.prompt-packaging-word-not-product-word",
+  "kind": "skill-code-instance",
+  "observed_effect": "Leading the prompt list with the packaging word raises the same object's top score 3-5x (butter 0.067 -> butter box 0.354) and is the only prompt that orders the target first; the product word is retained as a later fallback",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_swap/pick_up_the_butter_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "8fd1e56526a9661eb8f23336a521b60dc254feaea3a222e0bb891f1bfb9889a2",
+  "task": "pick_up_the_butter_and_place_it_in_the_basket",
+  "task_family": "libero_object_swap",
+  "trigger": "The product word (butter/cheese/pudding) returns many masks with top score below ~0.15 and ranks a distractor first or second",
+  "vertical_capability": "localize"
+}

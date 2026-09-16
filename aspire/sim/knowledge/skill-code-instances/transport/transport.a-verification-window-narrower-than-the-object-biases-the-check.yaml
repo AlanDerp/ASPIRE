@@ -1,0 +1,31 @@
+{
+  "api_calls": [
+    "bowl_points_near",
+    "np.median",
+    "float",
+    "math.hypot",
+    "print",
+    "np.percentile",
+    "max",
+    "len"
+  ],
+  "ast_fingerprint": "0374b303f26afa62bcce2553d14c881306e3a33ba800cc2cadd76df9fd15b043",
+  "checkpoint_id": null,
+  "code": "def placed_on_plate(rgb, d, K, E, place_xy, plate_top, r_bowl):\n    \"\"\"Bowl points near the goal XY *and* resting at the plate surface height.\n\n    Known bias, not fixed here: the window (`radius = r_bowl + 0.04`, centred on\n    the goal cell) is narrower than the landed bowl, so it keeps only the bowl's\n    near half and the median lands on the window side of the bowl.  Measured on\n    seeds 51-65 the offset is the same +0.017 m every time (this check = the\n    true landing error + 0.017), which makes the 0.035 m tolerance behave like\n    0.018 m: a bowl that rests more than 1.8 cm from the goal cell is reported\n    \"not placed\" and re-placed, and the re-place - the release column shifted\n    past the arm's x-wall - drags the bowl off the plate.  That is what killed\n    seeds 58/60/62/65.  Widening the window does *not* fix it (measured: the\n    wider window then takes in the gripper's fingers, which sit one bowl radius\n    towards the wrist, and the bias flips to -0.030 m), so the bias is left\n    as-is and its effect is kept out of the way by landing the bowl accurately\n    (see the descent step in `attempt`).\n    \"\"\"\n    pts = bowl_points_near(rgb, d, K, E, place_xy, radius=max(0.07, r_bowl + 0.04))\n    if pts is None:\n        return False\n    c = np.median(pts, axis=0)\n    zlo = float(np.percentile(pts[:, 2], 2))\n    dist = math.hypot(c[0] - place_xy[0], c[1] - place_xy[1])\n    print(f\"  place check n={len(pts)} centre=({c[0]:.3f},{c[1]:.3f},{c[2]:.3f}) \"\n          f\"z2={zlo:.3f} dist={dist:.3f} (plate_top={plate_top:.3f})\", flush=True)\n    return dist < PLACE_TOL and (plate_top - 0.03) < zlo < (plate_top + 0.07)",
+  "code_hash": "339fe27aebbaa44cb3b5c533d2aaeb8ff21a93315ac8f5be5cf2d5044fbbe77d",
+  "development_outcomes": {},
+  "goal": "Record how a landing-verification window narrower than the object biases the measured placement error by a fixed offset, and why widening the window is not the repair.",
+  "id": "transport.a-verification-window-narrower-than-the-object-biases-the-check",
+  "kind": "skill-code-instance",
+  "observed_effect": "Documented defect, not a fix. The window r_win = max(0.07, r_obj + 0.04) = 0.089 m is narrower than the landed 0.102 m bowl, so it keeps the bowl near half and the median lands on the window side: measured check = true landing error + 0.017 m on 15/15 development seeds (seed 60 landed 0.019, check 0.036; seed 65 landed 0.022, check 0.039). That turns the intended 0.035 m tolerance into an effective 0.018 m and fabricated the not-placed verdicts behind seeds 58, 60, 62 and 65. The naive repair was measured and falsified: widening to r_obj + 0.09 lets the gripper fingers, which sit one object radius toward the wrist, into the cloud and flips the bias to -0.030 m, which is worse - so it was not shipped. Usable rule: measure the bias against a known-good placement before trusting the check tolerance; the offset is stable in magnitude but its SIGN is not.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_next_to_the_ramekin_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "8df6e6db44f41e6ba5ff171af52613fe0754d3c3132d8ab0d5aa91ac85d1aedd",
+  "task": "pick_up_the_black_bowl_next_to_the_ramekin_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "Any did-it-land-where-I-aimed check that windows a point cloud around the goal and takes a median or centroid, when the window radius is comparable to the object own radius.",
+  "vertical_capability": "transport"
+}

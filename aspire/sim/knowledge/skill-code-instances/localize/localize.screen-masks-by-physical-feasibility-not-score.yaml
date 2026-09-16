@@ -1,0 +1,58 @@
+{
+  "api_calls": [
+    "segment_sam3_text_prompt",
+    "sorted",
+    "astype",
+    "mask_to_world_points",
+    "np.percentile",
+    "extent_xy",
+    "median_rgb",
+    "np.median",
+    "print",
+    "float",
+    "float",
+    "len",
+    "len",
+    "max",
+    "min",
+    "tolist",
+    "np.round"
+  ],
+  "ast_fingerprint": "dfa61f9a1bab7041a957180f658acc6b9ee2091d809c381028ecc92377ea3f7c",
+  "checkpoint_id": null,
+  "code": "def find_box(rgb, d, K, E):\n    \"\"\"The cookie box: the only RED object on the table.\n\n    The FIRST mask that passes the screen wins, and the total number of cloud\n    extractions is capped.  The colour screen is the real discriminator here\n    (the box is the only red thing on the table, and SAM3 scores it 0.05-0.12 -\n    below the plate, both bowls and the ramekin), so ranking the five prompts x\n    eight masks by score buys nothing but costs up to 40 perception calls.\n    \"\"\"\n    tries = 0\n    for p in BOX_PROMPTS:\n        masks = segment_sam3_text_prompt(rgb, p)\n        if not masks:\n            continue\n        for m in sorted(masks, key=lambda x: -x[\"score\"])[:4]:\n            if tries >= 8:\n                return None\n            tries += 1\n            mask = m[\"mask\"].astype(np.uint8)\n            pts = mask_to_world_points(mask, d, K, E)\n            if pts is None or len(pts) < 100 or len(pts) > 20000:\n                continue\n            zlo, zhi = np.percentile(pts[:, 2], [2, 98])\n            if zhi - zlo > 0.035 or zhi > 0.10:\n                continue\n            sx, sy = extent_xy(pts)\n            if max(sx, sy) > 0.11 or min(sx, sy) < 0.025:\n                continue\n            col = median_rgb(rgb, mask)\n            # The box is strongly red-dominant (R-B ~53, R-G ~28).  The PLATE is\n            # white with thin red rings - its median RGB is ~[130,113,110], so\n            # R-B is only ~20 - and it carries MORE points than the box, so any\n            # point-count or score tiebreak hands back the plate.  Seeds 61, 62\n            # and 65 localised the \"box\" at (0.39,-0.13) with ext (0.13,0.12)\n            # and rgb [128,110,108] - the plate.  Both the colour margin here\n            # and the 0.11 m footprint cap above keep the plate out.\n            if col[0] < 60 or (col[0] - col[2]) < 35 or (col[0] - col[1]) < 18:\n                continue\n            c = np.median(pts, axis=0)\n            print(f\"  cookie box prompt={p!r} xy=({c[0]:.3f},{c[1]:.3f}) \"\n                  f\"ext=({sx:.3f},{sy:.3f}) rgb={np.round(col, 1).tolist()}\", flush=True)\n            return (float(c[0]), float(c[1]))\n    return None",
+  "code_hash": "dff9d8a51466035003a51a7fcc8dc29a250fc987530051f718f09bc3b5f352be",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Find a named object whose SAM3 score is LOW, in a scene where a permissive screen admits more than one object",
+  "id": "localize.screen-masks-by-physical-feasibility-not-score",
+  "kind": "skill-code-instance",
+  "observed_effect": "Accept the FIRST mask that passes a conjunction of HARD, well-separated margin checks -- flatness (z-extent <= 0.035) plus a footprint window (0.025-0.11 m, box 0.078 vs plate 0.135) plus colour MARGINS chosen to sit between the two objects (R-B >= 35 and R-G >= 18, box R-B 53 vs plate R-B 20) -- rather than ranking by score or point count. The plate then fails twice over. Symmetrically, a 'most points wins' plate finder returned a BOWL (4470 points vs the plate's 2421); it was replaced by flatness (plate z-extent 0.024 vs bowl 0.044) plus a warm colour cast. Seeds 61/62/65 localised the 'box' at the plate's own position (0.39,-0.13) before the margin change and at the true box (0.74,0.03) after",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "cf5a005ea411163788a8bbc9b0024475a87752e8fcc4dbc15dafb699fdff0d3a",
+  "task": "pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "The object the language names scores below its distractors (the box scored 0.05-0.12 against the plate 0.70 and both bowls 0.94), so any score- or point-count tiebreak returns the wrong object; and a permissive single-channel colour screen passes two objects (the plate is WHITE with thin red rings, so 'R-B >= 20' admits it as well as the red box)",
+  "vertical_capability": "localize"
+}

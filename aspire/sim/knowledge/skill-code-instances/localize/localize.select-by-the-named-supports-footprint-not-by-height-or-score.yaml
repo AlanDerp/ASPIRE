@@ -1,0 +1,46 @@
+{
+  "api_calls": [
+    "max",
+    "print",
+    "min",
+    "min",
+    "abs"
+  ],
+  "ast_fingerprint": "d39800cc99a3148bb37d6e9a80093c69fff1c1324e636c9316178cc59832359e",
+  "checkpoint_id": null,
+  "code": "def pick_on_stove(cands, stove, table_z=None):\n    \"\"\"The bowl resting on the stove: inside its footprint AND at its top height.\n\n    Falls back, in order, to (a) the lowest-base candidate that is clearly NOT on the\n    table (a raised support) when the stove could not be localized, and (b) the largest\n    candidate.  Every fallback is printed so a failure is visible in the trace.\n    \"\"\"\n    if not cands:\n        return None\n    if stove is not None:\n        lo, hi = stove[\"lo\"], stove[\"hi\"]\n        pool = [c for c in cands\n                if lo[0] - FOOT_PAD <= c[\"cx\"] <= hi[0] + FOOT_PAD\n                and lo[1] - FOOT_PAD <= c[\"cy\"] <= hi[1] + FOOT_PAD]\n        if pool:\n            return min(pool, key=lambda c: abs(c[\"base\"] - stove[\"top\"]))\n        print(\"  no bowl inside the stove footprint\", flush=True)\n    if table_z is not None:\n        raised = [c for c in cands if c[\"base\"] > table_z + 0.008]\n        if raised:\n            return min(raised, key=lambda c: c[\"base\"])\n    return max(cands, key=lambda c: c[\"n\"])",
+  "code_hash": "898f72665c80ef3e90ca456c494e43379204273e788c9a83162b4d267e89003a",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Identify which of several identical objects a support-relative instruction names (on the stove, on the box, on the ramekin)",
+  "id": "localize.select-by-the-named-supports-footprint-not-by-height-or-score",
+  "kind": "skill-code-instance",
+  "observed_effect": "Localize the support the instruction names, then take the object whose centre lies INSIDE that support footprint AND whose base rests at the support top height. The two-test conjunction is load-bearing: the footprint test alone would accept any object that happens to sit there, and the abs(base - support_top) test alone would accept a small object resting on the table inside that footprint -- and would never accept the elevated decoy anyway. Use a slack pad (FOOT_PAD = 0.05) so an object hanging slightly over the support edge still counts; the decoys sat 0.16 m and 0.30 m outside the padded footprint on every seed. Fallback chain: footprint+height, then raised objects sorted by base, then largest cloud. Correct object on 15/15 seeds (printed target base z 0.026-0.027 vs the decoy 0.224, support top 0.020)",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "06b3b395100c6dbd42e42614e05a475884e9045269863b9153d7539fb7f96a47",
+  "task": "pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "The instruction names a SUPPORT (the bowl on the stove) and the scene contains a same-class look-alike that is ALSO elevated, so neither prompt score nor any height statistic can separate them. Measured: the prompt scores the DECOY higher (0.891-0.926) than the target (0.855-0.922) on most seeds, and the decoy sits on the cabinet top at base z 0.224 against the target 0.026 -- so the bowl that is not on the table and the bowl with the largest base z BOTH select the wrong object. Height alone cannot express on the stove",
+  "vertical_capability": "localize"
+}

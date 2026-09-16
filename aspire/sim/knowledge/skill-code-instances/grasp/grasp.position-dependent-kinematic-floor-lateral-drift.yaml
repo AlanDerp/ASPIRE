@@ -1,0 +1,59 @@
+{
+  "api_calls": [
+    "float",
+    "range",
+    "tcp",
+    "goto_pose",
+    "float",
+    "max",
+    "float",
+    "np.array",
+    "tcp",
+    "goto_pose",
+    "print",
+    "tcp",
+    "np.array",
+    "print",
+    "tcp",
+    "max",
+    "tcp"
+  ],
+  "ast_fingerprint": "33eaf6d4cff4fb53e0b740ace14caa4eba79494b4feadd8bab5d2864c20e3530",
+  "checkpoint_id": null,
+  "code": "def descend_to(px, py, z_goal, quat, step=0.020, tag=\"\"):\n    \"\"\"Stepped descent; stops as soon as a step stops making progress.\"\"\"\n    try:\n        goto_pose(np.array([px, py, max(z_goal, tcp()[2]) + 0.02]), quat)\n    except Exception:\n        pass\n    prev = float(tcp()[2])\n    for _ in range(18):\n        cur = float(tcp()[2])\n        if cur <= z_goal + 0.002:\n            break\n        zcmd = max(z_goal, cur - step)\n        try:\n            goto_pose(np.array([px, py, zcmd]), quat)\n        except Exception as ex:\n            print(f\"  {tag} descent ik fail at {zcmd:.3f}: {ex}\", flush=True)\n            break\n        now = float(tcp()[2])\n        if now > prev - 0.003:\n            print(f\"  {tag} floor at cmd {zcmd:.3f} meas {now:.3f}\", flush=True)\n            break\n        prev = now\n    return tcp()",
+  "code_hash": "f7c1c2491d51b897105241c699d66fd0ec171c16b88306c88841543a706e9c2f",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Descend to a measured TCP height instead of a commanded one, because solve_ik silently substitutes a fallback orientation below the arm's reachable floor",
+  "id": "grasp.position-dependent-kinematic-floor-lateral-drift",
+  "kind": "skill-code-instance",
+  "observed_effect": "The floor is position dependent (z ~= 0.115 at (0.45,0.058) but 0.074 at (0.49,-0.23)); commanding 0.04 measured (0.539,0.066,0.105). Stepping down 20 mm and stopping on loss of progress took the task from 0/15 to 15/15",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_swap/pick_up_the_bbq_sauce_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "1c6387c0fc31e80cab8178c2aaf896d577cd9ad1e6f463c9f2b1b7902d7fe32a",
+  "task": "pick_up_the_bbq_sauce_and_place_it_in_the_basket",
+  "task_family": "libero_object_swap",
+  "trigger": "A top-down grasp or placement that commands the TCP below z ~= 0.12 m; solve_ik does not raise, it swaps in a fallback orientation and the TCP drifts sideways about 9 cm rather than descending",
+  "vertical_capability": "grasp"
+}

@@ -1,0 +1,45 @@
+{
+  "api_calls": [
+    "np.asarray",
+    "as_matrix",
+    "get_observation",
+    "Rotation.from_quat"
+  ],
+  "ast_fingerprint": "a4d020ef608240ab0798e0ed5110d05922b44bb0cb39f05a4a60838fb0c93ac1",
+  "checkpoint_id": null,
+  "code": "def tcp():\n    \"\"\"World position the gripper TCP actually reached.\n\n    solve_ik/goto_pose target EE = position + R @ (0, 0, -0.1), so the inverse\n    relation is TCP = EE + 0.1 * R[:, 2].\n    \"\"\"\n    e = np.asarray(get_observation()[\"robot_cartesian_pos\"], dtype=np.float64)\n    q = e[3:7]\n    R = Rotation.from_quat([q[1], q[2], q[3], q[0]]).as_matrix()\n    return e[:3] + 0.1 * R[:, 2]",
+  "code_hash": "b3d8946071c366855cabacd4e174ddc6545e9022216f6aedbb3cc889e83793ca",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Compute release and placement columns from where the tool actually is, not from where it was told to go",
+  "id": "manipulation.measure-the-tcp-not-the-commanded-pose",
+  "kind": "skill-code-instance",
+  "observed_effect": "Read the tool centre point from the observation every time control depends on it, inverting the library own offset convention: the solve_ik/goto_pose target EE is p + R @ (0,0,-0.1), so tcp = e[:3] + 0.1 * R[:,2] with R built from the observed quaternion converted from (x,y,z,w) to scipy (w,x,y,z). Probes: cmd (+0.800,+0.100,+0.360) -> tcp (+0.750,+0.099,+0.370) (reach clamp); descent cmd z 0.045 -> meas 0.058 (z lag). Close the release descent on the MEASURED z (loop while measured zc > z_goal, hopping zc = max(z_goal, zc - HOP), 16 iterations) rather than on the commanded depth, releasing ~6 mm above the surface. A commanded-depth release varied the true release height by centimetres between seeds; the measured-depth release gives a flat landing (bowl z-extent 0.044-0.045) on all 15 dev seeds, 12/15 -> 15/15",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "115be05a29be2ed9beae8588021a6e408e3bf39a98600f4d9b396f6952fbd5f7",
+  "task": "pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "Any code that computes a release or place column from a commanded Cartesian target, or that assumes a commanded z was reached. This arm hard-clamps x (never exceeds ~0.750 at any height) and lags the z command by ~1.2 cm, so a commanded pose is not an attained pose",
+  "vertical_capability": "manipulation"
+}

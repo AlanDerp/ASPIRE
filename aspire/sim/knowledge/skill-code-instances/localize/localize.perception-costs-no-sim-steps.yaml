@@ -1,0 +1,29 @@
+{
+  "api_calls": [
+    "observe",
+    "find",
+    "np.median",
+    "float",
+    "np.percentile",
+    "np.linalg.norm"
+  ],
+  "ast_fingerprint": "7dd840dd435b36177a9fb6e48f450dd4bf9308b0ae6cfbbbbed68a5ac38e93b7",
+  "checkpoint_id": null,
+  "code": "def plate_now():\n    rgb, d, K, E = observe()\n    pts, pr, sc = find(rgb, d, K, E, PLATE_PROMPTS)\n    if pts is None:\n        return None, None\n    c = np.median(pts, axis=0)\n    r = float(np.percentile(np.linalg.norm(pts[:, :2] - c[:2], axis=1), 90))\n    return c, r",
+  "code_hash": "5517e9702496adaa2f8cd8c43336e867a3ad93e6000b606c8505cc915d327e59",
+  "development_outcomes": {},
+  "goal": "Close the loop on a long-horizon push without spending the episode budget",
+  "id": "localize.perception-costs-no-sim-steps",
+  "kind": "skill-code-instance",
+  "observed_effect": "get_observation / segment_sam3_* / mask_to_world_points do not advance the sim clock, so a 12-iteration re-localisation loop costs 12 move_to_joints calls rather than 12 episodes; a 12-iteration closed-loop drag kept a valid plate estimate (re-measured 0.450-0.472, -0.072..-0.067) while the open-loop version exhausted the horizon. Use the 98th percentile of the in-plane radius, not the 90th, or the drag collapses early",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/push_the_plate_to_the_front_of_the_stove/fix_code.py",
+  "source_code_sha256": "fe03854e24291d5dc8ee48c21786540fc3c0984f72a9b41f5d807412eae5beaa",
+  "task": "push_the_plate_to_the_front_of_the_stove",
+  "task_family": "libero_goal_swap",
+  "trigger": "A closed-loop push/drag whose contact collapses over a long move under a 1000-step horizon",
+  "vertical_capability": "localize"
+}

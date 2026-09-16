@@ -1,0 +1,47 @@
+{
+  "api_calls": [
+    "print",
+    "goto_pose",
+    "np.array",
+    "topdown",
+    "print",
+    "gap"
+  ],
+  "ast_fingerprint": "0f67208c426f8be694599e52fd31e2e8b158695311008a049583c654b316be45",
+  "checkpoint_id": null,
+  "code": "def sweep(tx, ty, gz, yaw0, direction):\n    \"\"\"Sweep the wrist about the vertical axis, tool centre point fixed.\"\"\"\n    swept = 0.0\n    misses = 0\n    while swept < SWEEP_DEG:\n        swept += SWEEP_STEP\n        try:\n            goto_pose(np.array([tx, ty, gz]), topdown(yaw0 + direction * swept))\n        except Exception as exc:                # noqa: BLE001 - IK branch miss\n            misses += 1\n            print(\"    sweep step %.0f deg failed: %s\" % (swept, exc), flush=True)\n            if misses >= 4:\n                break\n            continue\n        misses = 0\n    print(\"  swept %.0f deg (dir %+.0f), gap %.4f\" % (swept, direction, gap()), flush=True)\n    return swept",
+  "code_hash": "65098c07dcb9599bb00240f0ece399e0b1dcc7fa9be1b3b560553660258b5ec9",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Rotate an articulated control about its own joint axis with the wrist, without exerting any lateral force on the object",
+  "id": "manipulation.fixed-tcp-yaw-sweep",
+  "kind": "skill-code-instance",
+  "observed_effect": "With a TOP-DOWN orientation the tool's z axis is (0,0,-1) for every yaw, so re-issuing the SAME position with only the yaw changed is a pure in-place rotation about the vertical axis: goto_pose([tx, ty, gz], topdown(yaw0 + k*step)) for k = 1..N. The wrist carries the pinched control with it, so the joint turns with no lateral force on the object. Step the yaw in small increments (10 deg) so the IK stays on the same j7 branch, and tolerate a few consecutive step failures before giving up.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/turn_on_the_stove/fix_code.py",
+  "source_code_sha256": "a48105fb3a15fc04ba7c169ce9b086c972eac809f1086d7ecf4cc1f1b3a3fe3b",
+  "task": "turn_on_the_stove",
+  "task_family": "libero_goal_swap",
+  "trigger": "A turn/rotate task (knob, dial, lever, valve, switch) where the success predicate is a joint angle. Any Cartesian translation of the gripper drags or tips the control instead of rotating it; a side/horizontal approach pinches at the widest point and yields only marginal contact.",
+  "vertical_capability": "manipulation"
+}

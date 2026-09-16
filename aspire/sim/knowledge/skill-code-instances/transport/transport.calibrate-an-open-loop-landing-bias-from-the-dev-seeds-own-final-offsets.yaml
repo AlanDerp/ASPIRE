@@ -1,0 +1,48 @@
+{
+  "api_calls": [
+    "np.array",
+    "print",
+    "np.array",
+    "ladder_to",
+    "np.array",
+    "tolist",
+    "np.round"
+  ],
+  "ast_fingerprint": "9c34efaa4d1bf27caf64cf097d19ea6aae629101d3f3740f93315167dd28934d",
+  "checkpoint_id": null,
+  "code": "AIM_BIAS = np.array([-0.012, 0.019])\nplace_xy = goal_xy + AIM_BIAS\nprint(\"PLACE aim=(%.3f,%.3f) plate=(%.3f,%.3f) bias=%s\"\n      % (place_xy[0], place_xy[1], goal_xy[0], goal_xy[1], np.round(AIM_BIAS, 3).tolist()),\n      flush=True)\nCARRY_Z = plate_top + 0.07 + hang\nservo_target = np.array([place_xy[0] + Rw * u[0], place_xy[1] + Rw * u[1]])\nladder_to(np.array([servo_target[0], servo_target[1], CARRY_Z]), quat, hop=TRANSIT_HOP)",
+  "code_hash": "77ba78c898f5baf4d09148cad719f8d367f4a0827468523cab2c044dd1f2f4fb",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64
+    ]
+  },
+  "goal": "Remove a placement failure that is a reproducible aim bias, not scatter, when the placement is commanded open-loop",
+  "id": "transport.calibrate-an-open-loop-landing-bias-from-the-dev-seeds-own-final-offsets",
+  "kind": "skill-code-instance",
+  "observed_effect": "The 15 dev seeds landed at a mean (bowl - plate) offset of (+0.012, -0.019) m with the same sign on every seed (x +0.001..+0.024, y -0.007..-0.038) against a ~1 cm placement tolerance (plate rim 0.065 m vs bowl rim 0.054 m), so a 2 cm biased landing perched the bowl on the rim. Commanding place_xy = goal_xy + (-0.012, +0.019) moved the landed distance from a 2.3 cm mean to a 5 mm median and took dev seeds 3/15 -> 15/15 (14/15 in an identical repeat sweep; combined 29/30). PRECONDITION: the loop is open, so the constant is the only thing acting on the offset. On pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet the same kind of residual (0.0217 m) was halved by a constant LAND_BIAS and changed NO outcome (15/15 either way), because that loop closes on the payload own measured base. So a constant bias is fatal on an open loop and only a margin on a closed one - measure which you have before shipping it, and state the precondition",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "a440de11426dcf18d1704aad7f906bcf93fa2cb90960ed659bd3adaa63c99243",
+  "task": "pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_task",
+  "trigger": "A place-on/place-into task fails on most seeds while the keyframes look right, and the measured (object - target) offset at the end of the episode has the SAME SIGN on every dev seed; and the placement command is applied open-loop (no servo onto the payload own measured base)",
+  "vertical_capability": "transport"
+}

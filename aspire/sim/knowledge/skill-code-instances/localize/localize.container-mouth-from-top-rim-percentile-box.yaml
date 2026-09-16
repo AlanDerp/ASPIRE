@@ -1,0 +1,60 @@
+{
+  "api_calls": [
+    "segment_sam3_text_prompt",
+    "sorted",
+    "mask_to_world_points",
+    "float",
+    "float",
+    "span_of",
+    "span_of",
+    "astype",
+    "np.percentile",
+    "np.percentile",
+    "len",
+    "float",
+    "float",
+    "len",
+    "len",
+    "min",
+    "np.asarray",
+    "max",
+    "float"
+  ],
+  "ast_fingerprint": "d6f7fbbaf1406b47ecba90c82d8e8969be4827b1763ff1225cb275cc34c73d00",
+  "checkpoint_id": null,
+  "code": "def find_basket(rgb, d, K, E, relax=False):\n    \"\"\"Localize the basket mouth: dict(cx, cy, rim_z, span, n, prompt) or None.\"\"\"\n    h_min = 0.06 if relax else 0.09\n    for prompt in BASKET_PROMPTS:\n        masks = segment_sam3_text_prompt(rgb, prompt)\n        if not masks:\n            continue\n        for m in sorted(masks, key=lambda mm: -float(mm[\"score\"]))[:2]:\n            pts = mask_to_world_points(np.asarray(m[\"mask\"]).astype(np.uint8), d, K, E)\n            if pts is None or len(pts) < 1200:\n                continue\n            zlo = float(np.percentile(pts[:, 2], 2))\n            zhi = float(np.percentile(pts[:, 2], 98))\n            _, size = span_of(pts, 2.0, 98.0)\n            # a container: stands tall on the table and spans a wide footprint\n            if not (h_min < (zhi - zlo) < 0.30):\n                continue\n            if not (0.10 < max(size) < 0.32) or min(size) < 0.08:\n                continue\n            # the mouth centre is the xy midpoint of the basket's own top rim\n            rim = pts[pts[:, 2] > zhi - 0.030]\n            if len(rim) < 80:\n                continue\n            (cx, cy), _ = span_of(rim)\n            return {\"cx\": float(cx), \"cy\": float(cy), \"rim_z\": zhi, \"span\": size,\n                    \"n\": len(pts), \"prompt\": prompt}\n    return None",
+  "code_hash": "606884c35d9460d7a607eb64374ac329abd2cc4dd066001c8ce06bc5a2983f24",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Find the mouth centre of an open-topped container from its visible rim, not from the density of its whole mask",
+  "id": "localize.container-mouth-from-top-rim-percentile-box",
+  "kind": "skill-code-instance",
+  "observed_effect": "The top-rim percentile-box midpoint lands 6.5 cm from the whole-cloud median on seed 51 ((0.599, 0.263) vs (0.664, 0.264)) and matches the independently measured interior opening centre (0.595, 0.26); all 15 development seeds released at the rim midpoint and all 15 scored 1.0",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_swap/pick_up_the_chocolate_pudding_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "ba3599192bfc3b5e16c4b71b5617626de6a949d4a68d1a09d20f30401ffec68a",
+  "task": "pick_up_the_chocolate_pudding_and_place_it_in_the_basket",
+  "task_family": "libero_object_swap",
+  "trigger": "SAM3 segmenting a container (basket, bin, crate) where the near wall is far more visible than the far wall, biasing point density toward the camera",
+  "vertical_capability": "localize"
+}

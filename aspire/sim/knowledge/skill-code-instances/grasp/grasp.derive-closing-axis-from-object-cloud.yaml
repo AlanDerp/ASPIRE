@@ -1,0 +1,49 @@
+{
+  "api_calls": [
+    "np.linalg.eigh",
+    "np.array",
+    "float",
+    "band_xy.mean",
+    "np.degrees",
+    "int",
+    "np.arctan2",
+    "np.argmax"
+  ],
+  "ast_fingerprint": "01cb818804141e2fa01e9e6007f15056fa36c355037b09da0cdc27e530b978da",
+  "checkpoint_id": null,
+  "code": "def closing_yaw(band_xy):\n    \"\"\"Yaw whose finger-closing axis is across the band's narrow dimension.\"\"\"\n    c = band_xy - band_xy.mean(axis=0)\n    w, v = np.linalg.eigh(c.T @ c)\n    axis = v[:, int(np.argmax(w))]              # long axis of the band\n    normal = np.array([-axis[1], axis[0]])\n    return float(np.degrees(np.arctan2(normal[0], -normal[1])))",
+  "code_hash": "c220a68a4499a2b7b2b377e2125acc9fb9e4afce1bed9eaa10de85d3469e267a",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Choose the finger-closing yaw from the object's own point cloud instead of assuming it is axis-aligned",
+  "id": "grasp.derive-closing-axis-from-object-cloud",
+  "kind": "skill-code-instance",
+  "observed_effect": "Take the eigenvectors of the covariance of the object's cloud in XY: the eigenvector of the larger eigenvalue is the object's LONG axis, and its perpendicular is the closing-axis normal n. For a top-down quaternion whose finger-closing axis in world XY is (sin(yaw), -cos(yaw)), solve (sin yaw, -cos yaw) = n for yaw = atan2(n_x, -n_y). Derive it from the pinchable band's own cloud, never from the whole object's OBB: a wide base dominates the covariance and rotates the answer. Returns ~-1 deg on all 15 development seeds (band long axis along world x, broad faces facing +/-y) and the pinch then reads full contact.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/turn_on_the_stove/fix_code.py",
+  "source_code_sha256": "a48105fb3a15fc04ba7c169ce9b086c972eac809f1086d7ecf4cc1f1b3a3fe3b",
+  "task": "turn_on_the_stove",
+  "task_family": "libero_goal_swap",
+  "trigger": "A pinch whose validity depends on WHICH pair of faces the fingers land on - a lever, blade, bar, handle, knob band - and whose in-plane orientation varies across seeds. A hard-coded make_topdown_quat(0) only works when the object happens to be axis-aligned, so its success is coincidence rather than derivation.",
+  "vertical_capability": "grasp"
+}

@@ -1,0 +1,52 @@
+{
+  "api_calls": [
+    "np.asarray",
+    "range",
+    "solve_ik",
+    "move_to_joints",
+    "float",
+    "print",
+    "goto_home_joint_position",
+    "np.linalg.norm",
+    "achieved_tcp",
+    "tolist",
+    "np.round"
+  ],
+  "ast_fingerprint": "59839ef725444971482ef5fbda6a1835bb4c5dc81ec19e5d240bd71c1943459c",
+  "checkpoint_id": null,
+  "code": "def move_tcp(pos, quat, tol=MOVE_TOL, retries=0):\n    \"\"\"Move the TCP toward pos.  Returns (ok, err).\n\n    With retries == 0 a bad IK solve is reported but left in place: re-solving\n    from home can produce a strained pose that sweeps into the object.\n    \"\"\"\n    pos = np.asarray(pos, dtype=np.float64)\n    err = np.inf\n    for attempt in range(retries + 1):\n        j = None\n        try:\n            j = solve_ik(pos, quat)\n        except Exception:\n            j = None\n        if j is not None:\n            move_to_joints(j)\n            err = float(np.linalg.norm(achieved_tcp() - pos))\n            if err < tol:\n                return True, err\n            print(f\"  move_tcp miss {err:.4f} at {np.round(pos, 3).tolist()} \"\n                  f\"attempt {attempt}\", flush=True)\n        if attempt < retries:\n            goto_home_joint_position()\n    return False, err",
+  "code_hash": "d92df8eee960754e0fe83933c59149588ec640f7989fc1bd436d2b11cac39c03",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Avoid converting an unreachable Cartesian descent into a collision with the object being manipulated",
+  "id": "manipulation.no-home-retry-under-object",
+  "kind": "skill-code-instance",
+  "observed_effect": "retries defaults to 0; only the high approach pose may retry, where a re-solve cannot collide. Seed 52's knocked-over bottle became a successful neck grasp",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/put_the_wine_bottle_on_top_of_the_cabinet/fix_code.py",
+  "source_code_sha256": "8c1e524cd34684b4ccacaf20fef97894b2fab595c9de24105b9419467dff3bec",
+  "task": "put_the_wine_bottle_on_top_of_the_cabinet",
+  "task_family": "libero_goal_swap",
+  "trigger": "A move helper verifies its Cartesian error and, on a miss, goes home and re-solves - the warm-started re-solve converges to a strained pose that sweeps the fingers through the object",
+  "vertical_capability": "manipulation"
+}

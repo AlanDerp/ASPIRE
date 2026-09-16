@@ -1,0 +1,44 @@
+{
+  "api_calls": [
+    "drawer_front",
+    "_log",
+    "get_observation",
+    "range",
+    "grasp_bowl",
+    "np.array",
+    "round",
+    "carry_to",
+    "bowl_inside_drawer",
+    "place_and_release"
+  ],
+  "ast_fingerprint": "3218e49ec945be29a51657abf7c91f1cf8a00c61e69da95e0a8e2b3ce25c980e",
+  "checkpoint_id": null,
+  "code": "front = drawer_front(get_observation())\n_log(\"front\", None if front is None else [round(v, 3) for v in front])\nif front is not None and front[1] > -0.105:          # drawer confirmed open\n    x_ref, drawer_face, floor_z = front\n    # aim deeper than the target: the descent into the cavity stops ~2.5 cm\n    # short of the commanded pose (the bowl body meets the drawer front)\n    # the cavity is shallow: the bowl's near edge has to clear the panel's top\n    # edge on the way down, and its far edge must stay in front of the drawer's\n    # back wall (aiming at -0.115 put the bowl past the back wall, on top of\n    # the cabinet; aiming at -0.100 left it hanging on the panel lip)\n    cavity_y = drawer_face - 0.075\n    for _attempt in range(3):\n        grasped = grasp_bowl()\n        if grasped is None:\n            break\n        _, _, bottom_gap = grasped\n        # TCP height that puts the bowl's underside just above the floor\n        place = np.array([x_ref, cavity_y, floor_z + bottom_gap + 0.020])\n        if carry_to(place) and place_and_release(place) is not None:\n            if bowl_inside_drawer(drawer_face):\n                break",
+  "code_hash": "05031e6b91d919fdfdf2a46d0e8280fac78b33eb985145f48a2c9533b4dac341",
+  "development_outcomes": {
+    "successes": [
+      54,
+      56,
+      58,
+      60,
+      61,
+      62,
+      63,
+      64
+    ]
+  },
+  "goal": "Release an object into an open drawer whose entry is narrower than the object's drop path",
+  "id": "manipulation.place-into-drawer-corridor-midpoint",
+  "kind": "skill-code-instance",
+  "observed_effect": "Aim at drawer_face - 0.075, the middle of a measured ~5 cm landing corridor: landing offsets -0.059 ... -0.122 succeed, -0.131 ... -0.140 and -0.032 fail; aims of 0.100 and 0.115 behind the face each converted a passing tail into a failure. The landing is a knife edge - a 1-2 cm trajectory change flipped 5 of 13 dev seeds",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/open_the_top_drawer_and_put_the_bowl_inside/fix_code.py",
+  "source_code_sha256": "915b19eea818af63d807130d9c50d952d8866e9b3223e0b0fbbfd9ba9ebec3af",
+  "task": "open_the_top_drawer_and_put_the_bowl_inside",
+  "task_family": "libero_goal_swap",
+  "trigger": "Placing into a container whose rim sits below the surrounding fixture's top plane, so the gripper body hits the fixture and the object must be released above the container floor",
+  "vertical_capability": "manipulation"
+}

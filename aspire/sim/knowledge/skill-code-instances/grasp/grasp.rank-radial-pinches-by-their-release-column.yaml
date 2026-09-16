@@ -1,0 +1,57 @@
+{
+  "api_calls": [
+    "enumerate",
+    "rows.sort",
+    "float",
+    "release_column",
+    "np.isfinite",
+    "rows.append",
+    "print",
+    "np.asarray",
+    "np.linalg.norm",
+    "max",
+    "round",
+    "float",
+    "float",
+    "float",
+    "np.array",
+    "float"
+  ],
+  "ast_fingerprint": "ecffb230fd88da75ac30c363a47a5651bbde4783425d3fef339137ca3d337484",
+  "checkpoint_id": null,
+  "code": "def order_candidates(cands_g, bx, by, place, x_max, Rw):\n    \"\"\"Prefer pinches whose release TCP is on the near side of the bowl.\n\n    Sorting by the release column's own x does the work: the bowl hangs off the\n    TCP by ~one bowl radius, so a pinch on the far side of the bowl pushes the\n    release TCP ~5 cm further out than a pinch on the near side.  The wall probe\n    only has to disqualify, not rank - and it is a conservative *lower bound* on\n    the wall (a single long lunge reaches ~0.696 where an incremental ladder\n    reaches ~0.750), so a \"beyond\" verdict is advisory: when every candidate is\n    beyond it the ordering still puts the nearest release column first.\n\n    Only genuine wall pinches take part in that ranking.  A candidate whose TCP\n    is nowhere near the object (GraspNet returns poses for whatever mask it was\n    handed) has a meaningless hanging offset - the +-0.08 clamp in\n    hanging_offset turns a 0.19 m miss into a small fake offset, which would\n    otherwise promote it to first place and burn an attempt on an air grasp.\n    \"\"\"\n    rows = []\n    for i, c in enumerate(cands_g):\n        tcp_xy_ = np.asarray(c[2], dtype=float)[:2]\n        d = float(np.linalg.norm(tcp_xy_ - np.array([bx, by])))\n        wall = d <= 1.6 * Rw + 0.010\n        rel, off = release_column(c[2], bx, by, place)\n        if np.isfinite(x_max):\n            viol = max(0.0, float(rel[0]) - (x_max - REACH_MARGIN))\n        else:\n            viol = 0.0\n        rows.append((0 if wall else 1, 1 if viol > 1e-6 else 0,\n                     round(viol, 4), float(rel[0]), i, d, float(off[0]), float(off[1])))\n    rows.sort()\n    for nw, pref, viol, rx, i, d, ox, oy in rows:\n        c = cands_g[i]\n        note = \"not a wall pinch (TCP %.3f m from centre)\" % d if nw else \\\n               (\"beyond wall probe, conservative lower bound\" if pref else \"ok\")\n        print(f\"    {c[0]:16s} release_x={rx:.3f} offset=({ox:+.3f},{oy:+.3f}) \"\n              f\"{note} (x_max={x_max:.3f})\", flush=True)\n    return [cands_g[i] for _, _, _, _, i, _, _, _ in rows]",
+  "code_hash": "6476eafadb48b410745759f057683ff561e9563639b7564c5bfbad82a13d1689",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Choose which grasp azimuth to use when the object hangs off-centre from the TCP and the goal container sits near the workspace boundary",
+  "id": "grasp.rank-radial-pinches-by-their-release-column",
+  "kind": "skill-code-instance",
+  "observed_effect": "Candidates are ranked by the x of their RELEASE column (place - hanging_offset) ascending, not by grasp convenience: pinching the NEAR side of the object keeps the release column about one radius closer to the base. On this scene radial_-x_high (release x 0.686) is chosen over radial_+x_high (release x 0.784, outside the workspace). Ranking is gated first on |tcp - object_centre| <= 1.6*Rw + 0.010 so a planner pose cannot be promoted by a CLAMPED offset manufacturing a plausible-looking release column. Release-column miss 0.034 m -> 0.0003-0.0020 m; bowl-centre residual 0.041-0.052 m -> 0.016-0.026 m; 9 seeds flipped to success with no regression on the 6 already passing. Both azimuths grasp equally well (measured widths 0.0909 and 0.1113, both lifted) - only the release differs",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "2f7a4b84bad7216ea20231534e2edc379d6172e70b68872fcc5bde4bcb757034",
+  "task": "pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "Wall pinch on an object that then hangs ~one radius off the TCP, with the place target near the far edge of the arm's reach; the placement comes up short by a CONSTANT offset in the same direction across a whole seed family while the grasp itself is perfect",
+  "vertical_capability": "grasp"
+}

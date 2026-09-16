@@ -1,0 +1,55 @@
+{
+  "api_calls": [
+    "np.arange",
+    "cands.sort",
+    "np.arange",
+    "all",
+    "cands.append",
+    "out.append",
+    "np.hypot",
+    "float",
+    "len",
+    "math.hypot",
+    "float",
+    "float",
+    "math.hypot",
+    "min"
+  ],
+  "ast_fingerprint": "ae25072f56ebd48e7f4fcc776e1cf03990764bb912dba4b4c77d1223d4a372a3",
+  "checkpoint_id": null,
+  "code": "def choose_places(cloud, pcx, pcy, plate_top, r_bowl, h_bowl, tol=0.04):\n    \"\"\"Rank release spots over the plate for a bowl of radius `r_bowl`.\n\n    Each 1 cm grid cell gets a circular footprint of the *bowl's* radius; the\n    lowest obstacle inside that footprint above the plate surface is the cell's\n    clearance (1.0 = nothing at all).  Cells the bowl cannot descend through are\n    dropped, and of the rest the one *closest to the plate centre* wins: the goal\n    test for a plain object \"On\" predicate only accepts a few centimetres of\n    offset, so proximity matters far more than extra head-room.\n    \"\"\"\n    need = h_bowl + 0.04\n    cands = []\n    for dx in np.arange(-tol, tol + 1e-6, 0.01):\n        for dy in np.arange(-tol, tol + 1e-6, 0.01):\n            gx, gy = pcx + dx, pcy + dy\n            # circular footprint: a square one also sweeps up geometry that the\n            # bowl itself would never touch (e.g. a table edge or the arm)\n            m = np.hypot(cloud[:, 0] - gx, cloud[:, 1] - gy) < r_bowl\n            col = cloud[m]\n            above = col[col[:, 2] > plate_top + 0.02]\n            clear = 1.0 if len(above) == 0 else float(above[:, 2].min() - plate_top)\n            score = (clear >= need, -math.hypot(dx, dy))\n            cands.append((score, float(gx), float(gy), clear))\n    cands.sort(key=lambda c: c[0], reverse=True)\n    out = []\n    for sc, gx, gy, cl in cands:\n        if all(math.hypot(gx - ox, gy - oy) > 0.02 for ox, oy, _ in out):\n            out.append((gx, gy, cl))\n    return out[:6]",
+  "code_hash": "47570d86f7aa205b94da898b21a21d5d0cb459af87260acba796080366fe6bb0",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Choose a release cell on a thin flat target (plate, tray, mat) when the goal is a plain object On relation with a tight XY tolerance",
+  "id": "transport.proximity-beats-clearance-on-a-thin-target",
+  "kind": "skill-code-instance",
+  "observed_effect": "Rank candidate cells by (clearance >= object_height + 0.04, -distance_to_target_centre) and take the target's own surface height from its mask (90th percentile), never the table height, so the first candidate is the target centre: all 15 seeds select the plate centre (clearance 0.252 is the robot arm, not furniture) and all verify at 0.013-0.024 m from it. The max-clearance-only ranking on the sibling task picked a cell 5 cm off the goal and scored 0",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/put_the_bowl_on_the_plate/fix_code.py",
+  "source_code_sha256": "d7ccc9dbaab3aa7f8afd22687cd56afdac664ca8da55cd4e7db38ad9f5cbdb21",
+  "task": "put_the_bowl_on_the_plate",
+  "task_family": "libero_goal_swap",
+  "trigger": "'put X on Y' where Y lies flat with a mask z-extent of only ~1 cm, and the scene contains clutter that makes a max-clearance ranking prefer a cell away from the goal",
+  "vertical_capability": "transport"
+}

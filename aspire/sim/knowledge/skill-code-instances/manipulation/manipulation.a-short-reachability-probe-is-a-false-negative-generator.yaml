@@ -1,0 +1,49 @@
+{
+  "api_calls": [
+    "np.array",
+    "goto_pose",
+    "range",
+    "tcp_xy",
+    "float",
+    "np.array",
+    "goto_pose",
+    "np.linalg.norm",
+    "np.asarray"
+  ],
+  "ast_fingerprint": "2dc3f668db2d44b9f679da495293ff0fdcef2219676d55cc9ada6cc222a2c75c",
+  "checkpoint_id": null,
+  "code": "def tcp_reaches(xy, quat, z, tol=REACH_TOL, max_iter=5):\n    \"\"\"True if the tool axis can actually BE at (xy, z) in this orientation.\n\n    `goto_pose` and `solve_ik` both report success while the tool stalls short\n    laterally, and on this table the +x side saturates outright - commanding\n    x = 0.768, 0.787, 0.805 and 0.823 all return exactly 0.750.  Closing the\n    gripper there lands the fingers ON the object instead of beside it and drags\n    it, so every pinch is verified before the fingers are allowed to close.\n\n    The correction loop needs room to work: a direction left over from the\n    previous candidate can start tens of mm off, so an under-iterated probe\n    reports a perfectly reachable direction as unreachable (measured: -y read\n    as unreachable after 3 hops but reached with err = 0.0003 once given 6).\n    Callers also park on the target xy from above before probing.\n    \"\"\"\n    cmd = np.array([xy[0], xy[1], z], dtype=float)\n    goto_pose(cmd, quat)\n    for k in range(max_iter):\n        cur = tcp_xy()\n        err = np.asarray(xy, dtype=float)[:2] - cur\n        n = float(np.linalg.norm(err))\n        if n < tol:\n            return True, cmd\n        cmd = np.array([cmd[0] + err[0], cmd[1] + err[1], z])\n        goto_pose(cmd, quat)\n    return False, cmd",
+  "code_hash": "8d2074779559670727a580cebc427f1e1ebe0ecc8534ae492ebab05f152421c5",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      61,
+      62,
+      63,
+      65
+    ]
+  },
+  "goal": "Re-probe a candidate pose with a longer hop budget before declaring it unreachable, because a short probe produces false negatives that silently delete viable grasp directions.",
+  "id": "manipulation.a-short-reachability-probe-is-a-false-negative-generator",
+  "kind": "skill-code-instance",
+  "observed_effect": "Seed 65: the -y direction was declared unreachable after 3 probe hops but reached with err 0.0003 after 6. It was the only direction that could grip, so the seed scored 0 with it skipped and 1.0 with it retried. The shipped code parks at b_hi + 0.10 and re-probes with PROBE_RETRY_ITERS = 8 before discarding: ok, cmd = tcp_reaches(descent[:2], q, b_hi + 0.06, max_iter=PROBE_ITERS); if not ok: re-park and tcp_reaches(..., max_iter=PROBE_RETRY_ITERS); only then continue. This is the converse of manipulation.solve-ik-success-is-not-reachability: there the API reports success it did not achieve, here the probe reports failure on a pose the arm can in fact reach.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "c7bff1c73d36906ddf09b7346523cbc7f1a352bee00767cd4955365fe4068d68",
+  "task": "pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "Any verify-then-correct loop over goto_pose or solve_ik that decides whether a pose is attainable and then skips the direction when it is not.",
+  "vertical_capability": "manipulation"
+}

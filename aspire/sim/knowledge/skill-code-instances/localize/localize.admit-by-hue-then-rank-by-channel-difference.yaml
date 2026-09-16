@@ -1,0 +1,44 @@
+{
+  "api_calls": [
+    "max",
+    "print"
+  ],
+  "ast_fingerprint": "8f4308e41a80a970dc042ec7bf33fd499f838d78e512d36a4827847f6640f84d",
+  "checkpoint_id": null,
+  "code": "def pick_milk(cands):\n    \"\"\"The milk brick: warm packaging that is NOT fully-saturated orange.\n\n    Admit red/orange packaging (R - B > 20), which rejects the bright grey mask\n    SAM3 also puts on the basket liner, then take the largest B - R -- the brick\n    with white on its label rather than the near-fully-saturated juice brick.\n    \"\"\"\n    if not cands:\n        return None\n    for c in cands:\n        print(\"  carton cand c=(%.3f,%.3f) bot=%.3f top=%.3f n=%d score=%.3f \"\n              \"R=%.1f B=%.1f R-B=%.1f B-R=%.1f white=%.3f\"\n              % (c[\"cx\"], c[\"cy\"], c[\"bot\"], c[\"top\"], c[\"n\"], c[\"score\"],\n                 c[\"R\"], c[\"B\"], c[\"R\"] - c[\"B\"], c[\"B\"] - c[\"R\"], c[\"white\"]),\n              flush=True)\n    warm = [c for c in cands if c[\"R\"] - c[\"B\"] > WARM_MIN]\n    pool = warm if warm else cands\n    return max(pool, key=lambda c: c[\"B\"] - c[\"R\"])",
+  "code_hash": "89dc01c0dcac9e030f3b62acdfc4a72d3772bc9c6a2ceeafb7df0245473c5a09",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Admit candidates by hue before ranking them by a signed channel difference, because the extreme of the colour axis may be held by a neutral non-object mask rather than by the sibling",
+  "id": "localize.admit-by-hue-then-rank-by-channel-difference",
+  "kind": "skill-code-instance",
+  "observed_effect": "Stage 1 R-B > 20 rejects every neutral mask (liner R-B 10.2, x-width 0.289 m); stage 2 then ranks the admitted set by B-R largest first: milk -39.5..-40.0 vs juice -62.7..-63.0, a >= 22.7 grey-level margin on all 15 development seeds with exactly 2 candidates every seed and no seed within 20 levels of flipping",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_swap/pick_up_the_milk_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "a53934cb17ace8d5eed4fe5d5325e326a90ddda17accb42e5365551f5d39e12b",
+  "task": "pick_up_the_milk_and_place_it_in_the_basket",
+  "task_family": "libero_object_swap",
+  "trigger": "Two same-class objects whose measured extents agree to within millimetres so geometry cannot screen one out (14.3x5.9x4.4 vs 14.2x5.4x3.0 cm), the whole-class prompts tie exactly (juice box 0.922/0.922, box 0.805/0.805) and SAM3 also returns the basket liner as a tall grey carton at R-B 10.2 - so a bare max(B-R) returns the LINER, not the target",
+  "vertical_capability": "localize"
+}

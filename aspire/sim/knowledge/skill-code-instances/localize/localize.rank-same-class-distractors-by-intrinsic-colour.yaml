@@ -1,0 +1,54 @@
+{
+  "api_calls": [
+    "bottle_candidates",
+    "print",
+    "max",
+    "dict",
+    "np.median",
+    "mask_colour",
+    "print",
+    "print",
+    "max",
+    "len",
+    "tolist",
+    "np.round"
+  ],
+  "ast_fingerprint": "023741b2d0afda6af4907d5a36da0614130606e8c4aefb69c6d20028cdc435f9",
+  "checkpoint_id": null,
+  "code": "def find_bbq(rgb, dep, K, E):\n    \"\"\"The bbq sauce bottle = the darkest, most saturated red-brown bottle.\"\"\"\n    groups = bottle_candidates(rgb, dep, K, E)\n    print(f\"  bottle-shaped objects: {len(groups)}\", flush=True)\n    for g in groups:\n        sig = mask_colour(rgb, g[\"union\"])\n        g[\"colour\"] = sig\n        if sig is None:\n            g[\"rank\"] = -9.0\n            continue\n        med, sat, val = sig\n        g[\"rank\"] = sat - val\n        print(f\"    at ({g['xy'][0]:.3f},{g['xy'][1]:.3f}) rgb={np.round(med,0).tolist()} \"\n              f\"sat={sat:.3f} val={val:.3f} rank={g['rank']:.3f}\", flush=True)\n    if not groups:\n        return None\n    best = max(groups, key=lambda g: g[\"rank\"])\n    if best[\"colour\"] is None or best[\"colour\"][1] < 0.85:\n        # appearance signature unavailable -> fall back to the prompt ranking\n        print(\"  colour screen inconclusive; falling back to prompt score\", flush=True)\n        best = max(groups, key=lambda g: g[\"best\"][\"score\"])\n    d = dict(best[\"best\"])\n    d[\"center\"] = np.median(d[\"pts\"], axis=0)\n    return d",
+  "code_hash": "245cbd74457524ed66c9f67323e60921f4a183e2e67eca76473447cfda910cae",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Identify which of several same-class objects is the task's target by ranking object-intrinsic appearance, not SAM3 prompt score",
+  "id": "localize.rank-same-class-distractors-by-intrinsic-colour",
+  "kind": "skill-code-instance",
+  "observed_effect": "0/15 -> 15/15 on development seeds 51-65; the true bbq sauce is separated from the amber decoy by a rank margin >= 0.28 (0.744-0.773 vs a worst runner-up of 0.479) on every seed",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_swap/pick_up_the_bbq_sauce_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "1c6387c0fc31e80cab8178c2aaf896d577cd9ad1e6f463c9f2b1b7902d7fe32a",
+  "task": "pick_up_the_bbq_sauce_and_place_it_in_the_basket",
+  "task_family": "libero_object_swap",
+  "trigger": "The scene holds two or more objects of the same class (several bottles, several boxes) and the task names exactly one; max(masks, key=score) picks the wrong one and every prompt phrasing ranks the decoy first",
+  "vertical_capability": "localize"
+}

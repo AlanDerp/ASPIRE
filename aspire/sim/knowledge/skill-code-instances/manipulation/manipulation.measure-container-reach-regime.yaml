@@ -1,0 +1,54 @@
+{
+  "api_calls": [
+    "segment_sam3_text_prompt",
+    "sorted",
+    "astype",
+    "mask_to_world_points",
+    "cloud_geom",
+    "print",
+    "max",
+    "len",
+    "len",
+    "max",
+    "tolist",
+    "len",
+    "np.round"
+  ],
+  "ast_fingerprint": "e669709c4624899c39334070e97bdc681d995683e784a3602de46360abb9648e",
+  "checkpoint_id": null,
+  "code": "def localize_bowl(rgb, d, K, E):\n    \"\"\"The metal bowl: the goal container.\"\"\"\n    for prompt in [\"metal bowl\", \"bowl\", \"silver bowl\"]:\n        try:\n            masks = segment_sam3_text_prompt(rgb, prompt)\n        except Exception:\n            continue\n        for m in sorted(masks, key=lambda x: -x[\"score\"])[:3]:\n            mask = m[\"mask\"].astype(np.uint8)\n            pts = mask_to_world_points(mask, d, K, E)\n            if pts is None or len(pts) < 200 or len(pts) > 20000:\n                continue\n            c, zlo, zhi, ext = cloud_geom(pts)\n            if zhi - zlo < 0.020:            # a bowl has depth\n                continue\n            if max(ext) > 0.20:\n                continue\n            if not (0.05 < c[0] < 0.75 and -0.45 < c[1] < 0.45):\n                continue\n            print(f\"  bowl: prompt={prompt!r} score={m['score']:.3f} \"\n                  f\"c=({c[0]:.3f},{c[1]:.3f},{c[2]:.3f}) z=[{zlo:.4f},{zhi:.4f}] \"\n                  f\"ext={np.round(ext,4).tolist()} n={len(pts)}\", flush=True)\n            return c, zhi, 0.5 * max(ext), zlo\n    return None, None, None, None",
+  "code_hash": "2c452eaaa5f87f0f7d47c725c315ce27848ff4dd5b07ccb32d0083b165c7928f",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Measure a container's own pose (centre, rim, radius, floor) every seed so that a reachability regime change is visible in the log instead of being mistaken for controller flakiness",
+  "id": "manipulation.measure-container-reach-regime",
+  "kind": "skill-code-instance",
+  "observed_effect": "The container is localized with a geometry-screened prompt chain and its centre, rim z, radius and floor z are printed on every seed; the achieved TCP is printed again at contact ('over bowl: tcp=(x,y,z)'). Comparing those two lines across seeds exposes the regime. On this task the bowl sits at y ~= -0.062 on most seeds and y ~= -0.045 on seeds 54/56 - 2 cm nearer. In the far regime the arm stalls at reported z ~= 0.1918 with the pads 3.7 cm above the rim (safe); in the near regime it descends to ~= 0.1205-0.1233 and the pads enter the mouth, where the retreat drags the whole bowl off the table. The outcome flips on a 2.8 mm difference in the final reported z (0.1205 -> reward 1.0, 0.1233 -> reward 0.0) across otherwise-identical controllers, so a single seed's contact outcome is not evidence about the controller: measure the regime, then tune.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/put_the_cream_cheese_in_the_bowl/fix_code.py",
+  "source_code_sha256": "ffa99f9fc257b59595249109fb57936c7350afc6ff80fda34ecb7c1d9a5b6244",
+  "task": "put_the_cream_cheese_in_the_bowl",
+  "task_family": "libero_goal_swap",
+  "trigger": "The same placement succeeds on some seeds and fails on others with a byte-identical release pose. Before concluding the controller is at fault, measure the container's y (distance from the robot base) across seeds: the arm can stall on its own in one regime and drive all the way in in another.",
+  "vertical_capability": "manipulation"
+}

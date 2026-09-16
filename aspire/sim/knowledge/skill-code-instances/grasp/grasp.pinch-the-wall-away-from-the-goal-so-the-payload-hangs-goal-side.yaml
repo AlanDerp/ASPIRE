@@ -1,0 +1,58 @@
+{
+  "api_calls": [
+    "np.array",
+    "float",
+    "walls.sort",
+    "np.linalg.norm",
+    "np.array",
+    "wall_radius",
+    "float",
+    "np.clip",
+    "float",
+    "get",
+    "out.append",
+    "float",
+    "np.degrees",
+    "np.arctan2",
+    "topdown",
+    "np.array",
+    "int"
+  ],
+  "ast_fingerprint": "6ca0ac65766e3eec63195e26eb3b7899d0e8ecdb14b5aea895582c716082cd04",
+  "checkpoint_id": null,
+  "code": "def candidates(bowl, goal_xy):\n    \"\"\"Radial wall pinches, best first.\n\n    The wall FACING AWAY from the goal comes first: pinching it leaves the bowl hanging\n    on the GOAL side of the tool, so the release column is one bowl radius SHORT of the\n    plate instead of one radius PAST it.  That matters because this arm's tool centre\n    point cannot be driven beyond x ~= 0.750 at any height: a release column beyond the\n    plate (x >= 0.76 here) is unreachable and the bowl is dropped short.\n    \"\"\"\n    bx, by = bowl[\"cx\"], bowl[\"cy\"]\n    h = bowl[\"top\"] - bowl[\"base\"]\n    d = np.array([goal_xy[0] - bx, goal_xy[1] - by], dtype=float)\n    n = float(np.linalg.norm(d))\n    d = d / n if n > 1e-6 else np.array([1.0, 0.0])\n    walls = [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)]\n    # grasp wall u (tool = centre + u*r) -> the bowl hangs at -u*r from the tool;\n    # we want that hang direction aligned with the goal direction d, i.e. u = -d first\n    walls.sort(key=lambda u: float(np.array(u) @ d))\n    out = []\n    for frac in GRASP_FRACS:\n        z = bowl[\"base\"] + frac * h\n        r = wall_radius(bowl[\"pts\"], bx, by, z)\n        if r is None:\n            r = 0.5 * BOWL_MAX_SIDE\n        r = float(np.clip(r, 0.030, 0.075))\n        for ux, uy in walls:\n            yaw = float(np.degrees(np.arctan2(ux, -uy)))\n            name = {1.0: \"+x\", -1.0: \"-x\"}.get(ux, \"+y\" if uy > 0 else \"-y\")\n            out.append((\"radial_%s_%d\" % (name, int(frac * 100)), topdown(yaw),\n                        (bx + ux * r, by + uy * r, z), r))\n    return out",
+  "code_hash": "0849b6de2fe31c9c6dc0cfd3b36d20d973f8d5ce492f69447465c8faa3d798b3",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Keep the release column of a radially pinched payload inside the arm reachable box",
+  "id": "grasp.pinch-the-wall-away-from-the-goal-so-the-payload-hangs-goal-side",
+  "kind": "skill-code-instance",
+  "observed_effect": "Pinch the wall AWAY from the goal so the payload hangs on the GOAL side of the tool. A payload pinched on the goal-facing wall hangs BEHIND the tool, so dropping it on the goal centre requires driving the tool one payload radius PAST the goal; a payload pinched on the far wall hangs goal-side and the release column is one radius SHORT of the goal. Concretely: sort the four wall normals u by float(np.array(u) @ d) ascending, so the normal most anti-aligned with the goal direction d is tried first (walls.sort(key=lambda u: float(np.array(u) @ d))). Here the goal-facing-wall version commanded release columns x=0.764-0.789 against a hard clamp the arm never exceeds (x~0.750), stalling 2-4 cm short and leaving the bowl on the near edge; the away-wall version commands x~0.685, comfortably inside. Drop accuracy 0.028-0.051 m -> 0.003-0.008 m; dev reward 12/15 -> 15/15 (seeds 58,59,63 fixed)",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "115be05a29be2ed9beae8588021a6e408e3bf39a98600f4d9b396f6952fbd5f7",
+  "task": "pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "Pick-and-place where the object is wider than the gripper opening (so a centred top-down grasp closes on air and the grasp must be a radial wall pinch) AND the rewarded placement is a tight XY tolerance near the edge of the workspace. Symptom: the tool stalls a fixed distance short of every commanded release point, and success flips between near-identical trials because every landing sits ON the tolerance boundary -- here 5.1 cm passed while 3.6 cm failed, so the measured distance to the goal was not predictive of reward",
+  "vertical_capability": "grasp"
+}

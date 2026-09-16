@@ -1,0 +1,42 @@
+{
+  "api_calls": [
+    "yaw_quat",
+    "out.append"
+  ],
+  "ast_fingerprint": "1f2cc6449ad67c60e5e7f7b6ef4fb77a5d91c2fa94e45a7e6b86a12dd6c427c5",
+  "checkpoint_id": null,
+  "code": "def pinch_directions(cx, cy, b_lo, b_hi, r_rim, zr):\n    \"\"\"Pinch directions as (tag, quat, uz, uy, descent_tcp, pinch_tcp).\n\n    Two radii matter, and they are different:\n\n    * `descent` = r_rim + PINCH_CLEAR, comfortably OUTSIDE the whole\n      silhouette.  Descending at the wall radius clips the rim on the way down\n      and shoves the bowl sideways (measured: the tool axis walked 4 cm in y).\n    * `pinch` = r_rim + PINCH_OFFSETS, a SCAN of tool-axis radii.  Closing\n      reduces the finger separation *towards the tool axis*, so the wall is\n      only caught if the axis ends up where one finger can come down on its\n      outside while the other presses its inside; the gripper then stops with\n      the wall held between the fingers (measured opening 4.7-6.2 mm, i.e.\n      exactly the wall) instead of meeting in free air (measured 1.2-3.4 mm).\n      Which radius achieves that is NOT constant: it depends on how far the\n      measured rim radius sits from the true wall, which moves with the OBB\n      centre error and with the direction.  Measured across the suite,\n      +0.012 gripped on 12 of 15 seeds while -0.003 / -0.008 / -0.013 were the\n      only ones that gripped on the other three, so the scan tries the common\n      case first and falls back to the straddle radii.\n    \"\"\"\n    out = []\n    for tag, deg, ux, uy in ((\"-x\", 90, -1.0, 0.0), (\"-y\", 0, 0.0, -1.0),\n                             (\"+x\", 90, 1.0, 0.0), (\"+y\", 0, 0.0, 1.0)):\n        q = yaw_quat(deg)\n        Rd = r_rim + PINCH_CLEAR\n        descent = (cx + Rd * ux, cy + Rd * uy, zr)\n        pinches = [(r_rim + dR, (cx + (r_rim + dR) * ux, cy + (r_rim + dR) * uy, zr))\n                   for dR in PINCH_OFFSETS]\n        out.append((tag, q, ux, uy, descent, pinches))\n    return out",
+  "code_hash": "f1efe196f9fc53d2071f375cf31fa8f4b2ea4f69a8b55d3dd73aaef0d082f890",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      61,
+      62,
+      63,
+      65
+    ]
+  },
+  "goal": "Scan the pinch radius around the object rim instead of trusting one rim-plus-constant offset, and accept a pinch only when the post-close opening shows something between the fingers.",
+  "id": "grasp.scan-the-pinch-radius-a-fixed-offset-from-the-rim-is-a-coin-flip",
+  "kind": "skill-code-instance",
+  "observed_effect": "Every lift that worked left an opening of 0.058-0.077 and every close that did not left 0.015-0.043, so the post-close opening is a reliable judge. The fixed offset r_rim + 0.012 gripped 12 of 15 development seeds; the rest needed r_rim - 0.013 (seed 53), r_rim - 0.008 (seed 60) or r_rim + 0.002 (seed 65). The shipped revision scans PINCH_OFFSETS = (0.012, -0.003, -0.008, -0.013, 0.002) from r_rim, with one measured correction hop before a direction is abandoned, and scores 13/15 on dev seeds with each direction attempt costing one close.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "c7bff1c73d36906ddf09b7346523cbc7f1a352bee00767cd4955365fe4068d68",
+  "task": "pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "Grasping an object wider than the gripper can straddle, so it must be pinched against one of its own walls (bowl, mug, cup, box rim). A single rim-plus-constant radius grips only sometimes, because the radius that grips varies with the object pose and with where the wall actually is in depth.",
+  "vertical_capability": "grasp"
+}

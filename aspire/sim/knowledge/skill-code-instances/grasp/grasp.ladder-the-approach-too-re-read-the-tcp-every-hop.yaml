@@ -1,0 +1,51 @@
+{
+  "api_calls": [
+    "range",
+    "tcp",
+    "tcp",
+    "float",
+    "np.array",
+    "np.linalg.norm",
+    "goto_pose",
+    "min",
+    "max"
+  ],
+  "ast_fingerprint": "3c2481e44f25e69dba41aefcaf6b4b6d60aef1438803648cf42d501aba740853",
+  "checkpoint_id": null,
+  "code": "def hop_to(px, py, pz, quat, step=HOP, tol=0.010, max_iter=30):\n    \"\"\"Walk to a Cartesian target in <=step hops, re-reading the MEASURED TCP every hop.\n\n    A SINGLE large goto_pose falls outside the solver's warm-started basin even when the\n    target is plainly reachable.  Measured on this scene: a command from home to\n    (0.703,-0.289,0.42) landed at (0.453,-0.208,0.227) - 25 cm away in x - and another to\n    (0.653,-0.239,0.42) landed at (0.756,-0.279,0.473), with move_to_joints reporting\n    success both times.  Re-reading the achieved TCP each hop keeps every step inside the\n    basin and stops the error accumulating, because the next command is derived from where\n    the tool actually is rather than from the original snapshot.\n    \"\"\"\n    for _ in range(max_iter):\n        cur = tcp()\n        d = np.array([px, py, pz], dtype=float) - cur\n        nd = float(np.linalg.norm(d))\n        if nd < tol:\n            break\n        nxt = cur + d * min(1.0, step / max(nd, 1e-6))\n        try:\n            goto_pose(nxt, quat)\n        except Exception:\n            break\n    return tcp()",
+  "code_hash": "fb130324568017d23466f4b0f6d0e34162db46c82b6522d937ec58dcd997d432",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Ladder every Cartesian motion including the grasp approach, re-reading the MEASURED TCP on each hop instead of issuing one large goto_pose.",
+  "id": "grasp.ladder-the-approach-too-re-read-the-tcp-every-hop",
+  "kind": "skill-code-instance",
+  "observed_effect": "Measured probe from home on this scene: a command to (0.703,-0.289,0.42) landed at (0.453,-0.208,0.227), 0.250 m away in x, and one to (0.653,-0.239,0.42) landed at (0.756,-0.279,0.473), 0.103 m off and 0.053 m high, while a control command to (0.603,-0.289,0.42) tracked exactly (0.603,-0.288,0.430). So the landing point is not merely inaccurate, it is unrelated to the magnitude of the command - only the -x direction happened to be inside the solver warm-started basin - and move_to_joints reports success in every case, making the failure silent. On seed 59 the baseline air-grasped all four frac-0.62 walls (gap 0.0019, 0.0019, 0.0012, 0.0012) and displaced the bowl from (0.717,-0.341) to (0.692,-0.331). With hop_to at 2.5 cm steps plus a laddered approach that retries once if the residual exceeds 0.020 m, the shipped file scores 15/15 with ZERO air grasps, hold gap 0.0080-0.0082 uniformly, and the first wall candidate radial_-y_62 succeeds on all 15 seeds.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_on_the_wooden_cabinet_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "5f79f031178bc89332959b2333dbf3c77c440dcf56d777dfceb9fee4618df510",
+  "task": "pick_up_the_black_bowl_on_the_wooden_cabinet_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "Any goto_pose whose target is more than about 3 cm from the current TCP - in particular the lateral approach from home to a grasp pose, which is usually the single largest move in a pick. Symptom when missing: pinches read gap 0.001-0.002 (air grasps) while move_to_joints reported success, and the misplaced descent shoves the object.",
+  "vertical_capability": "grasp"
+}

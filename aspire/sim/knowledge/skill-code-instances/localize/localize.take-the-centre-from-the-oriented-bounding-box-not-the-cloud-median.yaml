@@ -1,0 +1,50 @@
+{
+  "api_calls": [
+    "np.median",
+    "get_oriented_bounding_box_from_3d_points",
+    "np.asarray",
+    "float",
+    "float",
+    "np.all",
+    "np.isfinite",
+    "math.hypot",
+    "float",
+    "float"
+  ],
+  "ast_fingerprint": "2856632425c2ae472292abcaf70f049ad37d3ec2768d4023528e2909bce7298c",
+  "checkpoint_id": null,
+  "code": "def obb_center_xy(pts):\n    \"\"\"Robust XY centre of a free-standing object from its silhouette.\n\n    The point-cloud median is not usable here: the depth-projected points are\n    much denser on the camera side, which pulls the median 2.3 cm off centre on\n    the bowl sitting on the cookie box.  The OBB centre (and the extent\n    midpoint of the upper z bands) agrees with the independent occlusion\n    evidence, so it is used for anything that has to be physically placed.\n    Falls back to the median if the OBB helper fails.\n    \"\"\"\n    try:\n        obb = get_oriented_bounding_box_from_3d_points(pts)\n        c = np.asarray(obb[\"center\"], dtype=float)\n        if np.all(np.isfinite(c)) and math.hypot(c[0], c[1]) < 3.0:\n            return (float(c[0]), float(c[1]))\n    except Exception:\n        pass\n    c = np.median(pts, axis=0)\n    return (float(c[0]), float(c[1]))",
+  "code_hash": "9d79b36e2256681b007b2ae174660963329e2937ce861be59a6362fe6cd13a66",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      61,
+      62,
+      63,
+      65
+    ]
+  },
+  "goal": "Steer a grasp from the object oriented bounding-box centre, not from the depth-projected mask median, which is biased towards whichever side is more visible.",
+  "id": "localize.take-the-centre-from-the-oriented-bounding-box-not-the-cloud-median",
+  "kind": "skill-code-instance",
+  "observed_effect": "Measured on seed 51: the mask median read (0.721, 0.020) against the oriented bounding-box centre (0.744, 0.018) - 23 mm, a whole wall thickness, and enough to aim the pinch off the wall. The occlusion edge of the cookie box explains the direction of the bias. The shipped code uses the OBB centre to steer the fingers and keeps the median only for the carry offset, where it enters as a difference between two measurements and the constant bias cancels.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "c7bff1c73d36906ddf09b7346523cbc7f1a352bee00767cd4955365fe4068d68",
+  "task": "pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "Localising any object for a grasp from a depth-projected mask, especially when part of it is occluded by a support - a bowl behind a cookie box, or any object whose silhouette is cut on one side.",
+  "vertical_capability": "localize"
+}

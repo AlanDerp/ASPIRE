@@ -1,0 +1,55 @@
+{
+  "api_calls": [
+    "np.zeros_like",
+    "astype",
+    "np.median",
+    "float",
+    "np.where",
+    "int",
+    "int",
+    "len",
+    "mk.any",
+    "ys.min",
+    "ys.max",
+    "int",
+    "max"
+  ],
+  "ast_fingerprint": "c3852262a0674e12eda1ecc5c8d94b8768428c7cd85b075375fc145ba883ccee",
+  "checkpoint_id": null,
+  "code": "def cap_signature(rgb, cand):\n    \"\"\"Colour of the candidate's cap band (top 25% of its mask rows).\"\"\"\n    mk = cand[\"mask\"] > 0\n    ys = np.where(mk.any(axis=1))[0]\n    y0, y1 = int(ys.min()), int(ys.max())\n    cut = y0 + int(0.25 * (y1 - y0)) + 1\n    cap = np.zeros_like(mk)\n    cap[y0:cut, :] = mk[y0:cut, :]\n    cpx = rgb[cap].astype(np.float64)\n    if len(cpx) < 30:\n        cand[\"cap_rgb\"] = None\n        cand[\"cap_green\"] = -999.0\n        return cand\n    med = np.median(cpx, axis=0)\n    cand[\"cap_rgb\"] = med\n    cand[\"cap_green\"] = float(med[1] - max(med[0], med[2]))\n    return cand",
+  "code_hash": "d3710e850db02e24168e0092276c6da8a71db80eedba410110ca2bb5d3aaa83a",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Rank same-class candidates by a signed channel difference measured over a SUB-REGION of the mask (its cap band), when the discriminating colour is a part of the object rather than the object, and the prompt ranking is inverted",
+  "id": "localize.rank-same-class-by-a-sub-region-colour-signature",
+  "kind": "skill-code-instance",
+  "observed_effect": "Select the top 25 percent of the candidate mask's image rows (the cap band), take the median RGB of the ORIGINAL image over that band, and use the signed channel difference median(G) - max(median(R), median(B)). Because the descriptor is a difference of two channel medians over the candidate's own pixels, the scene's absolute lighting level cancels and there is no tuned constant beyond the admission threshold (CAP_GREEN_MIN = 12 grey levels). Measured: target +21.0 on all 15 development seeds against best sibling <= -1.0, a >= 22 grey-level margin with no seed within 20 of flipping. A negative probe forcing max(score) grasped the sibling at (0.497,-0.237) and placed it cleanly in the basket (release tcp [0.600,0.259,0.233] against a rim of 0.142, no error raised) yet scored 0.000 on seeds 51 and 52 - so the 0.000 is the goal predicate rejecting the wrong OBJECT, i.e. the task is genuinely identity-sensitive and this rank is what solves it. The region is selected by IMAGE ROW inside the mask, so it transfers across camera poses with no world-frame calibration. Keep the same-class geometry screen (tall and narrow) as the outer gate so a coloured non-bottle cannot win",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_object_swap/pick_up_the_salad_dressing_and_place_it_in_the_basket/fix_code.py",
+  "source_code_sha256": "b7f7851370df8d88830bb45f6f2fe0847a633a921e80ced1dec72e6fc7db449e",
+  "task": "pick_up_the_salad_dressing_and_place_it_in_the_basket",
+  "task_family": "libero_object_swap",
+  "trigger": "Several objects of the same class share the scene (three tall bottles) and no prompt ranks the target first: the target's best score is BELOW a sibling's on every seed (dressing 0.906-0.949 vs sibling 0.953-0.957, inverted 15/15). Product words fail to ground at all (salad dressing 0.154, dressing 0.235), and the target is distinguished by part of itself - a dark-green cap - not by its overall colour",
+  "vertical_capability": "localize"
+}

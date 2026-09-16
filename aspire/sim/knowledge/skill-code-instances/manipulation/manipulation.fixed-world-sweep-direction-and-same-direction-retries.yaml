@@ -1,0 +1,56 @@
+{
+  "api_calls": [
+    "print",
+    "view",
+    "print",
+    "locate_knob",
+    "RuntimeError",
+    "view",
+    "print",
+    "view",
+    "getattr",
+    "attempt",
+    "view",
+    "gap",
+    "print",
+    "attempt",
+    "print"
+  ],
+  "ast_fingerprint": "508aa44405af266bfb09f2749f47b694256f50bcb29210fcb8b8a0620eba9f19",
+  "checkpoint_id": null,
+  "code": "def run():\n    print(\"TASK_LANGUAGE: %s\" % getattr(env.handle, \"task_language\", \"\"), flush=True)\n    rgb, d, K, E = view()\n    if locate_knob(rgb, d, K, E) is None:\n        raise RuntimeError(\"control not localized at start\")\n\n    gripped = False\n    for drop in (PINCH_DROP, 0.0, 0.016):\n        try:\n            g = attempt(rgb, d, K, E, drop)\n        except Exception as exc:                # noqa: BLE001\n            print(\"  attempt(drop=%.3f) failed: %s\" % (drop, exc), flush=True)\n            continue\n        if g > AIR_GAP:\n            gripped = True\n            break\n        rgb, d, K, E = view()                   # re-localize after an air pinch\n\n    if not gripped:\n        # Nothing was ever gripped, so nothing has been rotated yet: a mirrored\n        # sweep in the opposite direction is free insurance.\n        print(\"  no grip in either height band - trying the opposite sweep\", flush=True)\n        rgb, d, K, E = view()\n        for drop in (PINCH_DROP, 0.0):\n            try:\n                g = attempt(rgb, d, K, E, drop, direction=-1.0)\n            except Exception as exc:            # noqa: BLE001\n                print(\"  reverse attempt failed: %s\" % exc, flush=True)\n                continue\n            if g > AIR_GAP:\n                break\n            rgb, d, K, E = view()\n\n    print(\"  final gap %.4f\" % gap(), flush=True)",
+  "code_hash": "feb97ba4058172e81f4bda648ffeaace2491ce80ed7280476c9ddfbed30dee13",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Command a fixed world-frame direction for an unobservable rotation, and retry in the same direction",
+  "id": "manipulation.fixed-world-sweep-direction-and-same-direction-retries",
+  "kind": "skill-code-instance",
+  "observed_effect": "Call the sweep with a constant direction (+1.0 = world +Z). Retry a failed pinch at different heights in the SAME direction: a bounded joint can only be pushed further toward its limit, so a same-direction retry can never undo a partial turn, while a reversed retry can. Offer the opposite direction at most once, and only after every pinch has closed on air - i.e. only when nothing has been rotated yet, which makes it free insurance. Note solve_ik RAISES on total failure (RuntimeError: IK failed ... with all orientation fallbacks), so no  guard is needed; wrap each sweep step in try/except instead and cap consecutive misses.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/turn_on_the_stove/fix_code.py",
+  "source_code_sha256": "a48105fb3a15fc04ba7c169ce9b086c972eac809f1086d7ecf4cc1f1b3a3fe3b",
+  "task": "turn_on_the_stove",
+  "task_family": "libero_goal_swap",
+  "trigger": "Any turn/rotate task where the required direction is not observable from the scene. Deriving the direction from a per-seed visual quantity (a point-prompted sub-part centroid, the approach side) makes the commanded direction vary even though the joint axis is fixed in the world, and a wrong-direction sweep can undo a partial turn.",
+  "vertical_capability": "manipulation"
+}

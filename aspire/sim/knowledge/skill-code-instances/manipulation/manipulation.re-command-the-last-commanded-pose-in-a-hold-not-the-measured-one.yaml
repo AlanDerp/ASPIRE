@@ -1,0 +1,50 @@
+{
+  "api_calls": [
+    "copy",
+    "goto_pose",
+    "range",
+    "go",
+    "_charge",
+    "np.asarray",
+    "tcp",
+    "np.array",
+    "float",
+    "float",
+    "float"
+  ],
+  "ast_fingerprint": "d1c372651894281b3873696a4d4c153e9ba9ae6a1c0ff43e9d40bece2cda0f46",
+  "checkpoint_id": null,
+  "code": "_CMD = {\"p\": None}\n\n\ndef go(p, quat):\n    \"\"\"Every Cartesian command goes through here, so the last COMMANDED grip-site\n    pose is always known.  `settle` needs it: holding a pose by re-commanding the\n    MEASURED one is a closed loop through a servo that overshoots, so every hold\n    ratchets the tool a few mm and the release height drifts with the number of\n    holds (measured on seed 53: +3 mm with two holds, +11 mm with three -- and 11 mm\n    is the difference between landing on the plate and dropping onto it).\"\"\"\n    p = np.asarray(p, dtype=np.float64).copy()\n    _CMD[\"p\"] = p\n    goto_pose(p, quat)\n    return p\n\n\ndef settle(quat, repeats=2):\n    \"\"\"A redundant re-command at the SAME pose buys sim time; an observation does not.\n    The re-command must be (a) expressed in the grip-site frame, or each call lifts the\n    tool by GZ, and (b) the last COMMANDED pose, or each call ratchets the tool.\"\"\"\n    for _ in range(repeats):\n        p = _CMD[\"p\"]\n        if p is None:                      # nothing commanded yet: hold what we measure\n            cur = tcp()\n            p = np.array([float(cur[0]), float(cur[1]), float(cur[2]) - GZ])\n        go(p, quat)\n        _charge(\"pose\")",
+  "code_hash": "262328f0bff170d1661a1fb893e4b8d917ed7398301a1721555b8dc2dca1dac4",
+  "development_outcomes": {
+    "successes": [
+      51,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "A hold helper is not idempotent either way: know which pose it re-commands, and know the measured cost of each choice",
+  "id": "manipulation.re-command-the-last-commanded-pose-in-a-hold-not-the-measured-one",
+  "kind": "skill-code-instance",
+  "observed_effect": "A hold that reads the tool pose back and re-commands it is a closed loop through a joint servo that lands short of its own target, so every redundant hold moves the tool and the payload is released from a height that depends on how many holds happened to run -- invisible, because the trace reports the ACHIEVED height as if it were the commanded one. Measured on the same descent and payload, varying only the number of post-release holds: release at gripz=0.053 (cmd 0.049, +4 mm, passed), then gripz=0.062 (cmd 0.051, +11 mm, failed), then gripz=0.053 (cmd 0.051, +2 mm, passed). Eleven millimetres above a 12 cm plate is a drop, not a placement. The candidate fix in this instance routes EVERY Cartesian command through go(p, quat), which records the commanded grip-site pose in _CMD, and has settle() re-command _CMD[p]; before anything is commanded it falls back to the measured pose converted once into grip-site space (tcp()[2] - GZ); goto_home_joint_position() invalidates _CMD. Result: holds become idempotent with respect to the hold -- the release lands within 0-2 mm of its command on seeds 51/53/58/62 and after-release equals release. HONEST COST, MEASURED: this variant is NOT an outcome win. Two full 15-seed dev sweeps of each variant -- 4 draws in total -- gave the commanded-pose variant 13/15 and 10/15 (23/30) against the shipped measured-pose variant 14/15 and 12/15 (26/30). It wins the seed whose failure the ratchet explains (seed 53: 1 of 2 draws vs 0 of 2) and loses seed 59 outright (0,0 vs 1,1) plus one draw of seed 56. Plausible reason: a hold that re-asserts a COMMAND keeps driving the tool toward it, so where the command itself is slightly wrong -- and the release command is rest_z + measured hang + drop, derived from a measurement -- the servo shortfall that the measured-pose hold accidentally absorbed is gone. Neither number is separated from the noise this task has (identical code scored between 10 and 14 over four draws; seeds 53/55/56/59/64 each flip in at least one draw). CONCLUSION: prefer the commanded pose when you need holds to be COUNTABLE or when the command is known-good; do not adopt it expecting a score gain. This instance CORRECTS transport.pass-sim-time-with-a-command-not-an-observation (whose settle is the measured-pose form) on the ratchet, while declining to correct the episode-level recommendation in the other direction. development_outcomes.successes lists the 13 seeds that passed in the first of the two draws.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate/v6.py",
+  "source_code_sha256": "cfa9ee0aca1a9c304a36de51012da6657985696105c83878f0e836aebc10a4ea",
+  "task": "pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_task",
+  "trigger": "any settle/hold/wait helper that buys sim time by re-issuing the current tool pose",
+  "vertical_capability": "manipulation"
+}

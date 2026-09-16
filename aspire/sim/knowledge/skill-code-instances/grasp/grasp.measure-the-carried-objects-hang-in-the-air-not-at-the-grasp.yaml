@@ -1,0 +1,52 @@
+{
+  "api_calls": [
+    "bowl_points_near",
+    "float",
+    "min",
+    "print",
+    "max",
+    "float",
+    "observe",
+    "np.percentile",
+    "print",
+    "len",
+    "get_observation",
+    "type"
+  ],
+  "ast_fingerprint": "7ad254da4aca30ccf594e40b439505150043a966733f26bcbe579d40d03264a6",
+  "checkpoint_id": null,
+  "code": "def hanging_drop(cur_xy, fallback, frames=None):\n    \"\"\"Measure how far the carried bowl's *bottom* hangs below the wrist.\n\n    The grasp-time estimate `gz - b_lo` is taken while the bowl still rests on\n    the table, i.e. before the pinch has taken its weight.  A radial wall pinch\n    is not a form clamp: the bowl settles a centimetre or more deeper between\n    the fingers as soon as it is lifted, so that estimate *understates* the\n    hang, and the release height built from it puts the bowl's bottom at or\n    below the plate's top surface.  The gripper then drives the bowl into the\n    plate for the last centimetre of the descent, and the plate - a light, flat,\n    smooth disc - squirts out sideways from under it.  Measured on this suite:\n    estimate 0.024 m, true hang 0.041 m on both a passing and a failing seed,\n    and the bowl's own points reach z = 0.004-0.011 against a plate top of\n    0.005 at the last descent step.  So measure the hang with the bowl in the\n    air, at the carry column where the only thing in the window is the bowl and\n    the fingers (which stop well above its bottom).  The window needs the\n    `z_floor` too: the table top under the wrist sits inside it at z ~ 0, and a\n    dark table/plate mask can otherwise clear the point count by itself.\n    \"\"\"\n    try:\n        gz_now = float(get_observation()[\"robot_cartesian_pos\"][2]) - REPORT_OFFSET\n        if frames is None:\n            rgb, d, K, E = observe()\n        else:\n            rgb, d, K, E = frames\n        pts = bowl_points_near(rgb, d, K, E, cur_xy, radius=0.12,\n                               z_floor=gz_now - 0.12)\n        if pts is None or len(pts) < 40:\n            return fallback\n        b = float(np.percentile(pts[:, 2], 2))\n        hang = gz_now - b\n        if not (0.005 < hang < 0.10):       # bowl 5-6 cm tall: sanity band\n            return fallback\n        # Only a hard ceiling against a wild measurement - do *not* clamp this\n        # back towards the grasp estimate, which is the very number the fix is\n        # correcting for.  Measured across seeds 51-65 the hang is 0.035-0.062 m\n        # against an estimate of ~0.02: clamping the deepest ones (0.057) to\n        # estimate + 0.025 would put that bowl's bottom back within 3 mm of the\n        # plate and re-run the collision this fix exists to remove.\n        hang = min(hang, 0.070)\n        print(f\"  carried-bowl hang: measured {hang:.4f} vs grasp estimate \"\n              f\"{fallback:.4f}\", flush=True)\n        return max(fallback, hang)\n    except Exception as e:\n        print(f\"  hang measurement failed: {type(e).__name__}\", flush=True)\n        return fallback",
+  "code_hash": "4f852137805a8e5fd2574886660a235e792a020ad69daa2d9f92aa71ce17029a",
+  "development_outcomes": {
+    "improved": true,
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      61,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Derive the release height from the object own bottom measured while it hangs in the air, not from the offset measured while it still rests on the table.",
+  "id": "grasp.measure-the-carried-objects-hang-in-the-air-not-at-the-grasp",
+  "kind": "skill-code-instance",
+  "observed_effect": "Fixes seed 57 (reward 0 -> 1). The grasp-time tcp_to_bottom = fingertip_z - bowl_bottom is measured before the pinch carries the object weight: 0.0249 m on seed 51 against 0.0455 m measured in the air; seed 57 0.0271 vs 0.0385; seed 58 0.0246 vs 0.0588; 0.024-0.027 vs 0.035-0.068 over all 15 seeds - a 1.1-3.4 cm under-estimate that drove the bowl lowest points to z = 0.004-0.011 against a plate top of 0.005, so the light smooth plate squirted out sideways. The measurement needs an xy window AND a z floor (z_floor = gz_now - 0.12): without the floor the window returns a dark table mask and the object-height sanity band rejects everything - measured as a 0.395 m hang on all 15 seeds, i.e. the fix was inert until the floor was added. Shipped revision scores 13/15 on dev seeds.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_next_to_the_ramekin_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "8df6e6db44f41e6ba5ff171af52613fe0754d3c3132d8ab0d5aa91ac85d1aedd",
+  "task": "pick_up_the_black_bowl_next_to_the_ramekin_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "An object wider than the gripper opening carried by a radial wall pinch - a friction hold on a wall rather than a form fit - and released by height above a support surface. Symptom: the object is pressed into the support at the end of the descent, or a light support is displaced sideways.",
+  "vertical_capability": "grasp"
+}

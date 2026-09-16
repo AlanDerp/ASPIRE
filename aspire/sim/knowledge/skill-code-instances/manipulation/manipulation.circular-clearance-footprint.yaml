@@ -1,0 +1,55 @@
+{
+  "api_calls": [
+    "np.arange",
+    "cands.sort",
+    "np.arange",
+    "all",
+    "cands.append",
+    "out.append",
+    "np.hypot",
+    "float",
+    "len",
+    "math.hypot",
+    "float",
+    "float",
+    "math.hypot",
+    "min"
+  ],
+  "ast_fingerprint": "068d44c92618f6204f42376d4fa36117ea8276d03cb8067b939cd53964e61a3e",
+  "checkpoint_id": null,
+  "code": "def choose_places(cloud, scx, scy, stove_top, r_bowl, h_bowl, x_tol=0.10, y_tol=0.05):\n    \"\"\"Rank release spots over the stove for a bowl of radius `r_bowl` and\n    height `h_bowl`.\n\n    Each 1 cm grid cell gets a circular footprint of the bowl's radius; the\n    lowest obstacle inside that footprint above the stove surface is the cell's\n    clearance (1.0 = nothing at all).  Cells the bowl cannot descend into are\n    dropped, and of the rest the one *closest to the burner* wins: the goal test\n    only accepts a small offset around the burner, so proximity matters far more\n    than extra head-room.  The leaning board usually runs across the plate just\n    above bowl height, and the bowl simply passes underneath it.\n    \"\"\"\n    need = h_bowl + 0.04\n    cands = []\n    for dx in np.arange(-x_tol, x_tol + 1e-6, 0.01):\n        for dy in np.arange(-y_tol, y_tol + 1e-6, 0.01):\n            gx, gy = scx + dx, scy + dy\n            # circular footprint: a square one also sweeps up geometry that the\n            # bowl itself would never touch (e.g. the plate's raised right edge)\n            m = np.hypot(cloud[:, 0] - gx, cloud[:, 1] - gy) < r_bowl\n            col = cloud[m]\n            above = col[col[:, 2] > stove_top + 0.02]\n            clear = 1.0 if len(above) == 0 else float(above[:, 2].min() - stove_top)\n            score = (clear >= need, -math.hypot(dx, dy))\n            cands.append((score, float(gx), float(gy), clear))\n    cands.sort(key=lambda c: c[0], reverse=True)\n    out = []\n    for sc, gx, gy, cl in cands:\n        if all(math.hypot(gx - ox, gy - oy) > 0.03 for ox, oy, _ in out):\n            out.append((gx, gy, cl))\n    return out[:6]",
+  "code_hash": "3b950ac1cb9673dbc395e721621f2f23d0c198e8ec00553c5bb34ae43d405641",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Choose a release column on a cluttered surface using a clearance footprint of the object's own radius",
+  "id": "manipulation.circular-clearance-footprint",
+  "kind": "skill-code-instance",
+  "observed_effect": "A square footprint sweeps up geometry the object never touches and pushed the chosen cell 5 cm right of the burner (reward 0); a circular footprint of the object's radius picks the burner cell itself in 15/15 seeds (clearance 0.096-0.101 m)",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_swap/put_the_bowl_on_the_stove/fix_code.py",
+  "source_code_sha256": "98c40142fd85d50e2594ea23f384b2f828d23e859478cfef066b7bcc01ac91d2",
+  "task": "put_the_bowl_on_the_stove",
+  "task_family": "libero_goal_swap",
+  "trigger": "Scanning candidate release columns on a surface with raised edges or leaning boards using an axis-aligned square footprint",
+  "vertical_capability": "manipulation"
+}

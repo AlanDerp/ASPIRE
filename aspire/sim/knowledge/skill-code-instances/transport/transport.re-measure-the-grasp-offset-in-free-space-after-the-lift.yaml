@@ -1,0 +1,45 @@
+{
+  "api_calls": [
+    "observe",
+    "bowl_candidates",
+    "float",
+    "is_trustworthy",
+    "print",
+    "np.linalg.norm",
+    "np.asarray"
+  ],
+  "ast_fingerprint": "2da0769fa4cffd15a2ff882be14f919944fecebdd12a543bb77e1b8e93d2577e",
+  "checkpoint_id": null,
+  "code": "def bowl_near(ref_xy, max_d=0.30, trusted=False, expect_z=None):\n    \"\"\"Nearest screened bowl candidate to ref_xy from a FRESH observation.\"\"\"\n    rgb, d, K, E = observe()\n    best, bd = None, max_d\n    for cd in bowl_candidates(rgb, d, K, E):\n        dd = float(np.linalg.norm(cd[\"c\"] - np.asarray(ref_xy, dtype=np.float64)))\n        ok = is_trustworthy(cd, expect_z)\n        print(\"    bowl c=(%.3f,%.3f) z_lo=%.3f score=%.2f d=%.3f%s\"\n              % (cd[\"c\"][0], cd[\"c\"][1], cd[\"z_lo\"], cd[\"score\"], dd,\n                 \"\" if (not trusted or ok) else \" REJECT\"), flush=True)\n        if trusted and not ok:\n            continue\n        if dd < bd:\n            best, bd = cd, dd\n    return best",
+  "code_hash": "c553a4d61b5f1e2d351a94aceaeb9413437900a43d6d077874e26a8df57de7b1",
+  "development_outcomes": {
+    "successes": [
+      52,
+      53,
+      54,
+      55,
+      57,
+      58,
+      59,
+      60,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Get an unbiased TCP-to-object offset for a side or radial pinch whose pinch-time measurement is occluded",
+  "id": "transport.re-measure-the-grasp-offset-in-free-space-after-the-lift",
+  "kind": "skill-code-instance",
+  "observed_effect": "Re-measure the offset in FREE SPACE after the lift, from a FRESH observation with no occlusion, and fall back to the pinch-time value only if the free-space measurement fails. Take the free-space measurement with the trust gate DISABLED (that is the default for this primitive): the gate is for held-object segmentation only. Measured on seed 53: offset at pinch [-0.039, 0.0] vs offset after lift [+0.039, 0.006] -- a 7.8 cm swing, and using the pinch value sends the transit 7.8 cm to the -x of the goal. Consume it as rel_xy = place_xy - offset. Flipped seeds 53, 54, 57, 59, 60 (6/15 -> 9/15); seed 53 reads offset_used=[0.039,0.006] rel_xy=(0.696,0.012) verify dist=0.026 ok=True",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate/fix_code.py",
+  "source_code_sha256": "ca3b4b5ab2a6cfa9384b474807974f6e242f4995f659883f22825dbd9caf9360",
+  "task": "pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate",
+  "task_family": "libero_spatial_swap",
+  "trigger": "A side or radial pinch where the gripper approaches along the object wall, so the pinch-time offset measurement is contaminated by occlusion and near-rim points and its SIGN CAN FLIP once the object is clear of the fixture. Contamination is worst inside an enclosure (a drawer, a bin, a cabinet) where the wall occludes the far side of the grasp axis",
+  "vertical_capability": "transport"
+}
