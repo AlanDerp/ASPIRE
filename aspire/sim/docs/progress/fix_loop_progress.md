@@ -10,6 +10,26 @@
 - libero_spatial_swap/pick_up_the_black_bowl_on_the_wooden_cabinet_and_place_it_on_the_plate
 
 **Pending** (ready for Stage 1):
+- libero_goal_task/open_the_middle_drawer_of_the_cabinet
+- libero_goal_task/open_the_top_drawer_and_put_the_bowl_inside
+- libero_goal_task/push_the_plate_to_the_front_of_the_stove
+- libero_goal_task/put_the_bowl_on_the_plate
+- libero_goal_task/put_the_bowl_on_the_stove
+- libero_goal_task/put_the_bowl_on_top_of_the_cabinet
+- libero_goal_task/put_the_cream_cheese_in_the_bowl
+- libero_goal_task/put_the_wine_bottle_on_the_rack
+- libero_goal_task/put_the_wine_bottle_on_top_of_the_cabinet
+- libero_goal_task/turn_on_the_stove
+- libero_object_task/pick_up_the_alphabet_soup_and_place_it_in_the_basket
+- libero_object_task/pick_up_the_bbq_sauce_and_place_it_in_the_basket
+- libero_object_task/pick_up_the_butter_and_place_it_in_the_basket
+- libero_object_task/pick_up_the_chocolate_pudding_and_place_it_in_the_basket
+- libero_object_task/pick_up_the_cream_cheese_and_place_it_in_the_basket
+- libero_object_task/pick_up_the_ketchup_and_place_it_in_the_basket
+- libero_object_task/pick_up_the_milk_and_place_it_in_the_basket
+- libero_object_task/pick_up_the_orange_juice_and_place_it_in_the_basket
+- libero_object_task/pick_up_the_salad_dressing_and_place_it_in_the_basket
+- libero_object_task/pick_up_the_tomato_sauce_and_place_it_in_the_basket
 - libero_spatial_swap/debug_smoke
 
 ---
@@ -29,6 +49,21 @@
 | wine_bottle → top of cabinet | done | 49/50 (98%) [run 90fc9db09f194873] |
 | turn → stove | done | 50/50 (100%) [run db3140470743059e] |
 
+## libero_goal_task  (0/10 done)
+
+| Task | Status | Rate |
+|---|---|---|
+| open middle_drawer_of_the_cabinet | pending | — |
+| open top_drawer + bowl | pending | — |
+| push plate → stove front | pending | — |
+| bowl → plate | pending | — |
+| bowl → stove | pending | — |
+| bowl → top of cabinet | pending | — |
+| cream_cheese → bowl | pending | — |
+| wine_bottle → rack | pending | — |
+| wine_bottle → top of cabinet | pending | — |
+| turn → stove | pending | — |
+
 ## libero_object_swap  (10/10 done)
 
 | Task | Status | Rate |
@@ -43,6 +78,21 @@
 | orange_juice → basket | done | 50/50 (100%) [run 62ece8bb0f399b01] |
 | salad_dressing → basket | done | 50/50 (100%) [run 78b50be0a4275b4f] |
 | tomato_sauce → basket | done | 45/50 (90%) [run de6ff86d1b1e16f0] |
+
+## libero_object_task  (0/10 done)
+
+| Task | Status | Rate |
+|---|---|---|
+| alphabet_soup → basket | pending | — |
+| bbq_sauce → basket | pending | — |
+| butter → basket | pending | — |
+| chocolate_pudding → basket | pending | — |
+| cream_cheese → basket | pending | — |
+| ketchup → basket | pending | — |
+| milk → basket | pending | — |
+| orange_juice → basket | pending | — |
+| salad_dressing → basket | pending | — |
+| tomato_sauce → basket | pending | — |
 
 ## libero_spatial_swap  (8/11 done)
 
