@@ -1,0 +1,47 @@
+{
+  "api_calls": [
+    "float",
+    "np.percentile",
+    "np.percentile",
+    "dict",
+    "np.percentile",
+    "len",
+    "len",
+    "len",
+    "float",
+    "np.array",
+    "int",
+    "float",
+    "len",
+    "float",
+    "float",
+    "np.median",
+    "np.median"
+  ],
+  "ast_fingerprint": "173d520a6931bc2ae52d8db9b9cfde10a49b4f97e7bd547d5bcfc2686ebd4fea",
+  "checkpoint_id": null,
+  "code": "def _bar_from_points(pts, mask=None, check_shape=True, min_pts=150, max_pts=None):\n    \"\"\"Recognise a handle bar in a mask's world points: short cylinder along x.\n\n    `check_shape` is dropped for point-prompted masks, which are aimed at a specific\n    pixel: there the useful test is that the recovered bar sits at the hypothesised z,\n    not that the silhouette matches a cylinder (a point prompt often returns the bar\n    together with some of the drawer face behind it).  Such a mask must still be\n    bar-sized, so `max_pts` rejects the whole-cabinet masks a point prompt can return.\n    \"\"\"\n    if pts is None or len(pts) < min_pts:\n        return None\n    if max_pts is not None and len(pts) > max_pts:\n        return None\n    front_y = float(np.percentile(pts[:, 1], 96))       # the protruding front face\n    front = pts[pts[:, 1] > front_y - 0.008]\n    if len(front) < 40:\n        return None\n    x_lo, x_hi = np.percentile(pts[:, 0], [2, 98])\n    z_lo, z_hi = np.percentile(pts[:, 2], [2, 98])\n    if check_shape and not (BAR_LEN_BAND[0] < float(x_hi - x_lo) < BAR_LEN_BAND[1]):\n        return None\n    if check_shape and float(z_hi - z_lo) > BAR_Z_SPAN_MAX:\n        return None\n    return dict(c=np.array([float(np.median(front[:, 0])), front_y - 0.008,\n                            float(np.median(front[:, 2]))]),\n                front_y=front_y, n=int(len(pts)), mask=mask, _pts=pts)",
+  "code_hash": "2f169453806c3aa8f674b66e62d28580cd847b9100141cf350658962ba0b6d89",
+  "development_outcomes": {
+    "development_score": "0/15",
+    "improved": false,
+    "scope_caveat": "This instance is documented evidence that the front-face rule recovers the bar centre to ~1 mm. It is NOT evidence that the rule raises reward on any task, because on this task no seed could have passed whatever the aim.",
+    "successes": [],
+    "what_the_code_does_establish": "The localisation this instance records is validated by a strong internal consistency check that does not depend on reward. The baseline took the handle-bar centre from its visible bounding-box centre and read z = 0.0164 with z-extent 0.0546, because the 'handle' mask leaks downward onto the drawer face behind the bar; the true bar centre is 0.0420, so the baseline was aiming 2.6 cm low. Taking the front face instead (96th percentile of the mask cloud's y, centre set 8 mm behind it) returns all three drawer bars at 0.0419-0.0421 / 0.1107-0.1108 / 0.1839-0.1840 on all fifteen seeds of the single-revision sweep - a uniform 0.069 m pitch across three independently segmented bars, which is the object's own known spacing and therefore a self-check on the estimator.",
+    "why_unvalidated": "No development seed reached reward 1.0. initial_code.py is 0/15 and fix_code.py is 0/15 on dev seeds 51-65, both from the shipped revision, verified by md5 before and after the sweep (276a3367b87b7defa97c734b531f91b8, unchanged) with fifteen sequential exit=0 runs. The named drawer is outside the arm's workspace: the bar sits at z 0.0419-0.0421 while the lowest reachable tool z at that xy is 0.0901-0.1032, a shortfall of 0.0481-0.0613 m on all fifteen seeds. An independent descent over open table with no obstacle present floors at 0.0961, so the limit is the arm and not the scene."
+  },
+  "goal": "Recover a horizontal handle bar's true centre when the 'handle' mask leaks downward onto the face it is mounted on, by taking the mask's front face instead of its bounding-box centre",
+  "id": "localize.take-a-leaking-handle-bar-mask-from-its-front-face-not-its-box-centre",
+  "kind": "skill-code-instance",
+  "observed_effect": "Take the 96th percentile of the cloud's y as the front face, then place the centre 8 mm behind it and take z as the median of only the points within 8 mm of that front face, so the contaminated face points cannot drag the centre. A z-extent cap (BAR_Z_SPAN_MAX = 0.06) rejects a mask that is still a face fragment rather than a bar. Self-check: the recovered centres are 0.0419-0.0421 / 0.1107-0.1108 / 0.1839-0.1840 across three independently segmented bars, a uniform 0.069 m pitch equal to the object's known spacing.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_task/open_the_middle_drawer_of_the_cabinet/fix_code.py",
+  "source_code_sha256": "13b943ed11bc00d1ae90b331fcff82f66abfc2fae1a5b59ef05b6ff8034ee460",
+  "task": "open_the_middle_drawer_of_the_cabinet",
+  "task_family": "libero_goal_task",
+  "trigger": "A prompt for a protruding feature (handle, bar, knob, rail) returns a mask that also covers the flat face behind it, so the bounding-box centre sits well below the feature itself. Observed on this task: the naive box centre read z = 0.0164 with z-extent 0.0546 against a true bar centre of 0.0420 - a 2.6 cm downward aim error, which is larger than the bar's own thickness.",
+  "vertical_capability": "localize"
+}

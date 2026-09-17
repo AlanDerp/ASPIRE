@@ -1,0 +1,47 @@
+{
+  "api_calls": [
+    "payload_now",
+    "view",
+    "find_payload",
+    "float",
+    "print",
+    "float",
+    "float",
+    "eef"
+  ],
+  "ast_fingerprint": "1f7a091b5b9bd7ffdde64643ea3808280411f37273c918763a250a8111648647",
+  "checkpoint_id": null,
+  "code": "def hold_rise(noun, zbot):\n    \"\"\"How far the payload rose above its pre-grasp height, and the mask behind it.\n\n    Three signals, strongest first: a payload-sized mask near the hand (relaxed,\n    because the pads occlude a held slab); the payload back on the table, which\n    means the grip slipped; and -- when no mask of it exists anywhere on the\n    table while the jaws read loaded -- the hold is inferred from the jaws.\n    That last case is real: a pinched slab is exactly the object SAM3 struggles\n    to see, and reporting \"not lifted\" there throws away a good grasp.\n    \"\"\"\n    now = payload_now(noun, relaxed=True)\n    if now is not None:\n        return float(now[\"zlo\"] - zbot), now\n    rgb, d, K, E = view()\n    tab = find_payload(rgb, d, K, E, noun, on_table=True)\n    if tab is not None:\n        return float(tab[\"zlo\"] - zbot), tab\n    if float(eef()[7]) >= 0.12:\n        print(\"  hold inferred: payload is off the table and the jaws carry a load\", flush=True)\n        return 9.0, None\n    return -9.0, None",
+  "code_hash": "e447499cb24a68fa2736c33265d92437b97252e87685e26a9cc45adb25411ef7",
+  "development_outcomes": {
+    "development_score": "6/15 (seeds 51, 53, 55, 56, 59, 61 pass; 52, 54, 57, 58, 60, 62, 63, 64, 65 fail, every trial sandbox_rc 0)",
+    "held_out": "not run by the worker; Stage 2 is running under run b0307177887871f6",
+    "improved": true,
+    "independent_verification_of_the_evidence": "The coordinator re-grepped the sweep logs rather than reading the worker's prose: 'hold inferred' appears in sweep4_seed_{51,53,55,58,59,60,62,64}.log. The worker's findings.md lists 51/53/55/58/59/61/64/65; the measured set differs on two entries (60 and 62 fire it, 61 and 65 do not), and the measured set is the one recorded.",
+    "measurement_is_complete": "All 15 seeds measured under the single shipped revision 1bd5a41e45f4de023c6d3def87e570d1, which is verified frozen: md5 identical before and after sweep4 (13 seeds) and again before and after sweep5 (the 2 seeds that sweep4 omitted), and identical to the named copy under outputs/working_codes/. The first table was composite - seeds 52 and 54 had last been run under v2/v2b and v2c respectively - so the initial '6/15' was a floor rather than a measurement; both re-measured failures under the shipped revision close it at 6/15.",
+    "progression": "initial_code.py 0/15 -> v1 97a33122... 2/15 -> v2c d0196f77... 4/15 -> v2d 1bd5a41e45f4de023c6d3def87e570d1 6/15",
+    "successes": [
+      51,
+      53,
+      55,
+      56,
+      59,
+      61
+    ],
+    "why_the_improvement_is_attributable": "The instance's executed source is hold_rise() lines 293-313 of the shipped file, which exists only in the v2d revision. The v2a regression it repairs is recorded: a strict mask-only hold check made seeds 52-53 skip the transport entirely. Its effect is visible in the per-seed logs: 8 seeds print the 'hold inferred' branch, and four of those (51, 53, 55, 59) still score 1.000 - i.e. the branch fires on successful runs, which is the whole point of the pattern."
+  },
+  "goal": "Decide whether a top-down pinch is holding an object smaller than the pads, when the pads occlude it so thoroughly that SAM3 returns no mask of it at all.",
+  "id": "infer-a-hold-from-the-jaws-when-the-pinched-payload-has-no-mask",
+  "kind": "skill-code-instance",
+  "observed_effect": "Falling back to two other signals recovers the hold: the payload found back on the table means the grip slipped, and no mask of it anywhere on the table while the jaws read loaded means the hold is inferred rather than observed. Checking the mask alone silently skips the entire transport on 8 of 12 successful-grasp development runs.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_task/put_the_wine_bottle_on_the_rack/fix_code.py",
+  "source_code_sha256": "5d5934b9f5b9217639cf2136f118136a6a382a93e6139e468f4be7a89e7c4854",
+  "task": "put_the_wine_bottle_on_the_rack",
+  "task_family": "libero_goal_task",
+  "trigger": "After the close and the lift, the payload mask that localized the object before the grasp is absent - not weak, absent - because the two pads cover the slab; a mask-only hold check therefore reads 'air' on a perfectly good grasp.",
+  "vertical_capability": "grasp"
+}

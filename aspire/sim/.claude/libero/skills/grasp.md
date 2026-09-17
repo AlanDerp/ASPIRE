@@ -425,6 +425,30 @@ raw `rim_z` is not trustworthy whenever the arm is close to the object. Source:
 `outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate/fix_code.py`
 — the in-place deepen at lines 283–295, `AIR_W` at 244; 2026-09-16.
 
+**The deepen has a *ceiling* as well as a floor, and on a thin slab the window is measured, not
+guessed.** "Deeper is better" is the wrong instinct: past a point the pads drive the payload into the
+surface or through a gap in it. On `libero_goal_task/put_the_wine_bottle_on_the_rack` (a 1.8 cm slab)
+the bite is measured from the slab's **top edge**, and the two populations separate cleanly across 14
+attempts:
+
+| bite below the top edge | outcome |
+|---|---|
+| **≥ 5.0 mm** | held through the lift, **11/11** |
+| **≤ 4.3 mm** | slipped, **3/3** |
+
+```python
+tip_goal = clip(ztop - 0.007, zbot + 0.004, ztop - 0.002)   # aim 7 mm, keep 4-2 mm of headroom
+# dive until |tip - tip_goal| <= 0.0006, and walk an overshoot BACK — do not accept a shortfall
+```
+
+The 0.6 mm tolerance is what makes the window real: a depth controller that stops "near" the target can
+land on the wrong side of a 0.7 mm-wide decision boundary, and the measured pairing shows exactly that
+(`tip - 0.0036` and `tip - 0.0024` held at close 0.7599 / 0.7884, while `tip 0.0038` gave close 0.2574
+and slipped). **Do not read the deepening loop as "retry until it works"** — read it as "reach the
+measured depth, and treat a shortfall as a failure, not as a near-miss". Source:
+`outputs/libero_fix_loop/libero_goal_task/put_the_wine_bottle_on_the_rack/fix_code.py` — `pinch()`,
+block 0; evidence `sweep4_seed_55.log`, `sweep4_seed_56.log` vs `sweep3_seed_56.log`; 2026-09-17.
+
 ---
 
 ## Verify a Grasp by the Measured Gripper Gap, Not by the Plan
@@ -1152,6 +1176,197 @@ frame. Source: `outputs/working_codes/libero_object_task_pick_up_the_chocolate_p
 
 ---
 
+## Reach a Table-Level Pinch by a Lateral Approach That Keeps the Closing Axis
+
+**Trigger**: an object short enough that the arm's **pad-point floor** is above its mid-height, so no
+top-down command can bite it at *any* seating depth. Measure the floor before believing a ladder will
+find a rung. On the `libero_goal_task/open_the_top_drawer_and_put_the_bowl_inside` slab (`tcp() = hand() − 0.100`
+under `TOP_DOWN`; the arm saturates at `hand_z = 0.117`) the pad point floors out at **`tcp_z = 0.017`**
+against a slab top of `0.0076`, and the ladder read `gap = 0.0014 / 0.0012 / 0.0015 / 0.0012` — all
+empty — at four depths. The achieved orientation was *not* the cause (tilt measured 0.1° off top-down).
+This is the same obstruction `grasp.pinch-flat-slab-at-ik-z-clamp` straddles at the deepest allowed pose;
+when the object is too short even for that, the **pose** has to change, not the ladder.
+
+```python
+Q_LAT = np.array([0.0, 0.8660254, 0.0, -0.5])        # tool z = (-0.866, 0, -0.5)
+axis  = np.array([0.8660254, 0.0, 0.5])              # pad point -> hand, 60 deg off vertical
+
+z_pinch = top - 0.5 * span_z                         # the object's own mid-height
+tgt     = np.array([c[0], c[1], z_pinch])
+seat(tgt + 0.085 * axis, Q_LAT, iters=3, tol=0.010, tag="lat-far")   # find a branch from outside
+seat(tgt, Q_LAT, tag="lat-pinch")
+
+# judge the RETURNED pose by its functional properties, not by the quaternion you asked for
+tz      = tool_z(raw()[3:7])
+closing = quat_to_R(raw()[3:7])[:, 1]                # R[:,1] is the finger axis
+if abs(float(tz[2])) < 0.30 or abs(float(closing[1])) < 0.85:
+    return False                                     # this branch cannot pinch what you want
+close_gripper()
+# ... climb out ALONG the tool axis, then re-orient to TOP_DOWN in free space
+```
+
+**The rotation is about the closing axis, and that is the whole trick.** A 60° lateral keeps the fingers
+closing along ±y, so the two **contact faces are the ones a successful top-down pinch would have used** —
+the grasp is unchanged, only the *reach* is. The hand body ends up ~5 cm above and 8.7 cm +x of the pad
+point, so the only gripper part near the table is the tilted finger, and the pads are placed on the
+object's mid-height **by the command** rather than by where the tips stall. Rotate about the axis you
+want to keep closing along; a rotation that also moves the closing axis buys reach by destroying the
+grasp.
+
+**Gate on the closing axis, not on the commanded quaternion.** `solve_ik` does not honour the requested
+orientation — it walks a four-step fallback ladder (see [manipulation.md](manipulation.md), "The Reach
+and Height 'Walls' Are `solve_ik` Clamps, Not Physics"), so a pose test written on the *commanded*
+quaternion refuses branches that would work. On seed 55 the IK returned tool z `(-0.6, 0.09, -0.8)`,
+still closing along ±y: functionally a correct lateral pinch that the previous
+`tz[0] <= -0.60 and |tz[1]| <= 0.35` test rejected at the margin. Seed 55 was 0.0 before and 1.0 after;
+test `|tool_z[2]|` and `|R[:,1][1]|` instead.
+
+**Evidence**: load-bearing on 4 of the 15 development seeds, each with a full pinch where the top-down
+ladder was empty at every rung — 55 `0.0425`, 61 `0.0423`, 62 `0.0424`, 65 `0.0421`. Seeds 55 and 62
+scored 0.0 before the lateral existed; 61 and 65 reached 1.0 only with it. All four end with the box
+verified inside the drawer cavity. Source:
+`outputs/libero_fix_loop/libero_goal_task/open_the_top_drawer_and_put_the_bowl_inside/fix_code.py` —
+`lateral_grasp`, lines 491–552; frozen-file sweep 2026-09-17. Ingested as
+`knowledge/skill-code-instances/grasp/grasp.reach-a-table-level-pinch-by-a-lateral-approach-that-keeps-the-closing-axis.yaml`.
+
+### A corner bite passes a loose ceiling but is not a hold — calibrate to the object's own populations
+
+**Trigger**: any `held()` / `bite_ok()` test on a flat slab, whose acceptance threshold was chosen as a
+single ceiling rather than as the object's measured band.
+
+The same task measured three separate gap populations for a 4.0 cm slab: full pinch **0.0418–0.0424**,
+empty **0.0010–0.0015**, and a corner/edge bite **0.013–0.034**. Only the first holds. A corner bite at
+`gap = 0.0342` passed a `held()` whose ceiling was 0.070 and was gone by the first lift rung
+(`lift z=0.065 gap=0.0010`). A 7 cm ceiling falsely admits a 6 cm corner reading, and no single cut can
+separate the corner population from the full-pinch one — they are distinguished by **where** the fingers
+sit, not by a threshold. Accept only the object's own band and re-check after every lift rung:
+
+```python
+SLAB_LO, SLAB_HI = 0.0385, 0.050        # measured full-pinch band for this slab
+PAD_TOP_TRIES   = (0.015, 0.023, 0.007, 0.031)   # seating depths to try, in order
+```
+
+This is the band form of
+`grasp.calibrate-the-hold-test-to-the-measured-populations-and-keep-it-one-sided`.
+
+**Unresolved hazard — a full pinch can still be lost a few cm into the lift.** On seed 54 the slab was
+held at `gap = 0.0418` through two rungs (`lift z=0.065`, `z=0.115`) and read `0.0010` at `z=0.175`,
+its y drifting `0.143 → 0.115` between re-detections: it is **dragged, then slips**. A staged lift with a
+re-close at every rung (`+0.05 / +0.10 / +0.16 / +0.24`) was already in place and was not enough. The
+untested idea is to stage the lift in ~2 cm steps and watch for the **first sign of opening** (a rise
+from 0.0418 toward 0.06) instead of waiting for the empty close. Recorded as a hypothesis, not a rule;
+seed 54 is left deliberately un-tuned. Source and full table: the task's `findings.md`, P3 and P10.
+
+## Recognise a *Gripless* Shell: a Table-Flush Rammed Surface Has No Reachable Band, and the Close Ejects It
+
+**Trigger**: a thin, flat payload lying **flush on the table** (saucer, plate, shallow lid) whose outer
+15–20 mm rises into a shallow flare (~20°) and then a rounded bevel (~45°), and whose **underside is the
+table surface itself**. Nothing to probe: the near wall is the ramp, and there is no under-rim gap for a
+20 mm pad.
+
+**Why no pinch exists here — the mechanism, not an empirical failure.** A finger pad's face is a plane
+containing the tool axis. Against a sloped ramp the pad therefore touches along a **line**, not an area,
+and the closing force has a large component *along* the ramp. The jaws do not clamp the object, they
+**wedge it and eject it**. A face-on clamp of the ramp is geometrically impossible anyway: the lower pad
+would have to occupy the plate's own material or pass under the table.
+
+**The tell is that the grip dies on the *first* commanded motion, including a purely horizontal one.** On
+`libero_goal_task/put_the_bowl_on_top_of_the_cabinet` a depth-jitter pass did straddle the rim
+(aperture **0.0084–0.0094 m**, indistinguishable from the wedges that hold on other tasks), and a
+**15 mm horizontal drag** — which needs no vertical friction at all, the table carries the plate's weight —
+collapsed it to **0.0010 m on 4/4 seeds tested** (53, 54, 57, 60). An 8 mm climb and a 4 mm downward seat
+killed it too (seed 51).
+
+```python
+# the one test that separates a grip from a wedge — run it BEFORE believing an aperture
+goto_pose([px + 0.015, py, pz], quat)        # 15 mm, in the plane, no lift
+g2 = gap_m()
+if g2 < AIR_FLOOR + 0.002:                   # it was never held
+    held = False
+```
+
+> **This snippet is not ingestable as a store instance** — in the revision it came from it sits *inline*
+> inside the run block (indented), not in a top-level helper, so a line range for it fails to parse. That
+> is exactly the factoring cost promotion 0003 recorded. Write the probe as a top-level
+> `def drag_test(px, py, pz, quat):` if you want it reusable.
+
+**Two independent methods agree that nothing is reachable.** `plan_grasp` (GraspNet) returned
+`No grasp candidates found` on **6 of 15** baseline runs for this plate. When a learned planner and a
+geometric argument both come back empty, stop spending attempts.
+
+**Everything in this task's fix was tried and every one of them failed** — recorded so it is not retried:
+re-closes at +6/+25/+55 mm, a 4 mm downward seat, an inward-angled climb (+8 mm/2.5 mm in, +25/5, +55/9)
+keeping contact on the shallow part of the flare, a lateral drag, and GraspNet. Each kills the wedge in
+one move, on every seed.
+
+**What to do instead of burning the horizon**: recognise the geometry, attempt the cheapest straddle once,
+and **declare the task infeasible** rather than spending 14 closes and a retry budget. Related:
+`abandon-a-pinch-wall-after-two-consecutive-air-closes`, and `verify-by-object-rise` — which is what
+catches the *other* half of this failure, see below.
+
+**The false positive that made this task look solvable for a whole sweep.** `initial_code.py` printed
+`grasped = True` from a **0.0729 m** aperture on seeds 53/54/65 and ran a complete transport — while the
+end-of-episode keyframe shows the plate **untouched in its original spot**. An aperture alone can never
+certify a grasp; `verify-by-object-rise` (require the object's own cloud to rise > 12 mm) is the
+certification that catches it, and it is why the shipped program refuses to transport air. The same
+lesson as "a corner bite passes a loose ceiling but is not a hold", from the other direction.
+
+**Executed source**: `libero_goal_task/put_the_bowl_on_top_of_the_cabinet` `fix_code.py` — drag probe
+lines 384–401 (indented), acceptance at line 369, ramp profile table `profile_table` lines 184–198.
+**Diagnostic evidence only**: the task is **0/15 on both `initial_code.py` and `fix_code.py`** (verified
+single-revision, shipped md5 `4a212de084676e578a7ac275dcf5f9f8`), so this section records a genuine
+*infeasibility* and a masking detection, not a fix that raises reward.
+
+## Pinch the Rim Band When the Object Is Wider Than the Jaws
+
+**Trigger**: `plan_grasp` raises `AssertionError('No grasp candidates found')` — or returns nothing —
+because **`2·rmax > jaw opening`**, so a diametral pinch is geometrically impossible at *any* height.
+Measure the object before theorising about the grasp: on `libero_goal_task/put_the_bowl_on_the_stove`
+the instruction's object is a cone-rimmed plate with `2·rmax ≈ 0.140 m` against a **0.080 m** jaw
+opening, and the initial program scored **0/15** — not a tuning failure, a geometric impossibility.
+
+**The remaining closing geometry is the rim.** A plate or bowl rim is a **wedge**: the pads straddle
+the ~8 mm band where the outer edge meets the inner ramp, and because the profile *widens upward* the
+wedge also locks vertically — the pads cannot close further as the object is pulled down. That band is
+~8 mm wide at the clamp floor but ~18 mm wide 7 mm lower, so the **depth is the whole game**:
+
+```python
+wide = 2.0 * R > 0.078                      # R = rmax of the object's mask
+q    = mkq(180.0, 0.0)                      # jaws close along y, aiming at the object
+yt   = cy + 0.945 * R                       # the rim's own y band, just inside the outer edge
+for z in (0.20, 0.11, 0.05, CLAMP_Z + 0.007):
+    go([cx, yt, z], q)                      # keep a legal pose as the fallback
+deep = float(min(max(obj["zmax"] - 0.0094, -0.0035), 0.012))   # pads ~9 mm below the object's top
+```
+
+**A shallow engagement is not a weak grip, it is no grip.** A plain `goto_pose` pinch at the clamp
+reaches only the top ~2.5 mm of the rim, closes at gap ~**0.0075**, and the plate slides straight out.
+The working wedge closes at **0.0176–0.0187**. On a rim pinch the closed gap is therefore a
+*diagnostic of engagement depth* rather than a retention score — see the bistability caveat below.
+
+**The rim wedge is only reachable past the software clamp.** That is a separate mechanism, documented
+in [manipulation.md](manipulation.md), "The clamp is a software floor, not a wall".
+
+**Evidence**: `libero_goal_task/put_the_bowl_on_the_stove`, **0/15 → 11/15** development seeds
+(pass 51,52,53,54,55,57,59,60,62,63,64). Source: `fix_code.py` — the `if wide:` run block, lines
+183–251. Ingested as
+`knowledge/skill-code-instances/grasp/grasp.pinch-the-rim-band-past-the-ik-clamp-when-the-object-is-wider-than-the-jaws.yaml`.
+
+**Caveat — deep-wedge retention is bistable, and the closed gap does not predict it.** Same task, same
+pose: seed 62 held at gap 0.0183 while 61 slipped at 0.0182; 51 held at 0.0176 while 56 slipped at
+0.0187. Thirteen replays across five code variants never made 61 hold. Do **not** build a success
+predicate on the gap alone — the honest reading of a wedge grasp is a measured probability, not a
+threshold.
+
+### …and a rim pinch needs the lift laddered
+
+An unsecured wedge is thrown off the rim by a single fast lift. Ladder the lift in 4–9 mm rungs and
+**re-measure the object's `zmax` after every rung** — the rung that fails is the one where `zmax` stops
+rising. Here the ladder is `(0.004, 0.008, 0.013, 0.019, 0.027, 0.040, 0.060, 0.090)` with the check
+`zmax > zmax_at_grasp + 0.02`. This is the laddered-lift rule
+(`grasp.pinch-a-tall-carton-at-55-percent-of-its-own-height-and-ladder-the-lift`) applied to a
+*wedge-secured* grasp, where the risk is the wedge opening rather than the object leaving the jaws.
+
 ## Stop a Descent at the Measured Kinematic Floor
 
 **Trigger**: a top-down grasp where `solve_ik` reports success but the measured TCP stops tracking the
@@ -1342,6 +1557,17 @@ payload is flicked off the wall — measured on seed 63 as the aperture jumping
 **0.0578 → 0.1088 with ZERO z change** and the bowl landing 36 mm off. The seeds this hit were the two
 *best* placements of the sweep once the sub-floor command was removed.
 
+**The joint-line bypass drifts too, only slower — so bypass the last *millimetres*, not the descent.**
+Substituting `solve_ik([cx, cy, IK_MIN_Z])` and walking along the line between two solved poses does
+dodge the fallback-orientation swap above, but it is not drift-free: measured on
+`libero_goal_task/put_the_wine_bottle_on_the_rack` the joint line walks **~2 mm laterally per 13 mm of
+dive**. On a 1.8 cm slab that is enough to shove the payload — seed 52's slab travelled ~10 cm sideways
+and the following close read air. The working split is therefore: **ride the accurate `goto_pose` path
+down to the clamp, and bypass the clamp with the joint line only for the last few millimetres** — the
+drift scales with the distance travelled along the line, so a short residual is a small error. Source:
+`outputs/libero_fix_loop/libero_goal_task/put_the_wine_bottle_on_the_rack/fix_code.py` — block 0
+`pinch()`; `sweep4_seed_53.log` (tip 0.0024, close 0.7325) vs `v2b_seed_52.log`; 2026-09-17.
+
 Never chase the surface with a wall pinch — the pads ride up the bowl's widening wall and push it
 sideways even when they do descend. **Release from a controlled clearance above the measured floor**
 instead:
@@ -1519,6 +1745,51 @@ error direction for the next rung taken from the *previous* attempt's measured p
 search is steered, not blind. Source:
 `outputs/working_codes/libero_object_task_pick_up_the_chocolate_pudding_and_place_it_in_the_basket_fix.py`
 — `attempt_pinch`, lines 224–258; 2026-09-16.
+
+#### …but the aperture is not the whole test when the payload's *mask* disappears on the grasp
+
+**Trigger**: after a top-down pinch of an object thinner than the pads, the payload mask that localized
+it before the grasp is not weak — it is **absent**. A mask-only hold check then reads "air" on a perfectly
+good grasp and skips the entire transport, which is a *silent* failure because nothing crashes and the
+reward simply arrives at 0.
+
+The pads occlude the very object they are holding, and the smaller the object the more completely they
+do it. On `libero_goal_task/put_the_wine_bottle_on_the_rack` — an 8.3 × 4.6 × 1.8 cm slab — the held
+payload produced **no mask at all on 8 of 12 successful-grasp development runs**, *including on runs that
+scored 1.000*. So the mask is not a slightly degraded signal to be thresholded down; for this object class
+it is simply unavailable while the hold is real.
+
+Three signals, checked strongest first, and the third is the one that saves the run:
+
+```python
+now = payload_now(noun, relaxed=True)          # (a) relaxed mask near the hand: min_n=100, min_score=0.03
+if now is not None:
+    return float(now["zlo"] - zbot), now
+tab = find_payload(rgb, d, K, E, noun, on_table=True)
+if tab is not None:                            # (b) found back on the table -> the grip slipped
+    return float(tab["zlo"] - zbot), tab
+if float(eef()[7]) >= 0.12:                    # (c) no mask of it anywhere on the table, jaws loaded
+    return 9.0, None                           #     -> the hold is INFERRED, not observed
+return -9.0, None
+```
+
+Branch (c) is the inference: an object that is *not* on the table and *is* between loaded jaws is being
+carried, whether or not a segmenter can see it. Note the asymmetry that makes it safe — the check is
+one-sided per branch. Branch (b) can only report a slip (it requires a *positive* detection on the
+table), and branch (c) is only reached when (b) failed, so a missing mask can never be mistaken for a
+slip.
+
+**Evidence**: `hold inferred` printed in `sweep4_seed_{51,53,55,58,59,60,62,64}.log` — **four of those
+(51, 53, 55, 59) still scored 1.000**, i.e. the branch fires on successful runs and is not a
+consolation prize for failures. The regression it repairs is measured: a strict mask-only check made
+seeds 52–53 skip the transport entirely (v2a, 0/15 on those seeds). The payload's own close populations
+on this object put a partial corner capture at **0.4773** against **0.52–0.84** for full pinches, so a
+single ceiling cannot separate them either — see the corner-bite section above for the same hazard
+measured on a different slab.
+
+**Executed source**: `libero_goal_task/put_the_wine_bottle_on_the_rack` `fix_code.py` — `hold_rise()`,
+lines 293–313; 2026-09-17. Instance:
+`knowledge/skill-code-instances/grasp/infer-a-hold-from-the-jaws-when-the-pinched-payload-has-no-mask.yaml`.
 
 ---
 

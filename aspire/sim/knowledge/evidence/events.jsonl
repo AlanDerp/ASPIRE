@@ -162,3 +162,14 @@
 {"code_hash":"5bcddee4d254054194f31e812abd8218454ebd87157c66bdaecb612d54ef52dd","event":"skill-code-instance.ingested","subject":"localize.a-saturation-descriptor-needs-no-admit-stage-because-a-neutral-cannot-win-it"}
 {"code_hash":"5c57f5833d4a087e106a3a91f653942f2575585cae05df2eea2912cb6f7ffc46","event":"skill-code-instance.ingested","subject":"localize.pick-the-highest-z-top-container-mask-because-the-interior-mask-reads-the-rim-low"}
 {"code_hash":"6f2d07f15bbc184e7ca9d0b6e8b32bead5f774dfe62bb19e38121b21747383f5","event":"skill-code-instance.ingested","subject":"transport.a-reachable-below-rim-release-is-safe-when-the-payload-is-shorter-than-the-interior"}
+{"code_hash":"e60967351904470237ad96363afbec3adcd82b222135ac6dddf7858c1d32d4a5","event":"skill-code-instance.ingested","subject":"transport.release-at-the-measured-pinch-height-to-cancel-depth-bias"}
+{"code_hash":"2650deb36ea7f8eb1b899aef725f9e394588c280481214991a8577e43b42559c","event":"skill-code-instance.ingested","subject":"manipulation.roll-the-hand-to-trade-a-wrist-floor-for-fingertip-reach-at-table-level"}
+{"code_hash":"3027d19c0a26a0eb604bd09a5af653d7810965ec6088e75ecb47b2519a0be137","event":"skill-code-instance.ingested","subject":"grasp.reach-a-table-level-pinch-by-a-lateral-approach-that-keeps-the-closing-axis"}
+{"code_hash":"fa307ca3ecd481de09edcc378fadad57393cd262eec5273b96f53c73648b5679","event":"skill-code-instance.ingested","subject":"grasp.pinch-the-rim-band-past-the-ik-clamp-when-the-object-is-wider-than-the-jaws"}
+{"code_hash":"2e0db8799c9be9f07deaf8d9388691a7a4cd74eff0de7e9f021c9097fcc9ddbc","event":"skill-code-instance.ingested","subject":"localize.reject-a-mask-that-swallowed-a-taller-neighbour-by-flatness"}
+{"code_hash":"2e0db8799c9be9f07deaf8d9388691a7a4cd74eff0de7e9f021c9097fcc9ddbc","event":"skill-code-instance.ingested","subject":"localize.reject-a-mask-that-swallowed-a-taller-neighbour-by-flatness"}
+{"code_hash":"2f169453806c3aa8f674b66e62d28580cd847b9100141cf350658962ba0b6d89","event":"skill-code-instance.ingested","subject":"localize.take-a-leaking-handle-bar-mask-from-its-front-face-not-its-box-centre"}
+{"code_hash":"e016849d4928564232add649a87cee73b93eacf5c35ca01878b827f3490d038b","event":"skill-code-instance.ingested","subject":"localize.the-remapped-payload-is-not-a-function-of-the-identifier-noun"}
+{"code_hash":"1ce2f2edf293da4b012d662fe11f9a3c48cce4e83d05fbd8dca6d0475708a3b0","event":"skill-code-instance.ingested","subject":"the-remap-is-not-injective-two-identifiers-share-one-runtime-string"}
+{"code_hash":"e447499cb24a68fa2736c33265d92437b97252e87685e26a9cc45adb25411ef7","event":"skill-code-instance.ingested","subject":"infer-a-hold-from-the-jaws-when-the-pinched-payload-has-no-mask"}
+{"code_hash":"9139a72ddcbf04cc6da04930b34122c13912d01c9dd44685af1e4fabfe269453","event":"skill-code-instance.ingested","subject":"localize.polarity-of-the-runtime-instruction-selects-the-rotation-direction"}

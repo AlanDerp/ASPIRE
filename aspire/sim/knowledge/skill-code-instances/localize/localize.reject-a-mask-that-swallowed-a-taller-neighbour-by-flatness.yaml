@@ -1,0 +1,40 @@
+{
+  "api_calls": [
+    "seg_all",
+    "print",
+    "float",
+    "np.percentile",
+    "float",
+    "ok.append",
+    "np.percentile",
+    "len",
+    "len",
+    "len"
+  ],
+  "ast_fingerprint": "732673c37a4d065801007f6ac87d97b5338236b2db8cb3c8c26ce7a78d6b420c",
+  "checkpoint_id": null,
+  "code": "def flat_cloud(prompt, min_pts=150):\n    \"\"\"Best-scoring mask whose cloud is actually flat and table-low.\n\n    Guards against SAM3 merging the shallow metal bowl (0.12 m tall) into the\n    'plate' mask, which silently mis-aims the whole grasp.\n    \"\"\"\n    cands = seg_all(prompt, min_pts)\n    ok = []\n    for pts, sc in cands:\n        z_hi = float(np.percentile(pts[:, 2], 99))\n        span = z_hi - float(np.percentile(pts[:, 2], 2))\n        if z_hi < Z_MAX_FLAT and span < SPAN_FLAT:\n            ok.append((pts, sc, z_hi, span))\n    if not ok:\n        return None\n    pts, sc, z_hi, span = ok[0]\n    print(f\"  flat mask for {prompt!r}: n={len(pts)} score={sc:.3f} \"\n          f\"z_hi={z_hi:.4f} span={span:.4f} ({len(ok)}/{len(cands)} flat)\",\n          flush=True)\n    return pts, sc",
+  "code_hash": "2e0db8799c9be9f07deaf8d9388691a7a4cd74eff0de7e9f021c9097fcc9ddbc",
+  "development_outcomes": {
+    "development_score": "0/15",
+    "improved": false,
+    "scope_caveat": "This instance is documented evidence that the screen removes merged masks. It is NOT evidence that the screen raises reward on any task.",
+    "successes": [],
+    "what_the_code_does_establish": "The screen is load-bearing as a mask filter, which is what this instance records. Measured on one development seed: only 74 of 178 SAM3 masks passed the flatness screen. An ungated 'plate' prompt returned a mask that had merged the 0.12 m metal bowl, reading rim_z 0.0199-0.1253 against the plate's true rim top of 0.0074, which mis-aimed the following close 5-8 mm outside the plate. End-of-episode keyframes confirm the consequence of the ungated path on seeds 53/54/65: initial_code.py printed grasped=True from a 0.0729 m aperture and ran a full transport, while the plate never left its original spot.",
+    "why_unvalidated": "No development seed flipped to success. The task's shipped fix_code.py is 0/15 and initial_code.py is 0/15 on dev seeds 51-65, both verified single-revision (shipped md5 4a212de084676e578a7ac275dcf5f9f8; all fifteen fix trial dirs strip to that md5). The blocker is geometric, not programmatic: the payload is a smooth shallow saucer lying flush on the table whose only reachable band is a 21-45 degree outer flare with no under-rim clearance for a 20 mm pad, so a planar pad face meets the ramp in line contact and the closing force ejects it. plan_grasp (GraspNet) independently returned 'No grasp candidates found' on 6 of 15 baseline runs, corroborating the geometry from a second method."
+  },
+  "goal": "Reject a text-prompted mask whose cloud is neither table-low nor flat before it can steer the arm, so a mask that swallowed a taller neighbour cannot set the aim",
+  "id": "localize.reject-a-mask-that-swallowed-a-taller-neighbour-by-flatness",
+  "kind": "skill-code-instance",
+  "observed_effect": "Two scalars settle it with no shape model: the 99th-percentile cloud height must stay under the object's own ceiling (Z_MAX_FLAT = 0.022 - a flat plate cloud never reaches it) and the 2nd-to-99th percentile z-span must stay under SPAN_FLAT = 0.030. This is the INVERSE of the store's base-on-the-table fragment gate (which rejects masks that touch the table), and unlike transport.md's continuity gate it is a STATIC screen: the merged mask jumps nowhere, so no jump test catches it.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_task/put_the_bowl_on_top_of_the_cabinet/fix_code.py",
+  "source_code_sha256": "423f734f965a126dad2c761e9c5f4e05a1b7b8ed955db221d8af3079223a0f2a",
+  "task": "put_the_bowl_on_top_of_the_cabinet",
+  "task_family": "libero_goal_task",
+  "trigger": "A text prompt for a thin table-lying object (plate, saucer, lid) returns a mask that also covers a taller neighbour standing behind it. Observed on this task: the 'plate' prompt merged the 0.12 m metal bowl, so the mask's rim_z read 0.0199-0.1253 where the plate's true rim top is 0.0074. The failure is silent - the mask scores well and sits at a plausible place, it is simply too tall.",
+  "vertical_capability": "localize"
+}

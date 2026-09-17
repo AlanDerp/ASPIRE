@@ -1,0 +1,59 @@
+{
+  "api_calls": [
+    "print",
+    "set",
+    "stove_off_requested",
+    "split",
+    "stove_off_requested",
+    "join",
+    "c.isalpha",
+    "text.lower"
+  ],
+  "ast_fingerprint": "21e906a2862b9d4d8f351ff04274117eefdb86c36305deba098090f2c95c89b6",
+  "checkpoint_id": null,
+  "code": "def stove_off_requested(text):\n    \"\"\"True when the runtime instruction asks for the off polarity.\n\n    The runtime string, not the identifier, is the only statement of the goal\n    in this suite.  A knob rotation is signed in the world frame (its axis is\n    vertical), so the instruction's polarity maps directly onto one direction:\n    off is clockwise (negative yaw), on is counter-clockwise.  Unrecognised\n    wording falls back to the off polarity, which is the payload this suite\n    currently dispatches for this identifier.\n    \"\"\"\n    words = set(\"\".join(c if c.isalpha() else \" \" for c in text.lower()).split())\n    if \"off\" in words:\n        return True\n    if \"on\" in words:\n        return False\n    return True\n\n\nSWEEP_SIGN = -1.0 if stove_off_requested(TASK_LANGUAGE) else 1.0\nprint(\"  goal polarity: off=%s -> sweep sign %+.0f\"\n      % (stove_off_requested(TASK_LANGUAGE), SWEEP_SIGN), flush=True)",
+  "code_hash": "9139a72ddcbf04cc6da04930b34122c13912d01c9dd44685af1e4fabfe269453",
+  "development_outcomes": {
+    "burner_glow_is_a_LATE_signal_and_was_mis_timed_in_the_worker_report": "The worker's findings/report described the glow as appearing 'at about +35 deg'. The coordinator re-measured it from the saved keyframes of the FAILING CCW run (trial_51_sandboxrc_0_reward_0.000_taskcompleted_0/keyframes, 88 agentview frames, steps 0..1176) with the worker's own scripts/redness_timeline.py (redness = R - max(G,B) in a stove crop). Measured: maxred is 19 for the first 51 keyframes, first exceeds 80 at step 1095, and is 145 for the last 37 keyframes through step 1176 - i.e. the glow appears in the final ~7 percent of the episode, after the sweep has already finished, not during it. Three SUCCESS runs never glow at all: sweep_dir maxred=19, smoke_dir maxred=20, cw_full_dir maxred=20, nred>80 = 0 in all three. NOTE: '+35 deg' and the number 145 do not co-occur in any log; 52 in-program red readings exist in the scratch tree and every one of them is 'red=18', and there is no positive-yaw probe log anywhere (every saved probe swept CW). The correct statement of the finding is the one above, which is a STRONGER claim: the glow is thermally lagged, so it cannot be used as an online cue to decide when to stop sweeping.",
+    "development_score": "15/15 (seeds 51-65 all pass; initial_code.py scores 0/15 on the same 15 seeds)",
+    "held_out": "not run by the worker; coordinator launched Stage 2 under run fc0f6d5b13101df8 on GPU 6",
+    "improved": true,
+    "measurement_is_complete": "All 15 dev seeds measured on BOTH revisions in a single bracketed sweep. sweep_dev_seeds.log opens 'sweep fix start ... md5=adfca80f6f72a6eb7fe1f02f3d974cab' and closes 'sweep fix end ... md5=adfca80f6f72a6eb7fe1f02f3d974cab', then opens 'sweep initial start ... md5=59193b1f62121815bdc4dab138c7cc6c' and closes 'sweep initial end ... md5=59193b1f62121815bdc4dab138c7cc6c'. The md5 is unchanged across every sweep, so no composite table. per-seed reward: fix_seed_51..65.log all read reward=1.000, initial_seed_51..65.log all read reward=0.000.",
+    "one_step_is_decisive": "probe sweep_blocks.log: PINCH at red=18 reads 'reward=0.0, terminated=False, task_completed=False', then a SINGLE -10.4 deg CW step reads 'reward=1.0, terminated=True, task_completed=True'.",
+    "over_rotating_clockwise_is_safe": "cw_full.log: a full -120 deg CW ladder (24 yaw readings, -5.4 through -120.4) ends 'AFTER_FULL_CW red=18 gap=0.0454' with 'reward=1.0, terminated=True, task_completed=True' - so the off state lies clockwise of the grip and continuing clockwise keeps it.",
+    "progression": "initial_code.py 59193b1f62121815bdc4dab138c7cc6c 0/15 -> fix_code.py adfca80f6f72a6eb7fe1f02f3d974cab 15/15",
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ],
+    "the_grasp_is_held_constant": "On seed 51 the two revisions agree on every quantity up to the sweep: same pinch target (0.2543, 0.1999, 0.0374), same yaw0 = -0.4, same band_n = 395, same 'gap after pinch = 0.0247 m'. They differ only in direction: the initial sweeps 'yaw -0.4 -> 119.6' (world CCW, +120 deg) and the fix sweeps 'yaw -0.4 -> -120.4, sign -1' (world CW). So the outcome difference is the direction and nothing else.",
+    "why_the_improvement_is_attributable": "The executable diff between the two revisions is exactly one change: the initial file carried the constant 'SWEEP_SIGN = 1.0  # fixed world-frame direction' and the shipped file carries 'SWEEP_SIGN = -1.0 if stove_off_requested(TASK_LANGUAGE) else 1.0'. Nothing else in the program differs. The polarity print is present 15/15 times in the fix logs ('goal polarity: off=True -> sweep sign -1') and 0/15 times in the initial logs, which is the mechanical confirmation that the new code is the only thing that ran differently."
+  },
+  "goal": "Derive an actuator's rotation DIRECTION from the polarity of env.handle.task_language, never from a constant, when the runtime instruction can be an antonym of the identifier.",
+  "id": "localize.polarity-of-the-runtime-instruction-selects-the-rotation-direction",
+  "kind": "skill-code-instance",
+  "observed_effect": "stove_off_requested(text) tests membership of 'off'/'on' in the lowercased alphabetic tokens of the runtime string and returns True when 'off' is present, else False when 'on' is present, else True (default to the safer 'off'); SWEEP_SIGN is then -1.0 or +1.0 and is printed with its derivation. 0/15 -> 15/15 on development seeds 51-65, with the grasp held byte-identical up to the sweep.",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_task/turn_on_the_stove/fix_code.py",
+  "source_code_sha256": "86f745b8c6dc8d251ebee4f1f1b54b6f0d48d450a2af3862a3a045f9537f88b8",
+  "task": "turn_on_the_stove",
+  "task_family": "libero_goal_task",
+  "trigger": "A _task suite whose runtime string is not merely a different noun but a different POLARITY ('Turn off the stove' under the identifier turn_on_the_stove). Any actuator program that hard-codes a world-frame direction constant.",
+  "vertical_capability": "localize"
+}

@@ -1,0 +1,49 @@
+{
+  "api_calls": [
+    "str",
+    "print",
+    "getattr"
+  ],
+  "ast_fingerprint": "57469899a3987bf5eb413e5284041f3f91205b02512820a316626f8ec9e01def",
+  "checkpoint_id": null,
+  "code": "task_language = str(getattr(env.handle, \"task_language\", \"\"))\nprint(\"TASK_LANGUAGE=%r\" % (task_language,), flush=True)",
+  "code_hash": "e016849d4928564232add649a87cee73b93eacf5c35ca01878b827f3490d038b",
+  "development_outcomes": {
+    "development_score": "15/15 (seeds 51-65, every seed reward=1.0, exit=0)",
+    "improved": false,
+    "scope_caveat": "The cross-task half of the claim (no noun->payload table is constructible) rests on six measured remap rows across libero_goal_task and its siblings, not on this task alone. The single-task half is corroborated by an existing instance, localize.check-whether-the-goal-object-was-remapped-not-just-the-relation, recorded from libero_object_task with the same cream-cheese bait object.",
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ],
+    "what_the_code_does_establish": "The program reads the payload's identity from the runtime string and never from the identifier, and scored 15/15 while doing so; the runtime instruction was 'put the wine bottle in the bowl' on all 15 seeds, constant, while the identifier names cream cheese. The identifier's own object is present in the scene as bait.",
+    "why_not_an_improvement": "There is no dev-seed improvement to claim for this task. initial_code.py and fix_code.py are the same program: the diff is 26 lines and every one is inside the module docstring. Both revisions score 15/15, and the fix sweep overwrote the initial sweep's trial dirs in place (dir mtimes 02:35-02:46 come from the initial sweep, code.py mtimes 02:49-02:59 from the fix sweep), so the initial-side executed bytes are not preserved. The successes below therefore record that this mechanism was executed on 15/15 development seeds, not that it flipped any of them."
+  },
+  "goal": "Read the payload's identity from env.handle.task_language; never derive it from the task identifier, because the identifier's noun does not determine the runtime payload",
+  "id": "localize.the-remapped-payload-is-not-a-function-of-the-identifier-noun",
+  "kind": "skill-code-instance",
+  "observed_effect": "On put_the_cream_cheese_in_the_bowl the runtime string is 'put the wine bottle in the bowl' on 15/15 development seeds (constant), while the identifier names cream cheese. The identifier's own object is real bait in the scene: 'cream cheese' scores 0.020 on its own box where the generic 'box' prompt scores 0.660, so the identifier's noun must never enter a prompt list at any rank. Across the six measured _task rows the same identifier noun resolves to different payloads (bowl -> wine bottle in one task, bowl -> plate in another), so no noun-to-payload lookup table is constructible; the runtime string must be read and printed on every seed before anything else",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_task/put_the_cream_cheese_in_the_bowl/fix_code.py",
+  "source_code_sha256": "3a274b57e5b93849500a1cadc06e1ff6b46082e738541726327a4b3005f79c37",
+  "task": "put_the_cream_cheese_in_the_bowl",
+  "task_family": "libero_goal_task",
+  "trigger": "Suite identifier ends in _task. Symptom: a program that maps the identifier's noun to a payload, or prompts that noun, localises an object the reward does not count - and the object it localised is physically present and plausible, so no crash and no low score flags it",
+  "vertical_capability": "localize"
+}

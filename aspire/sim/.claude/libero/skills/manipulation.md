@@ -157,6 +157,49 @@ a probe beats an argument: a table-contact sweep (commanded 0.200/0.100/0.050 �
 moves. Source: `outputs/working_codes/libero_object_task_pick_up_the_chocolate_pudding_and_place_it_in_the_basket_fix.py`
 — `eef_point` / `pad_point`, lines 101–110; 2026-09-16.
 
+**A *command*-side sign error here is silent, because a descent's floor backstop hides it.** The forms
+above measure where the tool *is*. The inverse map — where to *command* the pads — is `pos = pads −
+R @ offset`, and the minus is easy to drop when only the measurement direction was derived:
+
+```python
+HAND_TO_CMD  = 0.107      # solve_ik(pos, q) targets hand = pos + R @ (0,0,-0.107)
+HAND_TO_PADS = 0.132      # pads hang this far below the reported hand frame
+PAD_FROM_CMD = HAND_TO_PADS - HAND_TO_CMD          # 0.025
+
+def move_pads(pads_target, quat=TOPDOWN):
+    p = np.asarray(pads_target, dtype=np.float64)
+    goto_pose(p - _R_of(quat) @ np.array([0.0, 0.0, PAD_FROM_CMD]), quat)   # MINUS
+```
+
+On `libero_goal_task/put_the_bowl_on_the_plate` the sign was inverted, so every descent was commanded
+**2 × 0.025 = 50 mm too deep** — and the program still scored **15/15**. The tell is not a failure but a
+*constant*: the grasp close landed at pad_z **0.0906 / 0.0907 on all 15 seeds**, dead identical, which is
+the arm's kinematic floor at that xy (probe-measured 0.0874) rather than the intended neck pinch at
+0.1076–0.1155. An unusable pinch can still close with an acceptable gap, so nothing reports an error.
+**When a measurement is identical across every seed, suspect a floor, not a success.** Correcting the
+sign moved the close to the intended pinch (0.1113–0.1155) with no reward change — a latent defect, not
+a fix.
+
+**Watch for the circular probe when settling a sign.** An earlier probe "confirmed" the wrong sign
+because it recomputed the pad position with the *same* model under test; its numeric agreement was
+circular. Settle a sign by probing the inverse map directly — command three known heights and read the
+measured pads back (corrected form: commanded 0.2000 / 0.1200 / 0.1000 → measured 0.2000 / 0.1244 /
+0.1066, error ≤ 6.6 mm; the old sign put them 5 cm low). Source:
+`outputs/libero_fix_loop/libero_goal_task/put_the_bowl_on_the_plate/fix_code.py` — `move_pads`,
+lines 76–86; probe5 under
+`/mnt/nimloth/aspire_scratch/libero_goal_task/put_the_bowl_on_the_plate/`; 2026-09-17.
+
+**Independently re-derived on `libero_goal_task/put_the_cream_cheese_in_the_bowl`, with a sharper
+downstream signature.** There the sign was wrong in the *measurement* direction — `tcp_now()` added the
+rotated offset instead of subtracting — so the reported TCP read **21 cm high**, the ladder was driven
+through the table, and the visible damage was not a bad descent but **every grasp candidate dying at
+once**: `plan_grasp` reported `gap=0.0146`, i.e. a close on air, because the ladder had pushed the pads
+below the object. So the signature of this sign error is *not* a 21 cm position error you will notice —
+it is a *total* loss of grasp candidates on a scene where the object is plainly graspable. Check the sign
+before you debug the grasp planner. The constant and both inverse forms are the ones above;
+`TCP_OFFSET = (0, 0, −0.107)` on this robot. Source:
+`outputs/libero_fix_loop/libero_goal_task/put_the_cream_cheese_in_the_bowl/findings.md`; 2026-09-17.
+
 **Corollary — `solve_ik` succeeding is NOT evidence of reachability, and a wall probe must be
 laddered.** Two traps sit either side of this measurement:
 
@@ -398,7 +441,132 @@ object at x 0.763 > 0.75 and needed the tilt ladder; this is the same constant s
 Source: `outputs/libero_fix_loop/libero_object_task/pick_up_the_milk_and_place_it_in_the_basket/fix_code.py`
 — the frame/clamp constants at lines 30–48 and `cmd_of` at 109–115; 2026-09-16.
 
+### The clamp is a software floor, not a wall — reach past it with `solve_ik` + `move_to_joints`
+
+**Trigger**: a tool-tip depth you need that is **below `IK_MIN_Z = 0.005`**, where no tilt or yaw will
+substitute for it. The section above establishes that the clamp is a `np.clip` on the *commanded*
+target rather than physics; this is the legal composition that reaches past it. Both APIs involved are
+allowed, and neither `goto_pose` nor `solve_ik` is asked to do anything it refuses:
+
+```python
+jA = np.asarray(solve_ik(np.array([cx, yt, zA]), q), float)          # a target at the clamp
+jB = np.asarray(solve_ik(np.array([cx, yt, zA + 0.020]), q), float)  # ...and 20 mm above it
+slope = (jB - jA) / 0.020                       # joints per metre of tip height
+aim   = zA - 0.006                              # the linear extrapolation UNDER-shoots
+for it in range(4):
+    move_to_joints(jA + slope * (aim - zA))     # note: move_to_joints, NOT goto_pose
+    got = tip_z()                               # ALWAYS read the achieved tip back
+    if got <= deep + 0.0005:
+        break
+    # ...correct `aim` from the measured response (below)
+if tip_z() < deep - 0.003:                      # overshot towards the support surface: back off
+    move(move_to_joints, jA + slope * (aim + 0.002 - zA))
+```
+
+**Three things make this safe, and all three are measured rather than assumed:**
+
+1. **Verify the achieved tip, never the command.** `move_to_joints` executes the joint vector it is
+   given without consulting the clamp, so nothing downstream will catch a wrong one — not `solve_ik`,
+   not `move_to_joints`, not `goto_pose`. Read the tip back after every step.
+2. **The response along an IK-derived joint line is strongly NON-MONOTONIC.** Measured here, the
+   tip-height gain for *identical* step sizes ranged from **~0.1× to >6×**, and a step that descends
+   can be followed by one that ascends. Any fixed-gain controller on this line is unreliable; the only
+   usable gain is the **local measured** one, clamped to `[0.25, 4.0]` with a fallback to 1.0 outside
+   that band.
+3. **Bound the excursion, and size it from the object, not from the reach.** `aim - step < -0.0095`
+   aborts. The extrapolated `tip_z` is the **tool tip** (midway between the fingers), *not* the pad
+   contact, so a negative tip is not automatically a table collision — but the excursion must be
+   justified by the object's own measured geometry (here: pads 9 mm below the object's top, magnitude
+   bounded to `[-0.0035, 0.012]`). This is safe because it is 6–10 mm and verified, **not** because the
+   clamp was wrong; treating it as a general-purpose bypass is how a tip ends up inside the table.
+
+**Negative results — measured on this task, and worth not repeating.** Flipping the sign of the slope
+when a step stalls drives the pads *up*: the response is weak at small steps (backlash), so the flip
+fires spuriously, and seeds 58/65 reached tip 0.0142–0.0165 and closed on nothing (gap 0.0012).
+Growing the step on a stall amplifies the same non-linearity (tip ran away to 0.037–0.086). A
+gain-scaled adaptive line search, tried in two forms, either stalls short or overshoots, and scored
+**0** on seed 51 — a seed the shipped code passes. Re-seating shallower after a slipped grip does not
+help (retry closed at 0.0151, no better than the first attempt).
+
+**Evidence**: achieved tips of −0.0015 … −0.0021 from a clamped target of 0.005, turning a **0/15**
+initial program into **11/15** on development seeds. Source:
+`outputs/libero_fix_loop/libero_goal_task/put_the_bowl_on_the_stove/fix_code.py` — the extrapolation
+block inside the `if wide:` branch; 2026-09-17.
+
 ---
+
+### A low seat that comes up short is an IK-*branch* problem — re-condition it, do not re-aim
+
+**Trigger**: a `seat()` / `goto_pose` at a low, off-vertical target returns a pose parked tens of
+centimetres away, so the pads never get near the object. The clamp section above covers a *reach* wall;
+this is the softer failure next to it — the pose is reachable, but the warm-started solver settled into
+a fallback branch.
+
+**Detect the shortfall on the returned pad point, not on the command**, and re-seat from high to low
+before giving up. A descending ladder is what re-conditions the branch:
+
+```python
+c_ok = seat(tgt, Q_LAT, tag="lat-pinch")
+short = float(np.linalg.norm(c_ok - tgt))
+if short > 0.018:                       # an ordinary successful seat measures ~0.0095
+    for h in (0.22, 0.14, 0.06):        # the ladder re-conditions the IK branch
+        goto_pose(tgt + np.array([0.0, 0.0, h]) + 0.02 * axis, Q_LAT)
+    c_ok = seat(tgt, Q_LAT, tag="lat-retry")
+    if float(np.linalg.norm(c_ok - tgt)) > 0.032:
+        return False                    # genuinely unreachable at this xy
+```
+
+Do **not** pay for `goto_home_joint_position()` here: the ladder alone is what re-conditions the branch,
+and a home reset costs ~150–250 steps of a 4000-step horizon. **Calibrate the trigger above the error an
+ordinary successful seat produces**, or the recovery fires on healthy seats — here the threshold was
+raised 0.008 → 0.018 because a good seat on seed 62 measures 0.0095.
+
+**Evidence**: seed 54, `seat lat-far → (0.658, 0.113, 0.176)` against a target of
+`(0.679, 0.115, 0.042)` — 0.169 m short — and after the descending ladder
+`seat lat-retry → (0.604, 0.115, 0.024)`, 0.026 m off the pad line. Source:
+`outputs/libero_fix_loop/libero_goal_task/open_the_top_drawer_and_put_the_bowl_inside/fix_code.py` —
+`lateral_grasp`; 2026-09-17.
+
+### Never command a low z as the first pose after a reorientation
+
+**Trigger**: re-orienting the wrist between two `goto_pose` calls — here from the drawer-pull pose
+(tool z = −y) to top-down — and following it immediately with a low target or a `hop_to` that descends.
+
+The transition derails: the arm is thrown up and back. **Seat the first post-reorientation pose at the
+full stand-off height and descend from there.** On this task the first pose after the SIDE → TOP_DOWN
+pull was seated at `pinch_z + 0.20` (tag `"above"`) with the descent below it; a single low `go` right
+after the same transition parked the pad point at tcp z **0.2117** instead of the ~0.016 intended, and
+the grasp then closed on nothing. Source: same `fix_code.py` — `grasp_box()`; probe15, 2026-09-17.
+
+### Refinement — the clamped floor is *quantised*, and which level you land on can decide the task
+
+The floor is not a smooth limit you approach continuously; at a given (azimuth, radius) a
+floor-saturated descent settles on **one of a few discrete depths**, and the level is stable within a
+seed. Measured on `libero_goal_task/put_the_bowl_on_top_of_the_cabinet`, commanding well past the floor:
+
+| landed `hand_z` | fingertip | seeds | outcome |
+|---|---|---|---|
+| **0.1155** | ~+0.0021 | 6/15 | **6/6 straddled the rim** (aperture 0.0084–0.0094) |
+| **0.1183–0.1188** | ~+0.0049…+0.0054 | 9/15 | **0/9 straddled** — pads just above the material, close read air (0.0010) |
+
+A **3 mm** difference in the settled depth is the whole difference between "in the object" and "3 mm
+above it". The practical rule: the achieved depth is per-(azimuth, radius) and is *not* a continuous
+function of the command, so when a floor-saturated descent lands above the target band, **change azimuth
+or radius rather than commanding deeper** — pressing harder cannot move you to the lower level. Print the
+achieved `hand_z` and compare it against the band, don't assume the command was honoured.
+
+```python
+z = eef()[2]
+if z > band_hi:            # this pose's floor is the shallow level
+    # do NOT command deeper - walk the azimuth/radius
+    continue
+```
+
+**Executed source**: `libero_goal_task/put_the_bowl_on_top_of_the_cabinet` `fix_code.py`, `creep_to`
+(line 303) and the `hand_z`/`fingertip~` readout (lines 373–379), with the azimuth/floor table from
+`fix_seed_51_probe.log`. Complements `grasp.position-dependent-kinematic-floor-lateral-drift`. **Diagnostic
+evidence only** — that task is 0/15 on both programs for the geometric reason in `grasp.md` ("recognise a
+gripless shell"), so this records the quantisation itself, not a reward improvement.
 
 ## Ladder Every Cartesian Motion Into ≤30 mm Hops
 
@@ -502,6 +670,71 @@ diagnosis: it says "stop asking", not "this wall is impossible" — which is why
 progress test and the read-back screen above, not instead of them. Source:
 `outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_next_to_the_ramekin_and_place_it_on_the_plate/fix_code.py`
 — `hop_to` lines 103–128; 2026-09-16.
+
+**…and the 0.004 m floor above sits *inside* the arm's ordinary tracking residual, which makes it a
+false-positive generator unless you calibrate it.** The table above partitions motion readings into
+"kinematic limit ≈ 0.0065 m" and "stopped dead < 0.004 m". Measured on
+`libero_goal_task/put_the_cream_cheese_in_the_bowl`, the residual on an *ordinary, successful* hop is
+**3–5 mm** — so the two regimes are not separated by a comfortable gap, and a convergence tolerance set
+at 0.004 m leaves the ladder unable to converge on a reachable target. The observed consequence is
+that the loop exits through its **progress guard on every seed**, not through convergence: the
+`arm stopped moving` break fired on **60 of 105 ladder invocations**, on all 15 development seeds,
+including every one that reached its target. So:
+
+- **Set the convergence tolerance above the tracking residual** (`0.004` was too tight here; the
+  successful ladders satisfied their targets to ~5 mm). Otherwise the stall branch *becomes* the normal
+  exit and its message is printed on success, which is exactly how a diagnostic turns into noise.
+- **Do not read the stall message as a failure signal.** A printed `arm stopped moving` on a run that
+  then scores is the guard working, not a symptom. Three of the four ladder types that tripped it here
+  were on successful moves; only one — the pinch-height ladder — was a real kinematic-floor stall.
+- The distinction to keep: a **kinematic limit** means "stop asking, we are at the floor"; the message
+  alone does not tell you which you are looking at. Corroborate with the target reached.
+
+Source: `outputs/libero_fix_loop/libero_goal_task/put_the_cream_cheese_in_the_bowl/findings.md`
+(`goto_laddered`, shipped tolerance `0.004`); 2026-09-17.
+
+**A *windowed net-travel* backstop beats a single-hop test, and the target stop belongs in front of
+both.** On a pure vertical descent toward a commanded height, a single-hop "did it go down" test fires
+on any one hesitant hop and abandons a reachable target; no test at all drives the pads into the
+support. Put the arrival stop first, and make the backstop measure **net travel over a window**:
+
+```python
+STALL_WIN, STALL_NET = 3, 0.004        # hops, metres of net travel
+
+def descend(xy, z_from, z_to, step, tag="", touchdown=None, max_hops=26):
+    move_pads([xy[0], xy[1], z_from], tag=tag)
+    hist = [float(pad_pos()[2])]; z = z_from
+    for _ in range(max_hops):
+        if float(pad_pos()[2]) <= z_to + 0.002:      # primary: arrived at the command
+            break
+        z = max(z_to, z - step)
+        move_pads([xy[0], xy[1], z], tag=tag)
+        now = float(pad_pos()[2])
+        if touchdown is not None and gap() > touchdown + TOUCH_DELTA:
+            break                                    # payload landed early
+        hist.append(now)
+        if len(hist) > STALL_WIN:
+            hist.pop(0)
+            if hist[0] - hist[-1] < STALL_NET:       # backstop: no NET progress in 3 hops
+                break
+    return float(pad_pos()[2])
+```
+
+Three deliberate choices: the arrival stop is `z_to + 0.002` so a descent that reaches its command ends
+*on the command* rather than on the backstop; the backstop compares the oldest and newest readings in a
+3-hop window (`hist[0] - hist[-1]`) so a single hesitant hop is absorbed instead of ending the loop; and
+every reading is `pad_pos()` — a **measured world quantity**, never the command read back.
+
+**Why it works + evidence**: on `libero_goal_task/put_the_bowl_on_the_plate` the two-tier form fires
+once per descent and stops within 14 mm of the command on every descent (grasping at pad_z
+0.1113–0.1155, releasing at 0.1189–0.1270) with no overshoot into the table. Under the previous
+single-hop test the same task logged up to **36 mm** of finger travel sliding down past a payload that
+had already landed — a 29 mm bimodality between seeds. Note the relationship to the rule above: *that*
+one is about the **horizontal** ladder at a reach clamp, where progress must be measured toward the
+target because the arm dithers; this one is a **vertical** descent whose target may be below the
+kinematic floor, where the window is what distinguishes "hesitating" from "blocked". Source:
+`outputs/libero_fix_loop/libero_goal_task/put_the_bowl_on_the_plate/fix_code.py` — `descend`,
+lines 187–214; 2026-09-17.
 
 ### The **approach** is usually the largest move in the pick — ladder it too
 
@@ -846,6 +1079,17 @@ cavity_y = drawer_face - 0.075        # middle of a measured ~5 cm landing corri
 place    = np.array([x_ref, cavity_y, floor_z + bottom_gap + 0.020])
 ```
 
+**…and the corridor's *x* is the cavity's, not the handle's.** The rule above fixes the *depth* of the
+landing; the same drawer can still fail on the lateral axis because **the handle and the cavity are not
+aligned**. Measured on `libero_goal_task/open_the_top_drawer_and_put_the_bowl_inside`: cavity floor
+z = 0.152 over x 0.59–0.72, y −0.155…−0.03; panel top strip z = 0.213; **cavity centre x ≈ 0.655 is
+4.5 cm left of the handle x = 0.700**. A 7.7 cm box released at the handle's x sits half on the cavity
+wall, rests at rim height, and the reward stays 0 with no error anywhere. Read the cavity from the depth
+image (points inside the drawer's z-slot between floor and rim), then carry to **the centre of the
+measured cavity** and descend until the arm stalls — the passing runs log
+`descended: lowest free cmd z=0.17x`. The handle is a control, not a landmark. Source: same
+`fix_code.py` — `open_drawer()` / `cavity()` / `carry_and_release()`; 2026-09-17.
+
 **Why it works + evidence**: on `libero_goal_swap/open_the_top_drawer_and_put_the_bowl_inside`
 landing offsets of −0.059 … −0.122 m behind the panel face all succeeded, while −0.131 … −0.140
 (too deep) and −0.032 (too shallow) failed; aims of 0.100 and 0.115 behind the face were each tested
@@ -912,6 +1156,111 @@ was sliding over the plate rather than driving it — and how a real 0.118 m pus
 non-event. Source: same `fix_code.py`, the `AFTER-1` / `AFTER-2` re-measurement blocks, lines 139–152;
 2026-09-14.
 
+### Roll the Hand to Make a Table-Level Paddle — a Wrist That Cannot Descend Still Has a Low Finger
+
+**Trigger**: a non-prehensile push of an object the wrist cannot get down to. `robot_cartesian_pos` z
+**stops dead at ~0.1175 at every xy** — a hard pose floor, not a table contact — so a top-down pinch
+closes on air (aperture 0.0148–0.0172 at *every* commanded depth) and a closed top-down gripper slid
+12 cm straight through the object's footprint and moved it **0.0001 m**. The object was 1.76 cm tall,
+so no top-down pose reaches under its top edge.
+
+```python
+def _roll_quat(deg=25.0):
+    t = np.deg2rad(deg)
+    _Rx = np.array([[1, 0, 0],
+                    [0, np.cos(t), -np.sin(t)],
+                    [0, np.sin(t), np.cos(t)]])
+    return rotation_matrix_to_quaternion(_Rx @ np.array([[1.0, 0, 0],
+                                                          [0, -1.0, 0],
+                                                          [0, 0, -1.0]]))
+
+_Q_PADDLE = _roll_quat(25.0)
+_PAD_DY = 0.0103      # low fingertip offset from the hand, world y
+_PAD_DZ = -0.1166     # low fingertip offset from the hand, world z
+_Y_BIAS = 0.047       # commanded-y offset the rolled pose needs to hit a target
+```
+
+**Why it works — and why it does not contradict the tilt below.** A roll about **world x** puts the
+*low* fingertip at `z_hand - (0.11·cos t + 0.04·sin t)`, which is **minimised at
+`t = atan(0.04/0.11) ≈ 20°`** (25° was used). The roll therefore **gains** vertical reach for the low
+finger: at 25° it sits 6.6 mm below the top-down fingertip while the other fingertip stays 1.4 cm
+clear, and because it is also offset `+0.0103` in world y it sweeps along the table as the hand
+translates — a paddle, not a pinch. **The apparent conflict with "A Tilted Gripper Extends Reach — and
+Costs Vertical Reach" (below, same task, sibling suite) is a difference of *which point you measure*:
+that entry measured the TCP, `EE + 0.1·R[:,2]`, which lies *on the tool axis* and does lose height as
+the pose tips. An off-axis finger can gain what the axis loses.** Roll for the fingertip, tilt for the
+TCP, and always work out which of the two your contact actually needs.
+
+**Evidence**: on `libero_goal_task/push_the_plate_to_the_front_of_the_stove` (runtime language "Push
+the cream cheese to the front of the stove") a 5.0 cm rolled slide in −x moved the object **−0.0501 m**
+with 0.0067 m of lateral drift, against 0.0001 m for the same commanded slide unrolled; seed 51 passes
+in 9 moves. The rolled pose carries a constant **+0.047 m commanded-y bias** which one feedback
+iteration removes — treat it as part of the pose and re-derive it if the roll angle changes. Source:
+`outputs/libero_fix_loop/libero_goal_task/push_the_plate_to_the_front_of_the_stove/fix_code.py` —
+`_roll_quat` and `_PAD_DY/_PAD_DZ/_Y_BIAS`, lines 39–52; probes 13–14; 2026-09-17. Ingested as
+`knowledge/skill-code-instances/manipulation/manipulation.roll-the-hand-to-trade-a-wrist-floor-for-fingertip-reach-at-table-level.yaml`.
+
+### Align the Push Axis First, Then Push Until the Reference Physically Blocks It
+
+**Trigger**: pushing an object along −x toward a large reference it will eventually hit, while the
+object sits near the reference's **edge**. Every push also drifts the object sideways — on seed 51 `y`
+slid 0.1128 → 0.0740 over five iterations — until it **slips around the reference's corner** (reaching
+x = 0.5175, i.e. behind the stove's front face) instead of stalling. The stall detector then never
+fires and the loop pushes on, burning the horizon.
+
+```python
+# 1. align y onto the reference's centre line FIRST, then push along x
+# 2. a push that moves the object < 8 mm means the reference blocked it -> done.
+#    No need to look up the reference's front face at all.
+```
+
+Aligning y first turns the contact into a **self-detecting stall**: the object stops because something
+solid is in the way, so the program never has to trust the reference mask's foreshortened far edge —
+here the "stove" mask reported its front face at x = 0.488 while the true face is at 0.524, and the
+object physically stops at 0.528. **The y alignment is the whole difficulty, because that is also
+where the goal region is**: on this task the goal is the reference's **camera-facing side, centred on
+the reference's own y centre line** — reward 0 at object y = 0.1121 / 0.1187 / 0.1263 and reward 1 at
+y ≈ 0.196–0.202 (reference y centre 0.2014–0.2027) at *both* x = 0.5689 and x = 0.6208, a 5 cm-wide x
+window. Source: same `fix_code.py` — `_try_push` and its caller; the
+`iter 0..4 y 0.1128 → 0.0740, x 0.5630 → 0.5175` trace; 2026-09-17.
+
+### After a stalled pull, *release* and probe under no load — that separates "the object stopped" from "the arm ran out"
+
+**Trigger**: any pull or push that stalls short of its commanded distance. Both causes produce the same
+observation — the tool did not advance — and they call for **opposite** responses: a drawer that stopped
+against its own end-stop is a **success**, while an arm that ran out of reach means change the approach or
+abandon. Attribution is not optional; the score depends on it.
+
+**The discriminator is to remove the load and try again.**
+
+```python
+open_gripper()                       # drop the load first
+for _ in range(3):
+    before = _tcp()
+    goto_pose(before + PULL_STEP, quat)        # <= 4 cm, along the pull axis
+    if np.linalg.norm(_tcp() - before) > 0.03:
+        return "object stopped"                # the arm can still move: the object was the limit
+return "arm limit"                             # no advance under no load: the arm is the limit
+```
+
+**Measured on `libero_goal_task/open_the_middle_drawer_of_the_cabinet`**: on all **12** successful pulls
+the tool advanced **4.1–4.5 cm** under no load after the stall, while the bar itself had moved only
+**0.160–0.163 m** — so the *drawer* had stopped, not the arm, and those pulls were real. On the
+out-of-reach drawer the same probe advances nothing, which is the arm's floor talking.
+
+**If the verdict is "arm limit", the next question is the orientation family, not a harder push.** Same
+task, same xy, stall z by approach family: **side 0.096** / 45° 0.157 / 60° 0.204 / 90° 0.206, with yawed
+front approaches stalling at z ≥ 0.233. Side is the lowest-reaching family by a wide margin, and the free
+space in front of the obstacle floors at **0.0961** — so measure the *free-space* floor once to know the
+arm's own limit before blaming the scene. Refs `detect-a-reach-clamp-do-not-fight-it`,
+`solve-ik-success-is-not-reachability`, `a-short-reachability-probe-is-a-false-negative-generator`.
+
+**Executed source**: `libero_goal_task/open_the_middle_drawer_of_the_cabinet` `fix_code.py` — tail of
+`_pinch_and_pull` (shipped revision), first proven in `probe20/22.py`; orientation floors from
+`probe14/15/17/21.py`. **Diagnostic evidence only**: that task is **0/15** on both programs (the drawer
+bar sits at z 0.0419–0.0421 while the lowest reachable tool z at that xy is 0.0901–0.1032, short by
+0.0481–0.0613 m on all 15 seeds), so this records the attribution test, not a reward improvement.
+
 ### Development-only: score several candidate goal states in ONE episode
 
 When the success predicate is unknown (`.bddl` reading is forbidden) and no baseline is available,
@@ -953,6 +1302,14 @@ it only for objects taller than ~3 cm, and recompute the TCP from the achieved q
 trusting any position derived from it (see "Measure the TCP, Not the Hand" above). Source: that
 task's `findings.md` Pattern E, executed in `/tmp/fix_v3.py` — **not ingested as a skill-code
 instance** because its executed source is not `fix_code.py`; 2026-09-14.
+
+**Counterpart — a roll about world x is the mirror image, and the two entries do not contradict.**
+The paragraph above measures the **TCP** (`EE + 0.1·R[:,2]`), a point on the tool axis, so tipping
+costs it height — hence "use it only for objects taller than ~3 cm". A roll aimed at the **off-axis
+low finger** gains height instead, and is what gets a paddle onto the table under a 0.1175 m pose
+floor; on `libero_goal_task`'s run of this same task it pushed a 1.76 cm object that the top-down pose
+could not touch at all. See "Roll the Hand to Make a Table-Level Paddle" above. Same task, same arm,
+opposite sign — because the two entries are about two different points on the hand.
 
 ---
 
@@ -1059,6 +1416,17 @@ commanded direction vary even though the joint axis is fixed. A bounded joint ca
 further toward its limit, so a **same-direction retry can never undo a partial turn** while a
 reversed retry can. Offer the opposite direction at most once, and only after *every* pinch has
 closed on air — i.e. only when nothing has been rotated yet, which makes it free insurance.
+
+> **⚠ Suite scope — the *which* fixed direction is NOT fixed across suites.** "Fixed" here means
+> *constant within an episode, and independent of per-seed visual noise*. It does **not** mean the
+> same constant works everywhere. The **same identifier** `turn_on_the_stove` needs **opposite world
+> directions in the two suites**: `libero_goal_swap` needs **+120° (world CCW)**, while
+> `libero_goal_task` runs the instruction **"Turn off the stove"** and needs **−120° (world CW)** —
+> a single −10° CW step scores 1.000 there while the full +120° CCW sweep never leaves 0.000. In a
+> `_task` suite, derive the sign from the **polarity of `env.handle.task_language`**, never from a
+> constant, and keep it constant within the episode. See [localize.md](localize.md), "The remap
+> reaches a third suite" (ninth row). Measured 2026-09-17: `lib: libero_goal_swap/turn_on_the_stove`
+> `a48105fb…` vs `lib: libero_goal_task/turn_on_the_stove` `adfca80f…`.
 
 **Budget note**: `solve_ik` **raises** on total failure (`RuntimeError: IK failed for position … with
 all orientation fallbacks`), so no `if joints is not None` guard is needed — wrap each sweep step in

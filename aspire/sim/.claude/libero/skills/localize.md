@@ -255,6 +255,194 @@ be read at runtime. Source:
 `outputs/libero_fix_loop/libero_object_task/pick_up_the_cream_cheese_and_place_it_in_the_basket/fix_code.py`
 — `target_signature` lines 183–194; 2026-09-16.
 
+#### The remap reaches a third suite: `libero_goal_task`
+
+`libero_goal_task` shares its ten identifiers with `libero_goal_swap` and remaps them the same way the
+two suites above do. **Nine rows are measured so far — the campaign is still in progress, so treat
+this as an opening table, not the finished one.**
+
+| task identifier (`libero_goal_task`) | runtime `env.handle.task_language` | what the remap moves |
+|---|---|---|
+| `put_the_bowl_on_the_plate` | **"Put the wine bottle on the plate"** | the object |
+| `push_the_plate_to_the_front_of_the_stove` | **"Push the cream cheese to the front of the stove"** | the object (relation + support survive) |
+| `put_the_bowl_on_the_stove` | **"Put the plate on the stove"** | the object (support survives) |
+| `put_the_bowl_on_top_of_the_cabinet` | **"Put the plate on the top of the drawer"** | the object **and the site** |
+| `open_the_middle_drawer_of_the_cabinet` | **"open the bottom drawer of the cabinet"** | **only the positional descriptor** |
+| `put_the_cream_cheese_in_the_bowl` | **"put the wine bottle in the bowl"** | the object (support survives) |
+| `put_the_wine_bottle_on_top_of_the_cabinet` | **"put the wine bottle in the bowl"** | the object, relation, **and support** — *identical to the row above* |
+| `put_the_wine_bottle_on_the_rack` | **"Put the cream cheese on the rack"** | the object |
+| `turn_on_the_stove` | **"Turn off the stove"** | the **POLARITY** of the goal — an antonym, not a different noun |
+
+**The fourth row is the first *site* remap measured in this suite, and it is a double one.** The
+identifier names a **bowl** as the payload and a **cabinet** as the support; the runtime string names a
+**plate** on the **top of the drawer**. The scene holds both a bowl and a plate and exactly one drawer
+cabinet, so a program that reads the identifier builds the right kind of plan for the wrong object *onto
+the wrong surface* — and the identifier's own noun is again present as bait. The plate is white with a red
+rim, `r_out ≈ 0.070 m`, rim top z ≈ 0.007. Source:
+`outputs/libero_fix_loop/libero_goal_task/put_the_bowl_on_top_of_the_cabinet/findings.md`; 2026-09-17.
+
+**The fifth row is the most dangerous shape of all: the object class and the support are both correct and
+only the *ordinal* is wrong.** `open_the_middle_drawer_of_the_cabinet` runs as `"open the bottom drawer of
+the cabinet"` — "drawer" and "cabinet" both match, so every sanity check that compares nouns **passes**,
+and a program that targets the middle drawer is aiming at a drawer that exists, is reachable in principle,
+and is not the goal. Here the identifier's descriptor is not merely bait, it is a *plausible* neighbour one
+level up in the same column. Parse the ordinal out of the runtime string and never from the identifier:
+
+```python
+language = getattr(env.handle, "task_language", "") or ""
+want = _ordinal(language)      # \b(bottom|lowest|lower)\b -> 0, middle -> 1, top|upper -> 2
+```
+
+Measured on all 15 development seeds (`parsed ordinal: bottom`, string constant); the middle drawer opens
+to its stop for reward 0.0 on 12/15 and the top drawer likewise — i.e. the program *could* open the wrong
+drawers perfectly. Source:
+`outputs/libero_fix_loop/libero_goal_task/open_the_middle_drawer_of_the_cabinet/findings.md`; 2026-09-17.
+
+**The sixth row kills the last shortcut. There is no noun → payload table, and it is not even a
+function.** `put_the_cream_cheese_in_the_bowl` runs as **"put the wine bottle in the bowl"**. Put that
+beside rows 1 and 3 and the trap is structural: the identifier's noun **`bowl`** resolves to the
+**wine bottle** in row 1 and to the **plate** in row 3 as the *payload*, and to the *support* here in
+row 6. One noun, three different roles. So the identifier's noun cannot be mapped to a payload, cannot be
+mapped to a role, and cannot even be used to decide whether the thing it names is the goal or the
+destination. Anything you build that "translates" identifiers will be wrong for some task in the suite,
+and wrong *silently* — the object it names is usually present and plausible.
+
+The identifier's noun is worse than useless as a prompt, and this task measures how much worse: the
+blue cream-cheese box sits in the scene at `(0.62, 0.11)`, and on its own box the prompt `cream cheese`
+scores **0.020** where the generic `box` scores **0.660**. The identifier's noun does not merely rank
+the wrong object first — it ranks *below a word that names no object at all*. Never let it enter a prompt
+list at any rank, including as a last-resort fallback. Read the runtime string instead, on every seed,
+before anything else:
+
+```python
+task_language = str(getattr(env.handle, "task_language", ""))
+print("TASK_LANGUAGE=%r" % (task_language,), flush=True)
+```
+
+**The seventh row is where the table stops being a table: the remap is not injective.** Two *different*
+identifiers resolve to the **same** runtime string — `put_the_wine_bottle_on_top_of_the_cabinet` and
+`put_the_cream_cheese_in_the_bowl` both run as **"put the wine bottle in the bowl"**. This is stronger
+than the previous rows: row 6 already showed the identifier's noun does not determine the payload, but a
+one-to-one table from identifier to instruction would still have been constructible. It is not. Measured
+three independent ways on this campaign's pair:
+
+1. Each worker's own log, under two distinct task output paths, prints the same
+   `TASK_LANGUAGE: 'put the wine bottle in the bowl'` on every one of its 15 development seeds.
+2. The two scenes render **byte-identical agentview snapshots** (`md5 4d6efa1a416a82c78f75c3ab2721043`).
+   So it is not merely two instructions that read alike — the harness loads the same world.
+3. The harness itself still distinguishes them: `task_id=2` for the cabinet identifier against
+   `task_id=6` for the bowl identifier, with distinct resolved task names.
+
+So the map `identifier → runtime string` is many-to-one, and *nothing observable in the scene* separates
+the two members of a collision class. The consequence for a fix program is narrow and worth stating
+exactly: it does **not** invalidate reading the runtime string — that read is still the only correct
+source of the goal, and the program above scored 15/15 on this identifier while parsing it. What it kills
+is any *caching or memoisation keyed on the instruction string*, any per-instruction prompt table built
+across tasks, and any inference of "which task is this" from the rendered scene. Two identifiers are one
+runtime problem; do not expect their held-out scores to differ. The mechanism is unexplained — the
+harness distinguishes the pair by an internal id that a fix program may not read — so this records the
+measurement, not a cause. Sources:
+`outputs/libero_fix_loop/libero_goal_task/put_the_wine_bottle_on_top_of_the_cabinet/findings.md` and
+`…/put_the_cream_cheese_in_the_bowl/findings.md`; 2026-09-17.
+
+**The eighth row is the plainest, and it is worth having as a control.** `put_the_wine_bottle_on_the_rack`
+runs as **"Put the cream cheese on the rack"** — the relation (`on`) and the support (`rack`) both survive
+and only the **object** is swapped, exactly the shape of the second row. Nothing subtle: the identifier
+names a wine bottle, the payload is a blue cream-cheese box. Its value is as an uncontaminated
+measurement — 40 recorded runs across four sweeps, every one printing the identical string, with no
+collision against any other identifier. It also adds a second entry to the `wine bottle` → *not a bottle*
+column (see the sixth row's note that no noun → payload table exists): the noun `wine bottle` here
+resolves to a cream-cheese box, and in rows 1, 6 and 7 to an actual wine bottle used as *payload* for a
+`bowl`-named identifier. Sources:
+`outputs/libero_fix_loop/libero_goal_task/put_the_wine_bottle_on_the_rack/findings.md`; 2026-09-17.
+
+**The ninth row is a new class: the remap inverts the goal.** `turn_on_the_stove` runs as **"Turn off the
+stove"**. Every row above moves the *object*, the *support*, the *site*, the *relation*, or an *ordinal* —
+all of them keep the **verb** and the **polarity**. This one keeps the object (`stove`), the support, and
+the relation entirely intact and negates the *goal state*: the identifier asks for `on`, the runtime string
+asks for `off`. Noun-comparison sanity checks pass, exactly as in the fifth row, and the failure is again
+invisible to them.
+
+The consequence is sharper than "the wrong target". The actuator is a **knob swept by a stepped wrist
+yaw**, and the correct direction is a **sign**, not a location: with the band pinched on the control, a
+single **−10° (world CW)** step gives `reward=1.0, terminated=True, task_completed=True`, while the full
+**+120° (world CCW)** sweep — the direction `libero_goal_swap`'s own `turn_on_the_stove` needed — never
+leaves `reward=0.0`. A full −120° CW ladder also ends at 1.0, so the off state lies clockwise of the grip
+and over-rotating clockwise keeps it. Therefore derive the direction from the runtime string's polarity and
+never from a constant:
+
+```python
+def stove_off_requested(text):
+    words = set("".join(c if c.isalpha() else " " for c in text.lower()).split())
+    if "off" in words:
+        return True
+    if "on" in words:
+        return False
+    return True          # neither word present -> assume the safer state
+
+SWEEP_SIGN = -1.0 if stove_off_requested(TASK_LANGUAGE) else 1.0
+```
+
+The A/B is clean because the *grasp is held constant*: on seed 51 both revisions share the pinch target
+`(0.2543, 0.1999, 0.0374)`, `yaw0 = -0.4`, `band_n = 395`, and `gap after pinch = 0.0247 m`; they differ
+only in direction, and the scores are 0/15 (initial, `yaw -0.4 -> 119.6`) versus **15/15** (shipped,
+`yaw -0.4 -> -120.4, sign -1`). The one executable diff between the two files is the `SWEEP_SIGN` line.
+
+**Do not try to read the burner's glow as an online cue — it is thermally lagged.** The wrong direction is
+not merely ineffective; it drives a burner **on**, which is visible as redness in the agentview. But the
+signal arrives far too late to steer with. Measured with `redness_timeline.py` (`R - max(G,B)` in a crop
+around the stove) over the saved keyframes of the *failing* CCW run (seed 51, 88 agentview frames, steps
+0–1176): `maxred` is **19** for the first 51 frames, first exceeds 80 at **step 1095**, and holds at **145**
+for the final 37 frames to the end of the episode — i.e. only in the last ~7%, *after* the sweep has
+finished. The three successful runs never glow at all (`maxred` 19, 20, 20; `nred>80 == 0` in all three).
+So a red-glow check cannot decide when to stop sweeping; it can only confirm the mistake afterwards.
+Sources: `outputs/libero_fix_loop/libero_goal_task/turn_on_the_stove/findings.md` and
+`…/fix_code.py` (lines 50–70); 2026-09-17.
+
+**Generalisation across nine measured rows: the identifier is an opaque dispatch key.** It has now lied
+about the relation, the support, the goal object, the *surface*, a positional descriptor, and finally the
+**polarity of the goal itself**; and its noun is not a function of the payload. The runtime string has
+never lied. The only safe reading is to parse the runtime string and treat the identifier as a key that
+carries no goal information at all — including *which direction to turn a knob*.
+
+Measured on 15/15 development seeds of `put_the_cream_cheese_in_the_bowl` (string constant, `TASK_LANGUAGE`
+identical on every seed). Source:
+`outputs/libero_fix_loop/libero_goal_task/put_the_cream_cheese_in_the_bowl/findings.md`; 2026-09-17.
+Note this task's `initial_code.py` and `fix_code.py` are the same program (a docstring-only diff), so the
+15/15 attests that reading the runtime string is *consistent with* a passing program — it is not an A/B
+against an identifier-driven program.
+
+The first identifier's noun is wrong **and** it is present in the scene as bait: two akita bowls sit in
+that scene and neither is the goal. The payload is a **wine bottle** — a different object class from the
+identifier's `bowl`, so the *grasp family* changes with the remap, not just the target's colour or
+position (the `libero_object_task` form above). A program that reads the identifier gets a bowl task and
+fails on a bottle scene. Measured on 15/15 development seeds; the string is constant across seeds.
+Source: `outputs/libero_fix_loop/libero_goal_task/put_the_bowl_on_the_plate/findings.md`; 2026-09-17.
+
+**The second row is a *partial* remap, and that is the case worth naming.** Here the identifier's
+*relation* and *support* both survive — "push … to the front of the stove" is exactly what the
+identifier says — and only the **object** is swapped, `plate → cream cheese`. So the remap does not have
+to invert or negate anything for a program to break: a planner that reads the task and constructs a
+push-to-a-reference-region plan from the *identifier* gets a valid plan for **the wrong payload**, which
+is a failure that looks like a perception bug. Note the direction of the trap: the identifier's noun is
+again bait, and here it is a **large flat object in the same scene** (a plate), the exact shape class
+the localiser is looking for. Treat the runtime string as the sole source of the goal object even when
+the relation around it is right. Source:
+`outputs/libero_fix_loop/libero_goal_task/push_the_plate_to_the_front_of_the_stove/findings.md`; 2026-09-17.
+
+**The third row repeats the partial shape and shows what the substitution can cost.** Here again the
+support survives ("on the stove" is exactly what the identifier says) and only the object is remapped,
+`bowl → plate`. But the substituted object is a **14 cm cone-rimmed plate whose `2·rmax` exceeds the jaw
+opening**, so it cannot be pinched diametrally at all — the remap changes the **grasp mechanism**, not
+just the payload. The generalizable reading: because `_task` identifiers are dispatch keys, a *partial*
+remap (relation and support intact) is the hardest kind to notice, precisely because most of the
+identifier checks out. The cost is not "the wrong object" but "a plan built for the wrong *kind* of
+object" — see [grasp.md](grasp.md), "Pinch the Rim Band When the Object Is Wider Than the Jaws", for
+what that costs when the mismatch is geometric. Ground the goal object from the runtime string and take
+its geometry from the mask before choosing a grasp family. Measured on all 15 development seeds; the
+string is constant across seeds. Source:
+`outputs/libero_fix_loop/libero_goal_task/put_the_bowl_on_the_stove/findings.md`; 2026-09-17.
+
 **The remap is not a synonym swap — it can invert, negate, and change the *support*.** Across all ten
 `libero_spatial_task` tasks, **not one** identifier's implied relation matched its runtime instruction:
 
@@ -1394,6 +1582,46 @@ costs the whole held-out seed. Source: same `fix_code.py` — `find_can_candidat
 
 ---
 
+### A merged mask is too *tall*, not too big — screen the cloud's *flatness*, not its size
+
+The base-on-the-table gate above rejects masks of **parts** of taller objects. The mirror failure is a
+mask that **swallowed a taller neighbour whole**, and no size screen catches it: the merged cloud has a
+plausible width and sits at a plausible place, so it survives every extent band. What is wrong with it is
+only its **height**.
+
+Measured on `libero_goal_task/put_the_bowl_on_top_of_the_cabinet`, where the payload is a saucer lying
+flush on the table and the scene also holds a 0.12 m metal bowl. The prompt `plate` returned a mask with
+the bowl merged in: `rim_z` read **0.0199–0.1253** against the plate's true rim top of **0.0074**, and the
+next close then aimed 5–8 mm *outside* the plate. On one development seed only **74 of 178** SAM3 masks
+passed the screen below, so it is load-bearing rather than cosmetic.
+
+```python
+Z_MAX_FLAT = 0.022      # a flat plate / saucer / lid cloud never reaches this high
+SPAN_FLAT  = 0.030      # ... and never spans more than this in z
+z_hi = float(np.percentile(pts[:, 2], 99))
+span = z_hi - float(np.percentile(pts[:, 2], 2))
+if z_hi < Z_MAX_FLAT and span < SPAN_FLAT:      # keep
+```
+
+Two scalars and no shape model, with thresholds taken from the **object's own** ceiling and thickness
+rather than a class prior: a saucer is ~7 mm thick and never higher than 2 cm, so anything tall is either
+a different object or a merge.
+
+**Why the continuity gate does not cover this.** `transport.md`'s "gate that measurement by *continuity*,
+not by plausibility" catches a merged mask because it **jumps**. A mask that swallowed a standing
+neighbour on the *first* observation has no previous sample to jump from, and it passes every static size
+gate on the way in. Flatness is the one static property such a merge cannot fake.
+
+**Executed source**: `libero_goal_task/put_the_bowl_on_top_of_the_cabinet` `fix_code.py`, `flat_cloud`,
+lines 117–136. Store instance
+`localize.reject-a-mask-that-swallowed-a-taller-neighbour-by-flatness`.
+
+**Evidence caveat — read this before reusing it.** That task scores **0/15 on both `initial_code.py` and
+`fix_code.py`**; the screen removes the merged masks, but the task's own blocker is geometric (the saucer
+cannot be gripped at all — see `grasp.md`, "a planar pad face on a shallow ramp is a wedge, not a clamp"),
+and no seed flipped to success. Treat this as evidence that the screen **filters correctly**, not as
+evidence that it raises reward.
+
 ### The *reference* object has no usable prompt at all — find it geometrically, screened by table level
 
 Some scenes do not present a hard disambiguation; they present a reference object that **cannot be
@@ -1512,6 +1740,33 @@ Prompts were unchanged across all 15 development seeds (the target always won at
 — `screen_candidates` lines 85–116, `pick_candidate` 118–124; 2026-09-16. On the runtime-language half of
 this, see "In a `_task` suite the relation comes from the RUNTIME LANGUAGE — the task name lies" above:
 here it is not the *relation* but the *object identity* that the file name gets wrong.
+
+#### …and the *task identifier's* noun is a fallback you must never take — it is the one word guaranteed wrong
+
+The two paragraphs above say the instruction's product word may not ground. This is the trap that
+follows: the **identifier** names a different object, that object is *real and present in the scene*,
+and it therefore segments beautifully. Reaching for it when the instruction's noun scores low feels like
+recovery and is the single worst fallback available. On
+`libero_goal_task/open_the_top_drawer_and_put_the_bowl_inside` the runtime instruction names **cream
+cheese** while the identifier says *bowl*: `cream cheese` scored **~0.02** on seed 51, while a bowl in
+the same scene grounds strongly and is not the goal. Keep a prompt ladder and pick the first prompt whose
+mask is *physically plausible for the goal object*, with the identifier's noun **absent from the list
+entirely**:
+
+```python
+for p in ("blue box", "cheese box", "cream cheese", "box"):
+    mask = segment_sam3_text_prompt(rgb, p)[0]["mask"]
+    ...
+# never append the identifier's noun to this list, in any position
+```
+
+Every passing run logs `box: prompt='blue box' score=0.809`; grounding the bowl instead costs the whole
+episode (the wrong object is carried, and the run fails at the placement check rather than at the grasp).
+The rule generalizes past this task because of *how* the suites are built: in a `_task` suite the
+identifier is a dispatch key, so its noun is the one token with no claim on the scene at all. When the
+instruction and the identifier disagree, the instruction is the task and the identifier is a label.
+Source: `outputs/libero_fix_loop/libero_goal_task/open_the_top_drawer_and_put_the_bowl_inside/fix_code.py`
+— `find_box()`; 2026-09-17.
 
 ### Refinement — write the three parts as one per-object registry, and make the descriptor an *admit floor* that degrades
 
@@ -1982,6 +2237,39 @@ revision scores **15/15** on dev seeds 51–65. Source:
 `outputs/libero_fix_loop/libero_spatial_task/pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate/fix_code.py`
 — `choose_target` lines 295–306; 2026-09-16.
 
+#### Calibrate the continuity tolerance against your OWN commanded motion, not the scene
+
+The two tolerances above (0.30 m for the anchor lock, 0.030 m for the held-object jump gate) are both
+*scene* constants — 3× the inter-instance spacing, and the perception noise floor. A third site
+supplies a third basis, and it generalises further because it needs no scene knowledge at all:
+
+> **Object motion is bounded by the motion you commanded plus a slip margin.** An apparent
+> displacement larger than that is not a fast object, it is a different object.
+
+```python
+cands = [c for c in screened if c is not None]      # candidates that passed the GEOMETRY screen
+if cands and last_c is not None:
+    cands.sort(key=lambda c: float(np.linalg.norm(np.asarray(c["c"])[:2] - last_c)))
+    best = cands[0]
+    if float(np.linalg.norm(np.asarray(best["c"])[:2] - last_c)) > commanded_travel + 0.05:
+        print("  localiser jumped %.4f on a %.4f push -> rejected"
+              % (float(np.linalg.norm(np.asarray(best["c"])[:2] - last_c)), commanded_travel))
+        best = None                                  # do not drive the paddle at it
+```
+
+**Evidence**: on `libero_goal_task/push_the_plate_to_the_front_of_the_stove` (identifier says *plate*,
+runtime language "Push the cream cheese to the front of the stove") dev seed 60's localiser returned
+the **plate** at `(0.7010, −0.0338)` after a 0.110 m sweep — an apparent **0.1931 m** move, which is
+simply impossible and is the whole tell. The run recovered and still scored 1.0, but the plan had been
+driving the paddle at the wrong object for several moves and burned **25 moves instead of 9**. With
+candidates filtered by the geometry screen and then ranked by distance to the last known centre, all
+15 dev seeds pass and seed 60 holds the object continuously (`dy` collapsing 0.0856 → 0.0008). Source:
+`outputs/libero_fix_loop/libero_goal_task/push_the_plate_to_the_front_of_the_stove/fix_code.py` —
+`_locate` / `_loc_obj`; `logs/sweep_60.log`; 2026-09-17. Companion rules:
+`localize.anchor-a-relational-targets-identity-to-its-last-position` (same lock, look-alike site) and
+`transport.gate-a-held-estimate-by-positional-continuity-not-by-plausibility` (same idea, held-object
+site, where the response is to *hold* rather than to *select*).
+
 ---
 
 ## Screen SAM3 Candidates by Geometry, Not by Score
@@ -2099,6 +2387,34 @@ Source:
 `outputs/libero_fix_loop/libero_spatial_swap/pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate/fix_code.py`
 — `find_box` lines 213–255, `find_plate` 258–289; 2026-09-15.
 
+### …and when you *do* keep score as a filter, use a *relative* margin, not an absolute floor
+
+**Trigger**: a prompt returns a large pool — here **200 masks per prompt** — in which the real objects
+score in one band and off-object clutter scores in another, with the bands close enough to overlap a
+fixed threshold.
+
+```python
+top = max(s for s, _ in scored)
+keep = [m for s, m in scored if s >= max(min_score, top - REL_SCORE_MARGIN)]   # 0.15
+```
+
+**An absolute floor admits the clutter.** Measured on
+`libero_goal_task/open_the_middle_drawer_of_the_cabinet`: on seed 63 the three real cabinet handle bars
+scored **0.76–0.80** while two table-clutter masks scored **0.45–0.51** — and that clutter is *large*
+(two masks with a 1.65 m x-extent) yet survives a shape screen after percentile trimming. A `min_score`
+of 0.40 admitted them, and the pre-fix program targeted the clutter and **never touched the cabinet**.
+With the relative margin the same seed finds all three bars and pins the middle drawer (aperture 0.0136,
+pulled 0.161 m). The margin is active on **14/15** development seeds of the shipped revision.
+
+**Why relative is the right normalisation**: SAM3 scores are not comparable across prompts or scenes, so
+the *gap* between the best mask and the next is the stable quantity, while any absolute cutoff is
+calibrated to one scene. Keep a low `min_score` as a floor only to exclude the obviously ungrounded.
+
+**Executed source**: `libero_goal_task/open_the_middle_drawer_of_the_cabinet` `fix_code.py`, `_scan`,
+`REL_SCORE_MARGIN = 0.15`. Diagnostic evidence only — that task is **0/15** on both programs because the
+named drawer is outside the arm's workspace (see `manipulation.md`, "after a stalled pull, release and
+probe under no load"), so this records that the filter selects correctly, not that it raises reward.
+
 ---
 
 ## Take an Object's Centre From Its Visible Top Face, Not From the Whole Mask
@@ -2171,6 +2487,74 @@ at `meas_z` 0.069–0.110; the identical descent at the midpoint returned `gap =
 `meas_z = 0.0977`. After the change all 15 development seeds gripped on attempt 0 with
 `gap = 0.0519–0.0535`. Source: same `fix_code.py` — `standing_candidates` lines 163–232 (percentile
 block at 213–229), consumed by `grasp` lines 297–334; 2026-09-16.
+
+---
+
+### Separate a *bowl* from a *plate* by the candidate's own z-extent — walls, not score
+
+**Trigger**: the container prompt (`bowl`) returns the true container **and** a plate, and both are
+plausible. Geometry is the separator: **a bowl has walls and a plate does not**, so the candidate's own
+cloud z-extent, read against its own mouth span, separates them without any prompt or score comparison.
+
+```python
+zl = float(np.percentile(pts[:, 2], 2))
+zh = float(np.percentile(pts[:, 2], 98))
+xlo, xhi = np.percentile(pts[:, 0], [2, 98])
+ylo, yhi = np.percentile(pts[:, 1], [2, 98])
+span = 0.5 * ((xhi - xlo) + (yhi - ylo))
+if zh - zl < 0.030 or not (0.06 <= span <= 0.18):   # a plate is wide and shallow; this rejects it
+    continue
+# then take the mouth from the top rim ring (section below)
+```
+
+The **payload** screen is the same argument on the other side of the pair — a bottle is tall *and*
+narrow, so its constants are different and must not be swapped in:
+
+```python
+if zh - zl < 0.090 or max(xhi - xlo, yhi - ylo) > 0.090:   # bottle: tall AND narrow
+    continue
+```
+
+**Why it works + evidence**: on `libero_goal_task/put_the_cream_cheese_in_the_bowl` — whose runtime
+instruction is *"put the wine bottle in the bowl"* — the `bowl` prompt returns both the metal bowl and a
+plate, and **score does not separate them**: 0.910 for the bowl against **0.447** for the plate, which
+survives any absolute score floor. The two differ in the *shape of the cloud*:
+
+| candidate | z-extent | rim (98th-pct z) | footprint | prompt score |
+|---|---|---|---|---|
+| metal bowl | **0.044** | **0.0391** | 0.102 × 0.099 | 0.910 |
+| plate | **0.012** | **0.0070** | wider, flat | 0.447 |
+
+Measured on **two independent workers** on this same scene, which split on *which* row of the table they
+gate on — worth knowing, because the two are not equally robust. One gates on the **z-extent floor**
+(`0.030`; the plate's 0.012 fails it outright) and admits the bowl on all 15 development seeds with mouth
+span 0.1021–0.1027 m, stable to 0.6 mm. The other sets a floor of only `0.010`, which the plate's 0.012
+**passes**, and separates the pair by **taking the highest 98th-percentile z** instead (0.039 vs 0.007);
+it also reports the bowl at `zext=0.044`, `rim=0.0391`, footprint `0.102 × 0.099` — the same cloud. So
+both agree on the measurement, but the z-extent floor is the one to copy: a plate with a raised rim or a
+stacked pair would clear a `0.010` floor, and every downstream z (mouth centre, release height) is
+derived from the rim, so taking the wrong candidate is a silent ~3 cm error in release height rather
+than an obvious miss. This is the same *shape* of argument as the flatness screen above ("A merged mask
+is too *tall*"): both gate on the candidate's own measured z and neither trusts the prompt or the score.
+Prefer the geometric gate whenever the confusable pair differs in *shape*, and keep the score only as a
+tie-break on a relative margin.
+
+**The mirror image — screening a *payload* prompt that fires on a container.** The same geometry
+argument runs in the other direction, and the ring test is the cheap part of it: when prompting for a
+flat payload, require `250 ≤ n ≤ 3500`, `zhi − zlo ≤ 0.055`, `0.015 ≤ min(e) ≤ 0.085` (a bowl or plate
+**ring** has `min(e) ≈ 0.13` because its span is hollow), `max(e) ≤ 0.120`, and `score ≥ 0.08`. On
+`libero_goal_task/put_the_wine_bottle_on_the_rack` the `cream cheese` prompt returned the bowl at
+**score 0.00** with ~2.8 k points and the plate with ~5 k until these gates were added — so a low score
+alone does not reject the ring; the `min(e)` test is what does. Source:
+`outputs/libero_fix_loop/libero_goal_task/put_the_wine_bottle_on_the_rack/fix_code.py` — block 0
+`find_payload()`; `probe13.log` / `probe14.log`; 2026-09-17.
+
+**Executed source**: `libero_goal_task/put_the_cream_cheese_in_the_bowl` `fix_code.py` — container screen
+`find_bowl` lines **139–160** (`zl`/`zh`/`span` computed 148–153, gate 154), mouth read from
+`bowl_geometry` lines 112–136; payload screen `find_bottle` lines **163–179**, gate at 175. Both ran on
+15/15 development seeds. Corroborating source, same scene, independent run:
+`outputs/libero_fix_loop/libero_goal_task/put_the_wine_bottle_on_top_of_the_cabinet/findings.md`
+(`find_container` 140–168, screen 161–164, rim pick 168); 2026-09-17.
 
 ---
 
@@ -2359,6 +2743,36 @@ HTTP + numpy, no simulator API) — `fit_circle` lines 30–36, `rim_cloud` 38�
 (md5 `fe4b7bc4883aa01eac5830120387c4e5`) from the task's debug root, where it produced the numbers
 above; 2026-09-16.
 
+### Refinement — fit the **outer sliver**, and gate the fit; a top band alone can lock an inner ring
+
+"The rim is the top band" is not sufficient on a **flared or ramped** rim, whose cross-section rises
+monotonically inward: the top band then contains several concentric circles of similar height and the fit
+settles on one *inside* the true outer edge. Measured on
+`libero_goal_task/put_the_bowl_on_top_of_the_cabinet`, a saucer whose outer 15 mm flares at ~21°: an
+ungated fit on the top band returned **r = 0.0654** against a true **0.0700**, and every close aimed
+5 mm inside the rim and read air.
+
+Restrict the fit to the outermost sliver and accept it only if it is *round and where the object's own
+extent says it should be*:
+
+```python
+sliver = pts[pts[:, 2] > 0.965 * np.percentile(pts[:, 2], 99.5)]   # outer sliver only
+(r, c), resid = fit_circle(sliver[:, 0], sliver[:, 1])
+if resid < 0.004 and 0.95 * r99_5 < r < 1.05 * r99_5 and np.linalg.norm(c - c_prev) < 0.008:
+    use(c, r)                     # else keep the previous aim
+```
+
+The same discipline applies to any **re-fit**: gate it against the first accepted fit
+(`|Δr| ≤ 5 mm`, `|Δcentre| ≤ 15 mm`) rather than accepting each new one. On that task every re-aim on
+seeds 55–65 was **rejected**, which is the gate working — the segmentation drifted `r_out 0.0676 → 0.0760`
+(8 mm) within one episode with the centre moving 15–26 mm, and tracking the drift made every later
+attempt worse than holding the first, best mask.
+
+**Executed source**: same `fix_code.py`, fit + gate lines 160–178 and the re-fit gate at `relocalize`
+(line 321). Diagnostic evidence only — that task is 0/15 on both programs for a geometric reason (see
+`grasp.md`, "a planar pad face on a shallow ramp is a wedge"), so this records that the gate **rejects
+correctly**, not that it raises reward.
+
 ---
 
 ## Correct a Cylinder's Axis for the Single-View Half-Cylinder Bias
@@ -2386,6 +2800,40 @@ grasping at the uncorrected centroid missed; at the bias-corrected axis the grip
 z = 0.074 with a measured gap of 0.0361–0.0365 m on **all 15 development seeds**. Source:
 `outputs/libero_fix_loop/libero_object_swap/pick_up_the_bbq_sauce_and_place_it_in_the_basket/fix_code.py`
 — `bottle_axis`; 2026-09-14.
+
+**Variant — the coefficient is not universal, and the form above says `0.64` while a second task
+measures `1/√2`.** A clearance-audited form on `libero_goal_task/put_the_bowl_on_the_plate` reads the
+same effect off the *near silhouette edge* and lands on `0.707 r`, not `0.64 r`:
+
+```python
+d  = E[:3, 2]; dh = normalize(d[:2])       # camera -> object, xy only
+u  = -dh                                   # object -> camera, xy only
+p  = np.array([-u[1], u[0]])               # perpendicular to the view
+proj = band[:, :2] @ p
+R   = 0.5 * float(np.percentile(proj, 98) - np.percentile(proj, 2))   # TRUE radius
+med = np.median(band[:, :2], axis=0)
+axis = med - 0.707 * R * u                 # undo the half-cylinder bias
+if not (0.004 < R < 0.06):                 # not cylinder-like -> OBB fallback
+    axis = np.asarray(get_oriented_bounding_box_from_3d_points(band)["center"])[:2]
+```
+
+Three differences from the form above, all deliberate: the radius comes from the **98th−2nd percentile
+range perpendicular to the view** rather than the min/max extent (robust to the single stray point that
+sets a min or max); the band is taken at the **intended grasp height** (`|z − z_pinch| < 0.012`) rather
+than at a fraction of the object's own height, so the radius is measured where the fingers will close;
+and there is an explicit **cylinder-likeness gate with an OBB fallback**, so a non-round object does not
+get a cylinder correction applied to it. Verified to **0.3–1 mm** against the cloud's own near-silhouette
+edge on three seeds, and the resulting pinch gap (0.0148 m) matched the independently measured neck
+diameter (0.0136–0.0156 m), i.e. the fingers closed on the neck rather than on air. Source:
+`outputs/libero_fix_loop/libero_goal_task/put_the_bowl_on_the_plate/fix_code.py` — `cylinder_axis`,
+lines 151–183; 2026-09-17.
+
+**Do not average the two constants.** They were calibrated on different bodies with different band
+definitions, and the honest statement is that the coefficient is between 0.64 and 0.71 with the exact
+value set by how the band and the radius are measured. The transferable part is the *structure* — take
+the radius from the view-perpendicular extent, then displace the centroid along the view ray by a
+fraction of it — plus a check against an independent edge. Whichever coefficient you use, verify it
+against the object's own silhouette before trusting the pinch.
 
 Companion to "Take an Object's Centre From Its Visible Top Face, Not From the Whole Mask" above: that one
 removes the bias **vertically** (top face rather than whole mask), this one removes it **laterally** (view

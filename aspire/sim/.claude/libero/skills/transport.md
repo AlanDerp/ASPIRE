@@ -98,6 +98,28 @@ on every seed. All 15 seeds resolved the same target (`z = 0.2158`). Source:
 `outputs/libero_fix_loop/libero_goal_swap/put_the_wine_bottle_on_top_of_the_cabinet/fix_code.py` —
 `find_flat_top`, lines 157–219; 2026-09-14.
 
+**Known limit of this rule, and an OPEN PROBLEM — on a rack or basket, flatness is the wrong criterion
+entirely.** The rule above assumes the support *has* a flat patch that is the true target. When the
+support is genuinely slatted (a dish-rack, a wire shelf), the flattest footprint-sized patch on it still
+has a surface normal well away from vertical — measured at `|n_z| = 0.862` on
+`libero_goal_task/put_the_wine_bottle_on_the_rack` — so the flatness score does not identify a *site*,
+it merely ranks slats against each other. What the task actually needs is a **gap**: a footprint-sized
+region with *sparse* support points under the payload and *dense* support around its perimeter, i.e. a
+pocket the payload can enter and rest in.
+
+This is recorded as a limit rather than a pattern **because it was not solved.** The worker's
+`flattest_site()` scored `|n_z| − 3·thickness` over a 9×9 grid and the resulting placements perched the
+payload **2–3 cm too high** on 7 of 15 development seeds (payload bottoms 0.2609–0.2735 against the
+predicate's accepted band 0.230–0.248), while the seeds that passed sat at 0.2458–0.2475 and four seeds
+lost the payload *through* the slats entirely. A controlled probe isolated the site — identical grasp and
+site, release 2.2 cm higher — and flipped reward 1.000 → 0.000, so the site selection, not the grasp, is
+what decided those seeds. The required change is stated but unbuilt: score a candidate by sparsity under
+the payload footprint, and make the coverage test use the support's *surface* points rather than all `z`.
+Sources:
+`outputs/libero_fix_loop/libero_goal_task/put_the_wine_bottle_on_the_rack/findings.md` (P5) and
+`/mnt/nimloth/aspire_scratch/libero_goal_task/put_the_wine_bottle_on_the_rack/probe_shallow.log`;
+2026-09-17.
+
 ### On a Thin Flat Target, Rank by Proximity — Clearance Is Only a Gate
 
 **Trigger**: "put X on Y" where Y is a plate / tray / mat lying flat (mask z-extent of only ~1 cm),
@@ -224,12 +246,78 @@ scored 1.0 with the bottle **lying** on the rack (`base 0.236 top 0.284`, height
 upright. Do not add a post-hoc "is it upright?" check to a goal whose predicate does not contain one —
 it would reject valid states. Source: same `fix_code.py` — `run`, lines 287–345; 2026-09-14.
 
+**On an elevated support, *press* the payload on instead of commanding a height — the release command is
+not what seats it.** A computed release z is only as good as the surface estimate under it, and on a
+structured support (a rack, a shelf) that estimate is the least reliable number in the program. The
+robust form is a short descent loop that seats on contact:
+
+```python
+off = hand_z() - hold["zlo"]              # hand-to-payload-offset, measured at the pinch
+hand_cmd = zs + off - 0.002               # aim the payload's underside 2 mm INTO the surface
+# step down in 1.5 cm rungs until hand_z() STOPS DECREASING, then release
+open_gripper()                            # release at the height the press actually reached
+```
+
+The loop's exit condition is the measurement, not a constant: the hand stops descending when the payload
+has met the support, so "the surface is here" is *observed* rather than predicted. Release at that
+measured height, offset by the test's own `HAND_TO_CMD` (0.107 measured here) rather than by an assumed
+value, then retreat.
+
+**Evidence**: on `libero_goal_task/put_the_wine_bottle_on_the_rack` every 1.000 run ends with the
+payload's bottom at **0.230–0.248**, and the successful logs show `place release hand=0.4028 (cmd
+0.3984)` — i.e. the press, not the commanded release, is what puts it in the predicate's band. The
+matching failure mode is the one this guards against: with the surface estimate 2.2 cm too high, an
+*identical* grasp and site scored 1.000 → **0.000** (payload bottom 0.2475 → 0.2609), a clean
+controlled probe of the release height alone. Source:
+`outputs/libero_fix_loop/libero_goal_task/put_the_wine_bottle_on_the_rack/fix_code.py` — block 0
+`set_down()`; `sweep4_seed_55.log`; 2026-09-17.
+
 **When the offset does not reproduce, this recipe is the wrong shape — do not tune the constant.**
 The two measured terms above are only valid while the hang is stable across the carry. A wall pinch
 on a wide object makes it unstable (sign flip, and it keeps changing *during* the descent), so no
 value of `offset` works: switch to the closed loop on the payload's own base —
 "Close the *placement* loop on the payload's own measured base" below. The tell is a payload that
 arrives perfectly centred on its own cloud and lands centimetres off.
+
+#### …and there is a release height that needs *no* camera term at all — the pads' own z at the pinch
+
+Everything above computes the release from at least one camera-derived quantity. For a payload picked
+up **off a support it is resting on**, there is a third option that removes the camera entirely: at the
+instant of the close, the payload's underside was on the support, so the pad height at that instant
+*is* the destination surface to within the support's thickness. Return the pads there.
+
+```python
+    close_gripper()
+    g_close = gap()
+    z_pinch_achieved = float(pad_pos()[2])          # MEASURED pad z, captured at the close
+    ...
+    # Put the pads back at the pinch height -> the base goes back to support level.
+    # No depth percentile survives in this target, so the depth camera's noise cancels.
+    z_release = z_pinch_achieved - 0.003
+    descend([px, py], CARRY_PAD_Z, z_release, 0.012, tag="release", touchdown=g_close)
+```
+
+Capture the pad z **before any lift** (same discipline as the hang capture above — a capture taken
+after the lift silently folds the whole carry height into it). This is the *bias-cancelling* member of
+the family: "Set the Release Height From the Support's Own Surface AND the Grasp Offset" and "Close the
+*placement* loop on the payload's own measured base" both measure the destination and add a measured
+offset, so their error is the **sum** of two estimates; this one measures neither, so its error is the
+support's own thickness. Prefer it whenever the payload was picked up from a surface at the destination
+surface's height — i.e. table-to-table transfers — and fall back to the measured-base loop when the
+pick and the place are at different heights.
+
+**Why it works + evidence**: on `libero_goal_task/put_the_bowl_on_the_plate` the previous form was
+`plate["floor"] + 0.004 + base_off`, summing a plate percentile with a cloud-derived `base_off`. Across
+seeds 51–65 the release-pad_z spread fell **30.5 mm → 8.1 mm** and the reverse travel below the pinch
+(`release_pad_z − close_pad_z`) went from a **29 mm bimodality** — `{0.0057–0.0063 m}` on 12 seeds vs
+`{0.0351–0.0362 m}` on 56/64/65, i.e. up to 36 mm of finger slide past an already-landed payload — to
+`{0.0075–0.0076, 0.0138–0.0143}`, a 6 mm spread with the maximum slide down to 14 mm. Payload base z
+after release stayed within ±1.7 mm on all 15 seeds, before and after. **No seed flipped**: reward was
+1.0 on all 15 both before and after, so this is a variance reduction on a program that was already
+passing — which is the point, since the mechanism it removes is the one that decides marginal seeds.
+Source: `outputs/libero_fix_loop/libero_goal_task/put_the_bowl_on_the_plate/fix_code.py` — `attempt`,
+lines 242–321, pinch capture at 259 and release at 294–302; 2026-09-17. Instance:
+`transport.release-at-the-measured-pinch-height-to-cancel-depth-bias`.
 
 ### Derive Transit Height From the TARGET SURFACE, Never From the Grasp Height
 
@@ -1431,6 +1519,31 @@ seed 55 and released 66 mm off-centre on seed 60; without the gate, seed 55 plac
 reachability re-probe rule belongs *before* the grasp (see `manipulation.md`, "A short reachability probe
 is a false-negative generator"), not inside the servo. Source: same `fix_code.py` — `servo_bowl_over`
 lines 469–501 (no `tcp_reaches` call); 2026-09-15.
+
+#### An in-cavity placement needs three conditions — "below the rim" alone reads *inside* for a box on the table
+
+**Trigger**: verifying a release into a drawer, tray, or any recess where the *floor of the recess* is
+above the surrounding table. A payload resting on the table **in front of** the drawer can have its top
+lower than the drawer rim, so a `top < rim` test calls it inside.
+
+```python
+inside = (after["top"] < rim - 0.015
+          and abs(after["c"][0] - cavity_cx) < 0.12       # the cavity's x-range, not the handle's
+          and after["c"][1] < dr["face_y"] + 0.02)        # behind the panel face
+```
+
+All three are required: **below the rim AND behind the panel AND inside the cavity's x-range**. Measured
+on `libero_goal_task/open_the_top_drawer_and_put_the_bowl_inside`: the pre-fix check printed
+`VERIFY: box top 0.008 is below the rim 0.213 -- inside` while `reward` stayed 0.0 — the box was on the
+table, and 0.008 is simply lower than 0.213. After the fix the passing runs print
+`VERIFY: box top 0.172 is below the rim 0.213 and behind the panel -- inside`. Combine with the radius
+discipline of the support-hijack section above: a recess has **two** extra axes the support case does
+not, and each is a separate way to read a false positive.
+
+Also gate the release itself: **if the grip is gone by the time the hand reaches the release point,
+retreat without opening over the cavity** — an empty gripper opened above the drawer is harmless, but
+the code path that opened it was reached by a plan that believes it is carrying. Source: same
+`fix_code.py` — `carry_and_release()` and the `main()` VERIFY block; 2026-09-17.
 
 ### Physics Settling After Release
 

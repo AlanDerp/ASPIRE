@@ -10,16 +10,6 @@
 - libero_spatial_swap/pick_up_the_black_bowl_on_the_wooden_cabinet_and_place_it_on_the_plate
 
 **Pending** (ready for Stage 1):
-- libero_goal_task/open_the_middle_drawer_of_the_cabinet
-- libero_goal_task/open_the_top_drawer_and_put_the_bowl_inside
-- libero_goal_task/push_the_plate_to_the_front_of_the_stove
-- libero_goal_task/put_the_bowl_on_the_plate
-- libero_goal_task/put_the_bowl_on_the_stove
-- libero_goal_task/put_the_bowl_on_top_of_the_cabinet
-- libero_goal_task/put_the_cream_cheese_in_the_bowl
-- libero_goal_task/put_the_wine_bottle_on_the_rack
-- libero_goal_task/put_the_wine_bottle_on_top_of_the_cabinet
-- libero_goal_task/turn_on_the_stove
 - libero_spatial_swap/debug_smoke
 
 ---
@@ -39,20 +29,20 @@
 | wine_bottle → top of cabinet | done | 49/50 (98%) [run 90fc9db09f194873] |
 | turn → stove | done | 50/50 (100%) [run db3140470743059e] |
 
-## libero_goal_task  (0/10 done)
+## libero_goal_task  (10/10 done)
 
 | Task | Status | Rate |
 |---|---|---|
-| open middle_drawer_of_the_cabinet | pending | — |
-| open top_drawer + bowl | pending | — |
-| push plate → stove front | pending | — |
-| bowl → plate | pending | — |
-| bowl → stove | pending | — |
-| bowl → top of cabinet | pending | — |
-| cream_cheese → bowl | pending | — |
-| wine_bottle → rack | pending | — |
-| wine_bottle → top of cabinet | pending | — |
-| turn → stove | pending | — |
+| open middle_drawer_of_the_cabinet | done | 0/50 (0%) [run f615d35d2869a1c1] |
+| open top_drawer + bowl | done | 47/50 (94%) [run dbf1b8cc27a51b29] |
+| push plate → stove front | done | 50/50 (100%) [run d27b68b6336cb7b1] |
+| bowl → plate | done | 50/50 (100%) [run 5881ad54c4d0ab1b] |
+| bowl → stove | done | 33/50 (66%) [run c063c6757d411883] |
+| bowl → top of cabinet | done | 0/50 (0%) [run 72d53d0a8bae8ffc] |
+| cream_cheese → bowl | done | 50/50 (100%) [run 5b0e73674366e3bc] |
+| wine_bottle → rack | done | 25/50 (50%) [run b0307177887871f6] |
+| wine_bottle → top of cabinet | done | 50/50 (100%) [run 0cb957387c5430ad] |
+| turn → stove | done | 44/50 (88%) [run fc0f6d5b13101df8] |
 
 ## libero_object_swap  (10/10 done)
 

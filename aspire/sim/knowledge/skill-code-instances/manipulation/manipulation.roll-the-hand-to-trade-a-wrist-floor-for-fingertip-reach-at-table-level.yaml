@@ -1,0 +1,50 @@
+{
+  "api_calls": [
+    "_roll_quat",
+    "np.deg2rad",
+    "np.array",
+    "rotation_matrix_to_quaternion",
+    "np.array",
+    "np.cos",
+    "np.sin",
+    "np.cos",
+    "np.sin"
+  ],
+  "ast_fingerprint": "0ba1634fa2eec3cb2dccc703314ec1f76c33129c99d1d30230057fe973bb0ea4",
+  "checkpoint_id": null,
+  "code": "def _roll_quat(deg=25.0):\n    t = np.deg2rad(deg)\n    _Rx = np.array([[1, 0, 0],\n                    [0, np.cos(t), -np.sin(t)],\n                    [0, np.sin(t), np.cos(t)]])\n    return rotation_matrix_to_quaternion(_Rx @ np.array([[1.0, 0, 0],\n                                                          [0, -1.0, 0],\n                                                          [0, 0, -1.0]]))\n\n\n_Q_PADDLE = _roll_quat(25.0)\n_PAD_DY = 0.0103      # low fingertip offset from the hand, world y\n_PAD_DZ = -0.1166     # low fingertip offset from the hand, world z\n_Y_BIAS = 0.047       # commanded-y offset the rolled pose needs to hit a target",
+  "code_hash": "2650deb36ea7f8eb1b899aef725f9e394588c280481214991a8577e43b42559c",
+  "development_outcomes": {
+    "successes": [
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65
+    ]
+  },
+  "goal": "Push or pinch an object shorter than the gap between the wrist's lowest reachable pose and the table, when the wrist physically cannot descend onto it",
+  "id": "manipulation.roll-the-hand-to-trade-a-wrist-floor-for-fingertip-reach-at-table-level",
+  "kind": "skill-code-instance",
+  "observed_effect": "Roll the hand about world x by ~atan(0.04/0.11) = 20 deg (25 used), the angle that MINIMISES the low fingertip's depth z_hand - (0.11*cos t + 0.04*sin t). The roll keeps the pad-frame offset and swaps which finger is low: the low fingertip lands at (hand_x, hand_y + 0.0103, hand_z - 0.1166), ~6.6 mm below the top-down fingertip, so it slides along the table as a paddle while the other fingertip stays 1.4 cm clear. Verified: a 5.0 cm slide in -x moved the object -0.0501 m with 0.0067 m lateral drift, against 0.0001 m unrolled. The rolled pose carries a constant +0.047 m commanded-y bias that one feedback iteration removes. This CONTRADICTS the goal_swap sibling's finding for the SAME task that a wrist tilt is only useful above ~3 cm: that measurement was of the TCP (EE + 0.1*R[:,2], on the tool axis), which does lose vertical reach. The roll is aimed at the OFF-AXIS low fingertip, which gains it. 15/15 development seeds",
+  "provenance": {
+    "partition": "development"
+  },
+  "schema_version": 1,
+  "source_code_path": "outputs/libero_fix_loop/libero_goal_task/push_the_plate_to_the_front_of_the_stove/fix_code.py",
+  "source_code_sha256": "1751c0babe29600f6acd085dbbef9e37aef39a6a888152921e50c8404d52e3e2",
+  "task": "push_the_plate_to_the_front_of_the_stove",
+  "task_family": "libero_goal_task",
+  "trigger": "The reported end-effector z stalls at ~0.1175 at every xy, so a top-down pinch or paddle passes above a <=2 cm object. Symptom: the pads close on air (aperture 0.0148-0.0172) at every commanded depth, and a 12 cm horizontal slide with a closed top-down gripper moves the object 0.0001 m",
+  "vertical_capability": "manipulation"
+}
