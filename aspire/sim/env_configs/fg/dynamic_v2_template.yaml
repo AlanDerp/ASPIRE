@@ -1,0 +1,25 @@
+# Template only. A suite configuration must explicitly provide adapters and capabilities.
+# Private audit modes currently require macOS sandbox-exec for generated Python.
+use_img_differencing: true
+use_video_differencing: false
+use_wrist_camera: true
+runtime_features:
+  factual_grounding:
+    enabled: true
+    protocol: dynamic-v2
+    runtime_mode: observed_only
+    feedback: visible
+    planner_required: true
+    max_targets: 24
+    max_fg_revisions: 6
+    max_active_probes_per_turn: 3
+    max_total_probes: 12
+    max_protocol_repairs: 2
+    max_model_calls: 32
+    allowed_probes: [alternate-view, repeat-synchronized-capture]
+    finish_requires_all_required: true
+    audit_adapter: null
+    verification_checkpoint: null
+    verification_skill_paths: []
+    private_artifact_root: null
+    isolated_worker: false

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "status": "template",
+  "cases": {
+    "F01": {"status": "not_run"}, "F02": {"status": "not_run"},
+    "F03": {"status": "not_run"}, "F04": {"status": "not_run"},
+    "F05": {"status": "not_run"}, "F06": {"status": "not_run"},
+    "F07": {"status": "not_run"}, "F08": {"status": "not_run"},
+    "F09": {"status": "not_run"}, "F10": {"status": "not_run"},
+    "F11": {"status": "not_run"}, "F12": {"status": "not_run"},
+    "F13": {"status": "not_run"}, "F14": {"status": "not_run"},
+    "F15": {"status": "not_run"}, "F16": {"status": "not_run"},
+    "F17": {"status": "not_run"}, "F18": {"status": "not_run"}
+  }
+}
