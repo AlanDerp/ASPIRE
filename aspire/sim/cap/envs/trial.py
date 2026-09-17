@@ -665,6 +665,75 @@ def _run_single_trial(
     obs["full_prompt"] = copy.deepcopy(obs["full_prompt"])
     _patch_libero_goal(env, obs)
 
+    fg_config = env._runtime_features.factual_grounding
+    if fg_config.enabled and fg_config.protocol == "dynamic-v2":
+        from pathlib import Path as _Path
+
+        from aspire.sim.cap.agent_protocol.task_requirements import extract_task_requirements
+        from aspire.sim.cap.envs.agent_turn_loop import run_dynamic_trial
+        from aspire.sim.cap.factual_grounding.vdm_verifier import VDMFGVerifier
+
+        output_dir = config.get("output_dir")
+        if not output_dir:
+            raise ValueError("dynamic-v2 requires a nonempty output_dir for its trace")
+        trial_root = _Path(output_dir) / f"fg_trial_{trial}"
+        task_language = str(getattr(getattr(env.low_level_env, "handle", None), "task_language", env._task_prompt or "task success"))
+        vdm_verifier = None
+        use_vdm = bool(config.get("use_img_differencing") or use_video_diff)
+        if use_vdm:
+            if not args.visual_differencing_model or not args.visual_differencing_model_server_url:
+                raise ValueError("dynamic-v2 VDM verification requires a model and server URL")
+            if args.visual_differencing_model not in VLM_MODELS:
+                raise ValueError("dynamic-v2 VDM verifier model must be registered as a VLM")
+            if use_video_diff and hasattr(env, "enable_video_capture"):
+                env.enable_video_capture(
+                    True, clear=True, wrist_camera=config.get("use_wrist_camera", False)
+                )
+            vdm_args = ModelQueryArgs(
+                model=args.visual_differencing_model,
+                server_url=args.visual_differencing_model_server_url,
+                api_key=args.visual_differencing_model_api_key,
+                max_tokens=args.max_tokens,
+                temperature=args.temperature,
+                reasoning_effort=args.reasoning_effort,
+                debug=args.debug,
+            )
+            vdm_verifier = VDMFGVerifier(
+                env,
+                lambda prompt: str(_query_model(vdm_args, prompt)["content"]),
+                task_language,
+                allowed_probes=fg_config.allowed_probes,
+                use_video=use_video_diff,
+                use_wrist=bool(config.get("use_wrist_camera", False)),
+            )
+        result = run_dynamic_trial(
+            env,
+            obs["full_prompt"],
+            lambda prompt: str(_query_model(args, prompt)["content"]),
+            trial_id=f"trial-{trial}",
+            public_root=trial_root,
+            max_turns=fg_config.max_model_calls,
+            requirements=extract_task_requirements(task_language),
+            vdm_verifier=vdm_verifier,
+        )
+        return TrialSummary(
+            trial=trial,
+            success=result.fg_finish_verdict and result.agent_finish_requested,
+            reward=result.reward,
+            terminated=result.terminated,
+            truncated=result.truncated,
+            sandbox_rc=result.sandbox_rc,
+            log=result.log,
+            task_completed=result.environment_task_completed,
+            num_finishes=int(result.agent_finish_requested),
+            num_code_blocks=result.final_code.count("\n\n") + bool(result.final_code),
+            execution_status=result.execution_status,
+            agent_finish_requested=result.agent_finish_requested,
+            fg_finish_verdict=result.fg_finish_verdict,
+            environment_task_completed=result.environment_task_completed,
+            fg_trace_path=result.trace_path,
+        )
+
     if config["record_video"] and hasattr(env, "enable_video_capture"):
         env.enable_video_capture(True, clear=True, wrist_camera=use_wrist)
     elif use_video_diff and hasattr(env, "enable_video_capture"):

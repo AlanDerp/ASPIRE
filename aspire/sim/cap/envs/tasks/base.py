@@ -10,6 +10,7 @@ import sys
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, SupportsFloat
 
 import numpy as np
@@ -18,6 +19,7 @@ from gymnasium import Env, spaces
 from aspire.sim.cap.envs.base import BaseEnv, ObsType, get_env
 from aspire.sim.cap.envs.configs.instantiate import instantiate as cfg_instantiate
 from aspire.sim.cap.envs.configs.loader import DictLoader
+from aspire.sim.cap.factual_grounding.config import RuntimeFeatureSet
 from aspire.sim.cap.integrations.base_api import ApiBase, get_api
 from aspire.sim.cap.knowledge.runtime import (
     KnowledgeRuntimeConfig,
@@ -65,6 +67,7 @@ class CodeExecEnvConfig:
     enable_render: bool = True
     viser_debug: bool = False
     knowledge: KnowledgeRuntimeConfig | dict[str, Any] | None = None
+    runtime_features: RuntimeFeatureSet | dict[str, Any] | None = None
 
 
 class SimpleExecutor:
@@ -121,6 +124,11 @@ class CodeExecutionEnvBase(Env):
         # (e.g., multi-turn variants that add extra instructions).
         self._task_prompt = cfg.prompt if cfg.prompt is not None else self.prompt
         self._runtime_knowledge = load_runtime_knowledge(cfg.knowledge)
+        self._runtime_features = (
+            cfg.runtime_features
+            if isinstance(cfg.runtime_features, RuntimeFeatureSet)
+            else RuntimeFeatureSet.from_dict(cfg.runtime_features)
+        )
 
         # Oracle code: YAML config overrides class attribute
         if cfg.oracle_code is not None:
@@ -197,6 +205,46 @@ class CodeExecutionEnvBase(Env):
             "stderr": stderr_buffer.getvalue(),
             "result": self._exec_globals.get("RESULT"),
         }
+
+    def _exec_user_code_public(self, code: str) -> dict[str, Any]:
+        """Execute dynamic-v2 code with only public observation and API helpers.
+
+        The low-level environment and API objects are intentionally absent. Private
+        audit modes additionally dispatch this namespace through the OS-isolated
+        JSON-RPC worker configured by the trial harness.
+        """
+        from aspire.sim.cap.envs.execution_boundary import validate_public_python
+
+        try:
+            validate_public_python(code)
+        except (SyntaxError, ValueError) as error:
+            return {"ok": False, "stdout": "", "stderr": f"PublicExecutionRejected: {error}", "result": None}
+        obs = self.public_observation()
+        public_globals: dict[str, Any] = {
+            "__name__": "__main__", "obs": obs, "INPUTS": obs, "RESULT": None,
+        }
+        for api in self._apis.values():
+            public_globals.update(api.functions())
+        private_root = getattr(self, "_fg_private_artifact_root", None)
+        if private_root is not None:
+            from aspire.sim.cap.envs.generated_worker import execute_isolated_python
+
+            helpers = {
+                name: function for api in self._apis.values()
+                for name, function in api.functions().items()
+            }
+            return execute_isolated_python(
+                code, obs, helpers, private_root=Path(private_root)
+            )
+        stdout_buffer, stderr_buffer = io.StringIO(), io.StringIO()
+        try:
+            with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(stderr_buffer):
+                exec(code, public_globals, public_globals)
+            ok = True
+        except BaseException:
+            ok = False
+            traceback.print_exc(file=stderr_buffer)
+        return {"ok": ok, "stdout": stdout_buffer.getvalue(), "stderr": stderr_buffer.getvalue(), "result": public_globals.get("RESULT")}
 
     def _init_exec_globals(self) -> None:
         """
@@ -316,6 +364,68 @@ class CodeExecutionEnvBase(Env):
             "knowledge": self._runtime_knowledge.telemetry,
         }
         return obs, reward, bool(terminated), bool(truncated), info
+
+    def step_public(self, action: str) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
+        """Dynamic-v2 step which withholds raw environment and API objects."""
+        self._step_count += 1
+        exec_result = self._exec_user_code_public(action)
+        obs = self._get_observation()
+        reward = self.compute_reward()
+        task_completed = self.low_level_env.task_completed() if hasattr(self.low_level_env, "task_completed") else None
+        terminated = reward == 1.0
+        truncated = getattr(self.low_level_env, "_sim_step_count", 0) >= getattr(self.low_level_env, "max_steps", 999999)
+        return obs, reward, bool(terminated), bool(truncated), {
+            "sandbox_rc": 0 if exec_result["ok"] else 1,
+            "stdout": exec_result["stdout"], "stderr": exec_result["stderr"],
+            "task_prompt": self._task_prompt, "task_completed": task_completed,
+            "knowledge": self._runtime_knowledge.telemetry,
+        }
+
+    def step_skill(self, skill_id: str, arguments: dict[str, Any] | None = None) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
+        """Execute one curated public API helper by exact registered name."""
+        helpers = {
+            name: function for api in self._apis.values()
+            for name, function in api.functions().items()
+        }
+        if skill_id not in helpers:
+            raise ValueError(f"public skill is not registered: {skill_id}")
+        stdout_buffer, stderr_buffer = io.StringIO(), io.StringIO()
+        try:
+            with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(stderr_buffer):
+                result = helpers[skill_id](**(arguments or {}))
+            ok = True
+        except BaseException:
+            ok, result = False, None
+            traceback.print_exc(file=stderr_buffer)
+        obs = self._get_observation()
+        reward = self.compute_reward()
+        task_completed = self.low_level_env.task_completed() if hasattr(self.low_level_env, "task_completed") else None
+        truncated = getattr(self.low_level_env, "_sim_step_count", 0) >= getattr(
+            self.low_level_env, "max_steps", 999999
+        )
+        return obs, reward, reward == 1.0, bool(truncated), {
+            "sandbox_rc": 0 if ok else 1, "stdout": stdout_buffer.getvalue(),
+            "stderr": stderr_buffer.getvalue(), "result": result,
+            "task_prompt": self._task_prompt, "task_completed": task_completed,
+            "knowledge": self._runtime_knowledge.telemetry,
+        }
+
+    def public_observation(self) -> dict[str, Any]:
+        """ObservationBroker source without prompt or private simulator handles."""
+        value = dict(self.low_level_env.get_observation())
+        value.pop("full_prompt", None)
+        return value
+
+    def public_tick(self) -> int:
+        """Expose a monotonic control/simulator tick without private state values."""
+        return int(getattr(self.low_level_env, "_sim_step_count", self._step_count))
+
+    def run_public_probe(self, probe_id: str) -> None:
+        """Ask the low-level integration to acquire one registered public probe."""
+        runner = getattr(self.low_level_env, "run_public_probe", None)
+        if not callable(runner):
+            raise ValueError(f"public probe is unsupported by this environment: {probe_id}")
+        runner(probe_id)
 
     def render(self, mode: str = "rgb_array"):
         return self.low_level_env.render(mode=mode)

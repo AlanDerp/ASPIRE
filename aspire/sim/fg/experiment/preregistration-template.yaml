@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "status": "draft",
+  "suite": null,
+  "experiment": null,
+  "development_seeds": [],
+  "held_out_seeds": [],
+  "model_id": null,
+  "prompt_hash": null,
+  "verification_checkpoint": null,
+  "token_budget": null,
+  "action_budget": null,
+  "probe_budget": null,
+  "non_inferiority_margin": null
+}

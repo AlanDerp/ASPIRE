@@ -72,6 +72,11 @@ class TrialSummary:
     num_finishes: int = 0
     num_code_blocks: int = 0
     timed_out: bool = False
+    execution_status: str | None = None
+    agent_finish_requested: bool = False
+    fg_finish_verdict: bool | None = None
+    environment_task_completed: bool | None = None
+    fg_trace_path: str | None = None
 
 
 def run_server_proc(api_cfg) -> multiprocessing.Process:
