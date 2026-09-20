@@ -22,6 +22,11 @@ env:
       enable_render: false
       viser_debug: false
     privileged: false
+    knowledge:
+      mode: candidate
+      candidate_path: knowledge/candidate-principles/libero-development-20260920.md
+      candidate_hash: 4c08942f44c8dd3e080f9dd07219e721d518ab554fdd2f683a63b940773655e0
+      token_budget: 600
     apis:
       - FrankaLiberoApiReducedSkillLibraryTraced
     prompt: |
