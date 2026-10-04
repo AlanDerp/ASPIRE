@@ -12,12 +12,13 @@ class TaskTools(RoboDojoTools):
         return {**super().functions(), "localize_objects": self.localize_objects,
                 "move_ee": self.move_ee, "wait_frames": self.wait_frames}
 
-    def localize_objects(self, text, camera="cam_head"):
+    def localize_objects(self, text, camera="cam_head", min_score=.5):
         """Return SAM3 detections with world points computed from public RGBD.
 
         Each result has point (XYZ median visible surface, meters), mask, box,
         score and label. Empty results mean no valid detection, never a default
-        origin. Points are visible surfaces, not hidden object centers or TCPs.
+        origin. Raw SAM3 queries below min_score are excluded; overlapping masks
+        are deduplicated (IoU > 0.7). Points are visible surfaces, not object centers or TCPs.
         The explicit USD pinhole calibration flips optical Y/Z into mount axes.
         """
         obs = self.get_observation()
@@ -25,8 +26,19 @@ class TaskTools(RoboDojoTools):
         depth = cam["images"]["depth"].squeeze(-1)
         k, t = cam["intrinsics"], cam["pose_mat"]
         optical_to_world = t @ np.diag([1., -1., -1., 1.])
+        if not 0 <= float(min_score) <= 1:
+            raise ValueError("min_score must be between zero and one")
         results = []
-        for detection in self.segment_sam3_text_prompt(cam["images"]["rgb"], text):
+        accepted_masks = []
+        candidates = sorted(self.segment_sam3_text_prompt(cam["images"]["rgb"], text),
+                            key=lambda d: float(d["score"]), reverse=True)
+        for detection in candidates:
+            if float(detection["score"]) < min_score:
+                continue
+            mask = np.asarray(detection["mask"], dtype=bool)
+            if any(np.count_nonzero(mask & old) / max(1, np.count_nonzero(mask | old)) > .7
+                   for old in accepted_masks):
+                continue
             valid = detection["mask"] & np.isfinite(depth) & (depth > 0) & (depth < 5)
             ys, xs = np.nonzero(valid)
             if len(xs) < 8:
@@ -35,6 +47,7 @@ class TaskTools(RoboDojoTools):
             xyz = np.column_stack(((xs-k[0,2])*z/k[0,0], (ys-k[1,2])*z/k[1,1], z))
             world = xyz @ optical_to_world[:3,:3].T + optical_to_world[:3,3]
             results.append({**detection, "point": np.median(world, axis=0)})
+            accepted_masks.append(mask)
         return results
 
     def move_ee(self, position, quaternion=None, arm="left", max_frames=100, tolerance=.015):

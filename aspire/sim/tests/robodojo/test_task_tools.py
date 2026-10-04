@@ -52,3 +52,13 @@ def test_motion_cannot_silently_exhaust_budget():
     with pytest.raises(RuntimeError, match="not reached"):
         tools.move_ee([1,0,1], max_frames=2)
     with pytest.raises(ValueError): tools.wait_frames(0)
+
+
+def test_raw_sam_queries_filter_low_scores_and_duplicate_masks():
+    bridge = FeedbackBridge()
+    mask = np.ones((4,4), dtype=bool)
+    tools = TaskTools(bridge, segment_fn=lambda rgb, text: [
+        {"mask":mask, "score":.1}, {"mask":mask, "score":.9}, {"mask":mask, "score":.8}])
+    result = tools.localize_objects("bowl")
+    assert len(result) == 1 and result[0]["score"] == .9
+    with pytest.raises(ValueError): tools.localize_objects("bowl", min_score=-1)

@@ -115,6 +115,7 @@ def main():
     parser.add_argument("--output", required=True)
     parser.add_argument("--offline-smoke", action="store_true")
     parser.add_argument("--self-check", action="store_true")
+    parser.add_argument("--reviewed-skill", help="Frozen development skill already reviewed by the coordinator")
     args = parser.parse_args()
     cfg = json.loads(Path(args.config).read_text())
     if args.self_check:
@@ -131,7 +132,12 @@ def main():
         assert rgb[0, 0, 0] > 200 and rgb[0, 0, 2] < 10
         assert "hidden_goal" not in obs["robot_state"]
         return "open_gripper(arm='left')"
-    provider = offline_program if args.offline_smoke else ProgramProvider(args.output)
+    if args.reviewed_skill:
+        frozen = Path(args.reviewed_skill).read_text()
+        compile(frozen, args.reviewed_skill, "exec")
+        provider = lambda obs, docs: frozen
+    else:
+        provider = offline_program if args.offline_smoke else ProgramProvider(args.output)
     model = TrialModel(cfg, program_provider=provider, tool_factory=TaskTools)
     server = PolicyServer(model, PolicyServerConfig(host="127.0.0.1", port=19081, ws_ping_timeout_s=120))
     logging.basicConfig(level=logging.INFO)

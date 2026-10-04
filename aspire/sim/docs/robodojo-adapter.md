@@ -153,3 +153,21 @@ identity-mounted pinhole sensor. Localization returns median visible surface
 points, not hidden object centers or calibrated grasp poses. The three helper
 tests validate public projection, held limbs and motion-budget failure. Actual
 camera/TCP calibration and task completion require a real development trial.
+
+For a retry of development infrastructure, `--reviewed-skill PATH` reads a
+previously inspected skill once instead of generating again. Preserve the prior
+attempt and use a new output/result directory. RoboDojo's pinned eval client may
+not forward `request_timeout_s` from deploy.yml to `WsModelClient`; verify the
+actual client config before online generation (the default120 seconds is too
+short for generation plus review). A transport-only forwarding fix must not
+change task logic, reward or completion predicates. The official client may
+retry policy exceptions without counting a result; bound attempts externally
+and do not report a successful evaluation merely from its exit code.
+
+For an explicitly limited development attempt, copy
+`scripts/robodojo/deploy_one.py` into the environment-side ASPIRE `deploy.py`.
+It exits on a policy exception instead of letting the evaluator silently retry
+additional episodes. Failed exits may have no official result JSON; retain logs
+and report the failure. Raw SAM3 server responses may contain low-confidence
+queries; `localize_objects` defaults to score >=0.5 and deduplicates masks with
+IoU >0.7 before public-depth projection. These are perception-only filters.
