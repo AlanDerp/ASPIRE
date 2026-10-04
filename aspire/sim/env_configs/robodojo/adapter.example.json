@@ -1,0 +1,8 @@
+{
+  "action_type": "ee",
+  "robot_action_dim_info": {"arm_dim": [6, 6], "ee_dim": [1, 1]},
+  "camera_aliases": {"agentview": "cam_head"},
+  "program_path": "/absolute/path/to/reviewed_robodojo_skill.py",
+  "request_timeout_s": 120,
+  "reset_timeout_s": 5
+}
