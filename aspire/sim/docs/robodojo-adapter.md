@@ -134,3 +134,22 @@ Isaac/MuJoCo, call LLMs, contact perception services or access a physical robot.
 Deployment must pin and recheck upstream versions. Transport, real camera/TCP
 calibration, held-out protocol eligibility, memory peaks and benchmark success
 rates have not been validated in this phase.
+
+## Single development attempt
+
+`scripts/robodojo/serve_dev.py` is an optional XPolicyLab WebSocket runner for
+one environment and one online code generation. It is not the frozen-policy
+benchmark entry point. Its provider uses a credential-free localhost proxy at
+8112 (`deepseek-flash`) and SAM3 at 8114. Credentials belong to the trusted proxy,
+never the generated program. A trusted coordinator must inspect the saved
+`generated_skill.py` and create `skill_reviewed.ok` within 300 seconds before
+execution. The reviewed file must match the code returned by the provider;
+editing the file does not change the captured program. Use request timeout 720
+seconds to allow generation and inspection, and preserve a fresh output folder.
+
+`cap/robodojo/task_tools.py` adds bounded feedback moves and public RGBD
+localization. Its optical Y/Z flip applies only to the explicitly configured
+identity-mounted pinhole sensor. Localization returns median visible surface
+points, not hidden object centers or calibrated grasp poses. The three helper
+tests validate public projection, held limbs and motion-budget failure. Actual
+camera/TCP calibration and task completion require a real development trial.
